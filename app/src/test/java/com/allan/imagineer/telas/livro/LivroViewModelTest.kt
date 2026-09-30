@@ -269,6 +269,52 @@ class LivroViewModelTest {
         assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
     }
 
+    @Test
+    fun `recarga que falha com o livro na tela mantem o livro e avisa`() = runTest {
+        // Ao voltar de um capítulo a tela recarrega; se o servidor sumiu nesse instante,
+        // o livro que já estava na tela continua valendo (item 7.5a, recarga que falha).
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        livros.resposta = ResultadoDaChamada.Falha("Não consegui falar com o servidor.")
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
+        assertEquals(listOf(Aviso("Não consegui atualizar o livro.")), recebidos)
+    }
+
+    @Test
+    fun `recarga que falha nao desfaz a selecao em andamento`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR, idInicial = 1)
+
+        livros.resposta = ResultadoDaChamada.Falha("Não consegui falar com o servidor.")
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(Selecao(ModoDeSelecao.ARQUIVAR, setOf(1)), vm.selecao.value)
+    }
+
+    @Test
+    fun `falha na primeira abertura continua indo para o erro, sem aviso`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Falha("Não consegui falar com o servidor."))
+        val vm = vm(livros)
+        val recebidos = coletarAvisos(vm)
+
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Erro("Não consegui falar com o servidor."), vm.estado.value)
+        assertTrue(recebidos.isEmpty())
+    }
+
     // --- arquivar e restaurar ----------------------------------------------
 
     @Test

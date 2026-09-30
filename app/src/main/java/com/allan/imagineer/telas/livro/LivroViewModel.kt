@@ -212,7 +212,8 @@ class LivroViewModel(
     /**
      * Busca o livro. A tela chama isto toda vez que fica visível (ao voltar de um
      * capítulo, `sugestoes_pendentes` pode ter mudado). Com o livro já na tela, a
-     * recarga é silenciosa; nos demais casos, mostra o indicador de carregando.
+     * recarga é silenciosa — e, se falhar, o livro fica e um aviso diz que não deu para
+     * atualizar; nos demais casos, mostra o indicador de carregando, e a falha vira Erro.
      */
     fun carregar() {
         carregamentoEmAndamento?.cancel()
@@ -232,7 +233,15 @@ class LivroViewModel(
                     podarSelecao(livro)
                     if (perfil == null) buscarNomeDoPerfil(livro)
                 }
-                is ResultadoDaChamada.Falha -> _estado.value = EstadoDoLivro.Erro(resultado.motivo)
+                is ResultadoDaChamada.Falha ->
+                    if (_estado.value is EstadoDoLivro.Pronto) {
+                        // Recarga silenciosa que falhou (item 7.5a): o livro que já está na
+                        // tela continua valendo — trocá-lo por Erro perderia a seleção em lote,
+                        // as chamadas em andamento e os diálogos, por causa de um detalhe.
+                        _avisos.trySend(Aviso("Não consegui atualizar o livro."))
+                    } else {
+                        _estado.value = EstadoDoLivro.Erro(resultado.motivo)
+                    }
             }
         }
     }
