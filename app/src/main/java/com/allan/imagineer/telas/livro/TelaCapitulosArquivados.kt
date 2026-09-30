@@ -1,6 +1,6 @@
 package com.allan.imagineer.telas.livro
 
-import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +29,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -38,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.allan.imagineer.rede.CapituloResumo
-import kotlinx.coroutines.launch
 
 /**
  * A área de capítulos arquivados de um livro (item 7.5a, revisão do incremento 6).
@@ -54,23 +52,25 @@ fun TelaCapitulosArquivados(
     viewModel: LivroViewModel,
 ) {
     val estado by viewModel.estado.collectAsState()
+    val selecao by viewModel.selecao.collectAsState()
     val avisos = remember { SnackbarHostState() }
 
-    // Quem está na tela é quem recebe os avisos de falha (só uma tela do livro fica
-    // visível por vez); o anterior é dispensado, como na tela de Livro.
-    LaunchedEffect(viewModel) {
-        viewModel.avisos.collect { texto ->
-            avisos.currentSnackbarData?.dismiss()
-            launch { avisos.showSnackbar(texto) }
-        }
-    }
+    // O botão voltar, no modo de seleção, cancela a seleção em vez de sair da tela.
+    BackHandler(enabled = selecao != null) { viewModel.cancelarSelecao() }
+
+    // Só uma tela do livro fica visível por vez: quem está na tela exibe os avisos.
+    ExibirAvisos(viewModel, avisos)
 
     ConteudoDosArquivados(
         estado = estado,
         avisos = avisos,
         aoVoltar = aoVoltar,
         aoTentarDeNovo = viewModel::carregar,
-        aoRestaurar = viewModel::restaurar,
+        selecao = selecao,
+        aoIniciarSelecao = viewModel::iniciarSelecao,
+        aoAlternarSelecao = viewModel::alternarSelecao,
+        aoCancelarSelecao = viewModel::cancelarSelecao,
+        aoConfirmarSelecao = viewModel::confirmarSelecao,
         aoAbrirCapitulo = aoAbrirCapitulo,
     )
 }
@@ -82,20 +82,41 @@ fun ConteudoDosArquivados(
     avisos: SnackbarHostState,
     aoVoltar: () -> Unit,
     aoTentarDeNovo: () -> Unit,
-    aoRestaurar: (capituloId: Int) -> Unit,
+    selecao: Selecao?,
+    aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
+    aoAlternarSelecao: (capituloId: Int) -> Unit,
+    aoCancelarSelecao: () -> Unit,
+    aoConfirmarSelecao: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
         topBar = {
-            TopAppBar(
-                title = { Text("Arquivados") },
-                navigationIcon = {
-                    IconButton(onClick = aoVoltar) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
-                },
-            )
+            if (selecao != null) {
+                BarraDeSelecao(
+                    selecao = selecao,
+                    rotuloDaAcao = "Restaurar",
+                    aoCancelar = aoCancelarSelecao,
+                    aoConfirmar = aoConfirmarSelecao,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Arquivados") },
+                    navigationIcon = {
+                        IconButton(onClick = aoVoltar) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                        }
+                    },
+                    actions = {
+                        // O botão só faz sentido se há capítulos arquivados para restaurar.
+                        if (estado is EstadoDoLivro.Pronto && estado.livro.capitulos.any { it.ignorado }) {
+                            IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }) {
+                                Icon(Icons.Filled.Unarchive, contentDescription = "Restaurar capítulos")
+                            }
+                        }
+                    },
+                )
+            }
         },
     ) { margens ->
         Box(modifier = Modifier.fillMaxSize().padding(margens)) {
@@ -136,63 +157,25 @@ fun ConteudoDosArquivados(
                                 contentPadding = PaddingValues(vertical = 8.dp),
                             ) {
                                 items(arquivados, key = { it.id }) { capitulo ->
-                                    LinhaDeArquivado(
+                                    LinhaDeCapitulo(
                                         capitulo = capitulo,
-                                        restaurando = capitulo.id in estado.ajustando,
-                                        aoRestaurar = { aoRestaurar(capitulo.id) },
-                                        aoAbrir = { aoAbrirCapitulo(capitulo.id) },
+                                        emSelecao = selecao != null,
+                                        marcado = selecao != null && capitulo.id in selecao.ids,
+                                        ajustando = capitulo.id in estado.ajustando,
+                                        // Fora do modo, tocar abre para leitura; no modo, marca ou desmarca.
+                                        aoTocar = {
+                                            if (selecao != null) aoAlternarSelecao(capitulo.id) else aoAbrirCapitulo(capitulo.id)
+                                        },
+                                        // Tocar e segurar entra no modo já com esta linha marcada.
+                                        aoSegurar = {
+                                            if (selecao == null) aoIniciarSelecao(ModoDeSelecao.RESTAURAR, capitulo.id)
+                                        },
                                     )
                                     HorizontalDivider()
                                 }
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Uma linha de capítulo arquivado. O título abre o capítulo para leitura; o botão de
- * restaurar fica numa área separada, para um toque impreciso não fazer uma coisa no
- * lugar da outra.
- */
-@Composable
-private fun LinhaDeArquivado(
-    capitulo: CapituloResumo,
-    restaurando: Boolean,
-    aoRestaurar: () -> Unit,
-    aoAbrir: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = aoAbrir)
-                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                tituloDoCapitulo(capitulo.titulo, capitulo.ordem),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                descreverTamanho(capitulo.tamanho_do_texto),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Box(modifier = Modifier.padding(end = 4.dp).size(48.dp), contentAlignment = Alignment.Center) {
-            if (restaurando) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                IconButton(onClick = aoRestaurar) {
-                    Icon(Icons.Filled.Unarchive, contentDescription = "Restaurar capítulo")
                 }
             }
         }

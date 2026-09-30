@@ -71,6 +71,57 @@ sealed interface EstadoDaEscolhaDePerfil {
 }
 
 /**
+ * Um aviso temporário no rodapé (Snackbar). É um **evento com dados**, e não só uma
+ * frase: quem o exibe sabe, sem consultar a lista, quais capítulos restaurar se o
+ * usuário tocar em "Desfazer".
+ *
+ * @property desfazerCapitulos os ids que o "Desfazer" restaura — **exatamente** os do
+ * lote que gerou o aviso —; vazia se o aviso não tem ação (uma falha, por exemplo).
+ */
+data class Aviso(
+    val texto: String,
+    val desfazerCapitulos: List<Int> = emptyList(),
+)
+
+/** O que a seleção em lote faz com os capítulos marcados (item 7.5a, segunda revisão do incremento 6). */
+enum class ModoDeSelecao {
+    /** Na lista principal: os capítulos ativos marcados serão arquivados. */
+    ARQUIVAR,
+
+    /** Na área de arquivados: os capítulos arquivados marcados serão restaurados. */
+    RESTAURAR,
+}
+
+/**
+ * A seleção em andamento. `null` no ViewModel = fora do modo de seleção.
+ *
+ * @property ids os capítulos marcados.
+ * @property executando o lote está no ar: nada mais pode ser marcado nem cancelado.
+ */
+data class Selecao(
+    val modo: ModoDeSelecao,
+    val ids: Set<Int> = emptySet(),
+    val executando: Boolean = false,
+)
+
+/** O que um lote conseguiu fazer. */
+private data class ResultadoDoLote(
+    /** Os capítulos que o servidor confirmou, na ordem em que foram processados. */
+    val concluidos: List<CapituloResumo>,
+    /** Os que ficaram sem processar (o que falhou e os que vinham depois dele). */
+    val restantes: List<Int>,
+    /** O motivo da falha que interrompeu o lote, ou `null` se tudo deu certo. */
+    val motivo: String?,
+    /** Quantos capítulos o lote tentou (os que já estavam no estado pedido não contam). */
+    val total: Int,
+    /**
+     * Os nomes para exibir, tirados da **lista** (e não da resposta do servidor): uma
+     * frase da tela não deve depender do formato de uma resposta de rede.
+     */
+    val nomes: Map<Int, String> = emptyMap(),
+)
+
+/**
  * Devolve o livro com um capítulo trocado pela versão nova do servidor, e a
  * contagem de ignorados **recalculada a partir da própria lista** — assim o
  * cabeçalho nunca discorda das linhas. Função pura, para testar sem ViewModel.
@@ -116,17 +167,18 @@ class LivroViewModel(
     private val _escolhaDePerfil = MutableStateFlow<EstadoDaEscolhaDePerfil>(EstadoDaEscolhaDePerfil.Nenhuma)
     val escolhaDePerfil: StateFlow<EstadoDaEscolhaDePerfil> = _escolhaDePerfil.asStateFlow()
 
-    private val _avisos = Channel<String>(Channel.BUFFERED)
+    private val _avisos = Channel<Aviso>(Channel.BUFFERED)
 
     /**
-     * Mensagens de uso único (falha ao alternar), mostradas num Snackbar.
+     * Avisos de uso único — falha ao arquivar/restaurar, ou "Arquivado: ..." com
+     * a ação Desfazer —, mostrados num Snackbar.
      *
      * É um **evento**, e não um estado, de propósito: com o servidor fora do ar toda
      * falha tem a mesma mensagem, e um `StateFlow` não emite quando o valor novo é
      * igual ao atual — os toques seguintes ao primeiro ficariam sem nenhum retorno.
      * Um canal entrega cada falha, mesmo repetida.
      */
-    val avisos: Flow<String> = _avisos.receiveAsFlow()
+    val avisos: Flow<Aviso> = _avisos.receiveAsFlow()
 
     private val _livroRemovido = Channel<Unit>(Channel.BUFFERED)
 
@@ -138,6 +190,11 @@ class LivroViewModel(
         _livroRemovido.trySend(Unit)
     }
     val remocao: StateFlow<EstadoDaRemocao> = controleDeRemocao.estado
+
+    private val _selecao = MutableStateFlow<Selecao?>(null)
+
+    /** A seleção em lote em andamento; `null` fora do modo de seleção. */
+    val selecao: StateFlow<Selecao?> = _selecao.asStateFlow()
 
     private var carregamentoEmAndamento: Job? = null
 
@@ -172,6 +229,7 @@ class LivroViewModel(
                     // O perfil já conhecido serve se ainda é o mesmo; senão, busca de novo.
                     val perfil = anterior?.perfil?.takeIf { it.id == livro.perfil_renderizacao_padrao_id }
                     _estado.value = EstadoDoLivro.Pronto(livro, anterior?.ajustando.orEmpty(), perfil)
+                    podarSelecao(livro)
                     if (perfil == null) buscarNomeDoPerfil(livro)
                 }
                 is ResultadoDaChamada.Falha -> _estado.value = EstadoDoLivro.Erro(resultado.motivo)
@@ -193,46 +251,197 @@ class LivroViewModel(
     }
 
     // ------------------------------------------------------------------ //
-    // Arquivar e restaurar capítulos
+    // Arquivar e restaurar capítulos — um a um ou em lote por seleção
     // ------------------------------------------------------------------ //
 
     /**
-     * Arquiva o capítulo: ele sai da lista principal e vai para a área de arquivados
-     * (na API, `ignorado = true`). Ver a "Revisão do incremento 6" na especificação.
+     * Arquiva um capítulo: ele sai da lista principal e vai para a área de arquivados
+     * (na API, `ignorado = true`). É um lote de um só.
      */
-    fun arquivar(capituloId: Int) = definirArquivado(capituloId, arquivado = true)
+    fun arquivar(capituloId: Int) {
+        viewModelScope.launch { executarLote(listOf(capituloId), arquivar = true) }
+    }
 
     /** Restaura um capítulo arquivado: volta para a lista principal (`ignorado = false`). */
-    fun restaurar(capituloId: Int) = definirArquivado(capituloId, arquivado = false)
+    fun restaurar(capituloId: Int) {
+        viewModelScope.launch { executarLote(listOf(capituloId), arquivar = false) }
+    }
 
     /**
-     * **Não é otimista**: o capítulo só troca de lista quando o servidor confirma, e
-     * enquanto isso o controle daquela linha é trocado por um indicador de progresso
-     * (evita o duplo toque e um estado que pisca e depois volta atrás).
+     * O "Desfazer" do aviso de arquivamento: restaura exatamente os capítulos daquele
+     * lote. Segue o mesmo caminho de restaurar — e, como restaurar não avisa quando dá
+     * certo, não gera outro aviso (senão restaurar ofereceria desfazer, e assim por diante).
      */
-    private fun definirArquivado(capituloId: Int, arquivado: Boolean) {
-        val atual = _estado.value as? EstadoDoLivro.Pronto ?: return
-        val capitulo = atual.livro.capitulos.firstOrNull { it.id == capituloId } ?: return
-        if (capitulo.ignorado == arquivado) return // já está como se pede
-        if (capituloId in atual.ajustando) return
+    fun desfazerArquivamento(capitulosIds: List<Int>) {
+        viewModelScope.launch { executarLote(capitulosIds, arquivar = false) }
+    }
 
-        _estado.value = atual.copy(ajustando = atual.ajustando + capituloId)
+    // --- modo de seleção ---
+
+    /**
+     * Entra no modo de seleção: pelo botão do topo (sem [idInicial]) ou pelo toque
+     * longo numa linha (que já a marca). Só vale se há capítulos elegíveis nessa tela,
+     * e o [idInicial], quando dado, tem de ser um deles.
+     */
+    fun iniciarSelecao(modo: ModoDeSelecao, idInicial: Int? = null) {
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        if (_selecao.value != null) return
+        val elegiveis = elegiveisPara(modo, pronto.livro)
+        if (elegiveis.isEmpty()) return
+        if (idInicial != null && idInicial !in elegiveis) return
+        _selecao.value = Selecao(modo, setOfNotNull(idInicial))
+    }
+
+    /**
+     * Marca ou desmarca um capítulo. Só se marca o que o modo permite (ativos ao
+     * arquivar, arquivados ao restaurar), e nunca um capítulo cuja chamada está em
+     * andamento. Desmarcar o último **não** sai do modo — sai-se por cancelar ou confirmar.
+     */
+    fun alternarSelecao(capituloId: Int) {
+        val selecao = _selecao.value ?: return
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        if (selecao.executando) return
+        if (capituloId !in elegiveisPara(selecao.modo, pronto.livro)) return
+        if (capituloId in pronto.ajustando) return
+
+        val novos = if (capituloId in selecao.ids) selecao.ids - capituloId else selecao.ids + capituloId
+        _selecao.value = selecao.copy(ids = novos)
+    }
+
+    /** Cancelar, ou o botão voltar do aparelho: sai do modo sem fazer nada. */
+    fun cancelarSelecao() {
+        if (_selecao.value?.executando == true) return
+        _selecao.value = null
+    }
+
+    /**
+     * O botão "Arquivar (N)" / "Restaurar (N)": **é a confirmação**, sem diálogo extra.
+     * Não faz nada com zero marcados.
+     *
+     * Roda o lote (uma chamada por capítulo, em sequência). Se tudo dá certo, sai do
+     * modo; se algo falha, os capítulos que sobraram **continuam marcados**, para tentar
+     * de novo com o mesmo botão.
+     */
+    fun confirmarSelecao() {
+        val selecao = _selecao.value ?: return
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        if (selecao.executando || selecao.ids.isEmpty()) return
+
+        // Na ordem da lista (a do livro), e não na ordem em que o usuário marcou.
+        val ids = pronto.livro.capitulos.filter { it.id in selecao.ids }.map { it.id }
+        _selecao.value = selecao.copy(executando = true)
         viewModelScope.launch {
-            val ajuste = CapituloAjuste(ignorado = arquivado)
-            when (val resultado = capitulos.ajustarCapitulo(capituloId, ajuste)) {
+            val resultado = executarLote(ids, arquivar = selecao.modo == ModoDeSelecao.ARQUIVAR)
+            _selecao.value = if (resultado.motivo == null) {
+                null
+            } else {
+                Selecao(selecao.modo, resultado.restantes.toSet())
+            }
+        }
+    }
+
+    // --- o lote em si ---
+
+    /**
+     * O coração das regras de lote (item 7.5a, segunda revisão do incremento 6):
+     *
+     * - **Uma chamada por capítulo, em sequência**: não existe rota em lote.
+     * - **Não é otimista**: cada capítulo só troca de lista quando o servidor confirma
+     *   o dele; os demais mostram progresso enquanto esperam a vez.
+     * - **Para no primeiro erro.** Com o servidor fora do ar, tentar os N capítulos
+     *   levaria N *timeouts* de 10 s para dar o mesmo erro N vezes. O que já deu certo
+     *   fica; o resto continua marcado.
+     * - Capítulo que já está no estado pedido, ou que já tem uma chamada em andamento,
+     *   é ignorado — não gasta chamada.
+     *
+     * Depois, avisa: ver [avisoDoLote].
+     */
+    private suspend fun executarLote(ids: List<Int>, arquivar: Boolean): ResultadoDoLote {
+        val pronto = _estado.value as? EstadoDoLivro.Pronto
+            ?: return ResultadoDoLote(emptyList(), emptyList(), null, 0)
+        val alvos = ids.filter { id ->
+            val capitulo = pronto.livro.capitulos.firstOrNull { it.id == id }
+            capitulo != null && capitulo.ignorado != arquivar && id !in pronto.ajustando
+        }
+        if (alvos.isEmpty()) return ResultadoDoLote(emptyList(), emptyList(), null, 0)
+
+        atualizarSePronto { it.copy(ajustando = it.ajustando + alvos) }
+
+        val concluidos = mutableListOf<CapituloResumo>()
+        var restantes = emptyList<Int>()
+        var motivo: String? = null
+
+        for ((indice, id) in alvos.withIndex()) {
+            when (val resultado = capitulos.ajustarCapitulo(id, CapituloAjuste(ignorado = arquivar))) {
                 is ResultadoDaChamada.Sucesso -> {
                     alteracoesConfirmadas++
+                    concluidos += resultado.dado
                     atualizarSePronto {
                         it.copy(
                             livro = it.livro.comCapituloAtualizado(resultado.dado),
-                            ajustando = it.ajustando - capituloId,
+                            ajustando = it.ajustando - id,
                         )
                     }
                 }
                 is ResultadoDaChamada.Falha -> {
-                    atualizarSePronto { it.copy(ajustando = it.ajustando - capituloId) }
-                    _avisos.trySend(resultado.motivo)
+                    motivo = resultado.motivo
+                    restantes = alvos.drop(indice)
+                    break
                 }
+            }
+        }
+        // O que não chegou a ser tentado deixa de estar "em andamento".
+        if (restantes.isNotEmpty()) atualizarSePronto { it.copy(ajustando = it.ajustando - restantes.toSet()) }
+
+        val nomes = pronto.livro.capitulos.associate { it.id to tituloDoCapitulo(it.titulo, it.ordem) }
+        val resultado = ResultadoDoLote(concluidos, restantes, motivo, alvos.size, nomes)
+        avisoDoLote(arquivar, resultado)?.let { _avisos.trySend(it) }
+        return resultado
+    }
+
+    /**
+     * O aviso que um lote gera — ou `null` se não há o que dizer.
+     *
+     * - **Arquivar, tudo certo:** "Arquivado: `<nome>`" (um) ou "N capítulos arquivados"
+     *   (vários), com Desfazer para **exatamente** os do lote.
+     * - **Arquivar, falhou no meio:** "K de N arquivados. `<motivo>`", com Desfazer para
+     *   os K que deram certo. Se nenhum deu certo, só o motivo.
+     * - **Restaurar:** só falhas geram aviso. Os capítulos somem da área de arquivados,
+     *   que é retorno suficiente.
+     */
+    private fun avisoDoLote(arquivar: Boolean, r: ResultadoDoLote): Aviso? {
+        val idsConcluidos = r.concluidos.map { it.id }
+        return when {
+            r.motivo != null && r.concluidos.isEmpty() -> Aviso(r.motivo)
+            r.motivo != null -> Aviso(
+                "${r.concluidos.size} de ${r.total} ${if (arquivar) "arquivados" else "restaurados"}. ${r.motivo}",
+                desfazerCapitulos = if (arquivar) idsConcluidos else emptyList(),
+            )
+            !arquivar || r.concluidos.isEmpty() -> null
+            r.concluidos.size == 1 -> {
+                val unico = r.concluidos.single()
+                Aviso("Arquivado: ${r.nomes[unico.id]}", desfazerCapitulos = idsConcluidos)
+            }
+            else -> Aviso("${r.concluidos.size} capítulos arquivados", desfazerCapitulos = idsConcluidos)
+        }
+    }
+
+    /** Os capítulos que o modo permite marcar: ativos ao arquivar, arquivados ao restaurar. */
+    private fun elegiveisPara(modo: ModoDeSelecao, livro: LivroDetalhe): Set<Int> =
+        livro.capitulos
+            .filter { if (modo == ModoDeSelecao.ARQUIVAR) !it.ignorado else it.ignorado }
+            .map { it.id }
+            .toSet()
+
+    /**
+     * Quando a lista recarrega, desmarca o que deixou de existir ou de ser elegível
+     * (arquivado por outro caminho, removido) — em vez de gerar uma chamada que falharia.
+     */
+    private fun podarSelecao(livro: LivroDetalhe) {
+        _selecao.update { selecao ->
+            when {
+                selecao == null || selecao.executando -> selecao
+                else -> selecao.copy(ids = selecao.ids.intersect(elegiveisPara(selecao.modo, livro)))
             }
         }
     }

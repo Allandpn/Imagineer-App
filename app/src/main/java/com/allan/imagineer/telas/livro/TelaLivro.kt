@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +29,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -86,6 +89,39 @@ fun livroViewModel(livroId: Int, dono: ViewModelStoreOwner? = null): LivroViewMo
 }
 
 /**
+ * Mostra os avisos do [LivroViewModel] no Snackbar. Usado pela tela de Livro e pela de
+ * Arquivados (que compartilham o ViewModel): quem está na tela é quem exibe.
+ *
+ * - Cada aviso novo **dispensa o anterior**: o Snackbar enfileira, e vários toques
+ *   seguidos empilhariam avisos de vários segundos cada. Por isso só o último
+ *   arquivamento fica desfazível pelo aviso.
+ * - Com ação, a duração é **`Long` (10 s)**: o padrão do Material 3 para um aviso com
+ *   ação é indefinido, e um "Desfazer" que fica na tela até alguém tocar é o oposto do
+ *   que se quer.
+ * - "Desfazer" restaura **exatamente** os capítulos do lote que gerou o aviso.
+ */
+@Composable
+fun ExibirAvisos(viewModel: LivroViewModel, avisos: SnackbarHostState) {
+    LaunchedEffect(viewModel) {
+        viewModel.avisos.collect { aviso ->
+            avisos.currentSnackbarData?.dismiss()
+            launch {
+                val comAcao = aviso.desfazerCapitulos.isNotEmpty()
+                val resultado = avisos.showSnackbar(
+                    message = aviso.texto,
+                    actionLabel = if (comAcao) "Desfazer" else null,
+                    duration = if (comAcao) SnackbarDuration.Long else SnackbarDuration.Short,
+                )
+                if (resultado == SnackbarResult.ActionPerformed && comAcao) {
+                    // Restaura exatamente os capítulos daquele lote.
+                    viewModel.desfazerArquivamento(aviso.desfazerCapitulos)
+                }
+            }
+        }
+    }
+}
+
+/**
  * A tela de Livro (item 7.4): metadados, lista dos capítulos **ativos** e o acesso à
  * área de arquivados.
  *
@@ -106,20 +142,18 @@ fun TelaLivro(
     val edicao by viewModel.edicao.collectAsState()
     val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
     val remocao by viewModel.remocao.collectAsState()
+    val selecao by viewModel.selecao.collectAsState()
     val avisos = remember { SnackbarHostState() }
+
+    // O botão voltar do aparelho, no modo de seleção, cancela a seleção em vez de sair
+    // da tela.
+    BackHandler(enabled = selecao != null) { viewModel.cancelarSelecao() }
 
     // Recarrega toda vez que a tela volta a ficar visível: ao voltar de um capítulo,
     // as sugestões pendentes podem ter mudado. Cobre também a primeira abertura.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
 
-    // Cada falha vira um aviso novo. O anterior é dispensado antes: o Snackbar
-    // enfileira, e vários toques seguidos empilhariam avisos de 4 segundos cada.
-    LaunchedEffect(viewModel) {
-        viewModel.avisos.collect { texto ->
-            avisos.currentSnackbarData?.dismiss()
-            launch { avisos.showSnackbar(texto) }
-        }
-    }
+    ExibirAvisos(viewModel, avisos)
 
     // O livro foi apagado: a tela não tem mais o que mostrar, volta para a Biblioteca.
     LaunchedEffect(viewModel) {
@@ -131,7 +165,11 @@ fun TelaLivro(
         avisos = avisos,
         aoVoltar = aoVoltar,
         aoTentarDeNovo = viewModel::carregar,
-        aoArquivar = viewModel::arquivar,
+        selecao = selecao,
+        aoIniciarSelecao = viewModel::iniciarSelecao,
+        aoAlternarSelecao = viewModel::alternarSelecao,
+        aoCancelarSelecao = viewModel::cancelarSelecao,
+        aoConfirmarSelecao = viewModel::confirmarSelecao,
         aoAbrirArquivados = aoAbrirArquivados,
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
@@ -166,7 +204,11 @@ fun ConteudoDoLivro(
     avisos: SnackbarHostState,
     aoVoltar: () -> Unit,
     aoTentarDeNovo: () -> Unit,
-    aoArquivar: (capituloId: Int) -> Unit,
+    selecao: Selecao?,
+    aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
+    aoAlternarSelecao: (capituloId: Int) -> Unit,
+    aoCancelarSelecao: () -> Unit,
+    aoConfirmarSelecao: () -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
@@ -178,22 +220,38 @@ fun ConteudoDoLivro(
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
         topBar = {
-            TopAppBar(
-                title = { Text("Livro") },
-                navigationIcon = {
-                    IconButton(onClick = aoVoltar) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
-                },
-                actions = {
-                    // Só com o livro na tela: os atalhos não fazem sentido em erro.
-                    if (estado is EstadoDoLivro.Pronto) {
-                        TextButton(onClick = aoAbrirElementos) { Text("Elementos") }
-                        TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
-                        MenuDoLivro(aoEditar, aoEscolherPerfilPadrao, aoApagar)
-                    }
-                },
-            )
+            if (selecao != null) {
+                // Modo de seleção: enquanto seleciona, as outras ações ficam indisponíveis.
+                BarraDeSelecao(
+                    selecao = selecao,
+                    rotuloDaAcao = "Arquivar",
+                    aoCancelar = aoCancelarSelecao,
+                    aoConfirmar = aoConfirmarSelecao,
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("Livro") },
+                    navigationIcon = {
+                        IconButton(onClick = aoVoltar) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                        }
+                    },
+                    actions = {
+                        // Só com o livro na tela: os atalhos não fazem sentido em erro.
+                        if (estado is EstadoDoLivro.Pronto) {
+                            // O botão só faz sentido se há capítulos ativos para arquivar.
+                            if (estado.livro.capitulos.any { !it.ignorado }) {
+                                IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) }) {
+                                    Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
+                                }
+                            }
+                            TextButton(onClick = aoAbrirElementos) { Text("Elementos") }
+                            TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
+                            MenuDoLivro(aoEditar, aoEscolherPerfilPadrao, aoApagar)
+                        }
+                    },
+                )
+            }
         },
     ) { margens ->
         Box(modifier = Modifier.fillMaxSize().padding(margens)) {
@@ -220,7 +278,9 @@ fun ConteudoDoLivro(
 
                 is EstadoDoLivro.Pronto -> ListaDoLivro(
                     estado = estado,
-                    aoArquivar = aoArquivar,
+                    selecao = selecao,
+                    aoIniciarSelecao = aoIniciarSelecao,
+                    aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirArquivados = aoAbrirArquivados,
                     aoAbrirCapitulo = aoAbrirCapitulo,
                 )
@@ -232,7 +292,9 @@ fun ConteudoDoLivro(
 @Composable
 private fun ListaDoLivro(
     estado: EstadoDoLivro.Pronto,
-    aoArquivar: (Int) -> Unit,
+    selecao: Selecao?,
+    aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
+    aoAlternarSelecao: (Int) -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
 ) {
@@ -251,7 +313,8 @@ private fun ListaDoLivro(
             // Como nas conversas arquivadas do WhatsApp: só aparece quando há algo arquivado.
             if (arquivados > 0) {
                 item {
-                    LinhaDeArquivados(arquivados, aoAbrirArquivados)
+                    // Enquanto seleciona, o acesso à área de arquivados fica indisponível.
+                    LinhaDeArquivados(arquivados, habilitada = selecao == null, aoAbrir = aoAbrirArquivados)
                     HorizontalDivider()
                 }
             }
@@ -270,9 +333,17 @@ private fun ListaDoLivro(
             items(ativos, key = { it.id }) { capitulo ->
                 LinhaDeCapitulo(
                     capitulo = capitulo,
+                    emSelecao = selecao != null,
+                    marcado = selecao != null && capitulo.id in selecao.ids,
                     ajustando = capitulo.id in estado.ajustando,
-                    aoArquivar = { aoArquivar(capitulo.id) },
-                    aoAbrir = { aoAbrirCapitulo(capitulo.id) },
+                    // Fora do modo, tocar abre; no modo, tocar marca ou desmarca.
+                    aoTocar = {
+                        if (selecao != null) aoAlternarSelecao(capitulo.id) else aoAbrirCapitulo(capitulo.id)
+                    },
+                    // Tocar e segurar entra no modo já com esta linha marcada.
+                    aoSegurar = {
+                        if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
+                    },
                 )
                 HorizontalDivider()
             }
@@ -282,11 +353,11 @@ private fun ListaDoLivro(
 
 /** A linha "Arquivados (N)" no topo da lista — abre a área de arquivados. */
 @Composable
-private fun LinhaDeArquivados(quantidade: Int, aoAbrir: () -> Unit) {
+private fun LinhaDeArquivados(quantidade: Int, habilitada: Boolean, aoAbrir: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = aoAbrir)
+            .clickable(enabled = habilitada, onClick = aoAbrir)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -331,61 +402,6 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe, perfil: PerfilRenderizacao?) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
-        }
-    }
-}
-
-/**
- * Uma linha de capítulo **ativo**.
- *
- * **Só o bloco do título e do tamanho abre o capítulo**; o botão de arquivar, à direita,
- * tem a área dele — um toque impreciso no título não arquiva, e um no botão não abre o
- * capítulo (problema que a versão com a linha toda clicável tinha, achado no tablet).
- *
- * Arquivar é **um toque** e reversível (área de arquivados → Restaurar), então não pede
- * confirmação.
- */
-@Composable
-private fun LinhaDeCapitulo(
-    capitulo: CapituloResumo,
-    ajustando: Boolean,
-    aoArquivar: () -> Unit,
-    aoAbrir: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = aoAbrir)
-                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                tituloDoCapitulo(capitulo.titulo, capitulo.ordem),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                listOfNotNull(
-                    descreverTamanho(capitulo.tamanho_do_texto),
-                    descreverSugestoes(capitulo.sugestoes_pendentes),
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Box(modifier = Modifier.padding(end = 4.dp).size(48.dp), contentAlignment = Alignment.Center) {
-            if (ajustando) {
-                // Esperando o servidor: mesmo tamanho do botão, para a linha não "pular".
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            } else {
-                IconButton(onClick = aoArquivar) {
-                    Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulo")
-                }
-            }
         }
     }
 }

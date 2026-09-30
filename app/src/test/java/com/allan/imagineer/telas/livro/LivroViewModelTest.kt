@@ -213,8 +213,8 @@ class LivroViewModelTest {
     private val doisCapitulos = livro(capitulo(1), capitulo(2))
 
     /** Junta os avisos que o ViewModel emitir, numa lista, para o teste conferir. */
-    private fun TestScope.coletarAvisos(vm: LivroViewModel): List<String> {
-        val recebidos = mutableListOf<String>()
+    private fun TestScope.coletarAvisos(vm: LivroViewModel): List<Aviso> {
+        val recebidos = mutableListOf<Aviso>()
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.avisos.toList(recebidos) }
         return recebidos
     }
@@ -364,7 +364,7 @@ class LivroViewModelTest {
         val pronto = vm.estado.value as EstadoDoLivro.Pronto
         assertEquals(false, pronto.livro.capitulos[1].ignorado) // ficou onde estava
         assertTrue(pronto.ajustando.isEmpty())
-        assertEquals(listOf("Não consegui falar com o servidor."), recebidos)
+        assertEquals(listOf(Aviso("Não consegui falar com o servidor.")), recebidos)
     }
 
     @Test
@@ -388,18 +388,15 @@ class LivroViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            listOf(
-                "Não consegui falar com o servidor.",
-                "Não consegui falar com o servidor.",
-                "Não consegui falar com o servidor.",
-            ),
+            List(3) { Aviso("Não consegui falar com o servidor.") },
             recebidos,
         )
     }
 
     @Test
-    fun `sem falha nao ha aviso`() = runTest {
-        val vm = vm()
+    fun `arquivar com sucesso avisa qual capitulo foi, com Desfazer`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, titulo = "Bran"), capitulo(2))))
+        val vm = vm(livros)
         val recebidos = coletarAvisos(vm)
         vm.carregar()
         advanceUntilIdle()
@@ -407,7 +404,74 @@ class LivroViewModelTest {
         vm.arquivar(1)
         advanceUntilIdle()
 
+        assertEquals(listOf(Aviso("Arquivado: Bran", desfazerCapitulos = listOf(1))), recebidos)
+    }
+
+    @Test
+    fun `o aviso de arquivado usa Capitulo N quando nao ha titulo`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, titulo = null), capitulo(2))))
+        val vm = vm(livros)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.arquivar(1)
+        advanceUntilIdle()
+
+        assertEquals("Arquivado: Capítulo 1", recebidos.single().texto)
+    }
+
+    @Test
+    fun `restaurar com sucesso nao avisa nada`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, ignorado = true), capitulo(2))))
+        val vm = vm(livros)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.restaurar(1)
+        advanceUntilIdle()
+
         assertTrue(recebidos.isEmpty())
+    }
+
+    @Test
+    fun `falha ao arquivar avisa o erro, sem Desfazer`() = runTest {
+        val capitulos = CapitulosFalso().apply {
+            resposta = { _, _ -> ResultadoDaChamada.Falha("Não consegui falar com o servidor.") }
+        }
+        val vm = vm(capitulos = capitulos)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.arquivar(1)
+        advanceUntilIdle()
+
+        assertEquals(listOf(Aviso("Não consegui falar com o servidor.")), recebidos)
+    }
+
+    @Test
+    fun `desfazer e restaurar o capitulo do aviso, pela mesma rota`() = runTest {
+        // A tela chama restaurar(aviso.desfazerCapitulo) ao tocar em Desfazer.
+        val capitulos = CapitulosFalso()
+        val vm = vm(capitulos = capitulos)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+        vm.arquivar(2)
+        advanceUntilIdle()
+
+        vm.desfazerArquivamento(recebidos.single().desfazerCapitulos)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(2 to CapituloAjuste(ignorado = true), 2 to CapituloAjuste(ignorado = false)),
+            capitulos.ajustes,
+        )
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        assertEquals(false, pronto.livro.capitulos[1].ignorado)
+        assertEquals(0, pronto.livro.capitulos_ignorados)
     }
 
     @Test
