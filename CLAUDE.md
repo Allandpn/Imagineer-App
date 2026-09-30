@@ -9,11 +9,24 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - A especificação vive no repositório da API: `Allandpn/Imagineer`, arquivo `ESPECIFICACAO.md`.
   A Etapa 7 descreve as telas, a Etapa 6 descreve as rotas e o item 7.0 fixa a arquitetura do app.
 - O código cita itens dela ("item 7.3a", "incremento 6"). Consulte-a antes de decidir algo de tela ou rota.
-- Este repositório NÃO altera a API nem a especificação. Se uma mudança exigir isso, avise e proponha o texto.
+- **Há uma só cópia editável da especificação: a do repositório da API.** O app não guarda cópia própria.
+  Isso impede que as duas versões divirjam.
+
+### Como ler e escrever a especificação
+- **Ao começar uma sessão** que mexa em telas, rotas ou no contrato com a API, leia a especificação atualizada:
+  clone raso e só de leitura do repositório da API, numa pasta fora deste projeto. Sem acesso, avise o Allan.
+- **Quando o app precisar de uma mudança na especificação ou na API, escreva-a lá**, por pull request:
+  - branch curta criada a partir da `main` **atualizada** do repositório da API, nunca push direto na `main`;
+  - um assunto por PR, editando só a seção do assunto (rotas na Etapa 6, telas na Etapa 7; pendências novas no fim da lista da Etapa 8);
+  - marcar o que está "especificado" e o que está "implementado", e na descrição do PR dizer o que muda para o app;
+  - quem decide e mescla é o Allan.
+- **Só documentação.** Uma sessão do app não altera o código da API: mudança de rota ou de campo vira pendência
+  escrita na especificação, para ser feita do lado da API.
+- Sem permissão de escrita no repositório da API nesta sessão, proponha o texto ao Allan em vez de contornar.
 
 ## Fluxo de trabalho (mesmo do backend)
 1. Especificar o que vai ser feito e por quê.
-2. Registrar na especificação (Allan atualiza no repositório da API).
+2. Registrar na especificação (no repositório da API, por PR, como acima).
 3. Implementar só depois disso.
 4. Testar: nenhum item está concluído sem teste.
 - Incrementos pequenos e revisáveis, um por item da especificação. Não avançar com testes quebrados.
