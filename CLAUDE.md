@@ -29,7 +29,9 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - Injeção de dependência MANUAL em `ImagineerApp` (sem Hilt).
 - Rede em `rede/`: Retrofit + OkHttp + kotlinx-serialization. Repositório = interface + `…PeloRetrofit`.
   Falhas passam por `chamarApi` → `ResultadoDaChamada`; o ViewModel nunca vê exceção de rede.
-- Persistência: DataStore (Preferences) em `dados/`. Sem Room e sem cache de livros (o servidor é a fonte).
+- Persistência hoje: DataStore (Preferences) em `dados/`, sem Room e sem cache de livros (o servidor é a fonte).
+  **Decidido, ainda não implementado (item 7.0a da especificação): Room para o índice + arquivos para texto e
+  imagens, offline só de leitura.** Até a implementação chegar, não adicionar Room nem cache por conta própria.
 - Navegação: Navigation Compose 2.9 com rotas `@Serializable`. Não migrar para Navigation 3.
 - Módulo único `:app`. Sem login: a proteção é a rede (Tailscale). O HTTP em texto puro é deliberado;
   reavaliar só se o app for distribuído a outras pessoas.
