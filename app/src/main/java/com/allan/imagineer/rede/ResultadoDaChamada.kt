@@ -38,8 +38,14 @@ suspend fun <T> chamarApi(chamada: suspend () -> T): ResultadoDaChamada<T> {
     return try {
         ResultadoDaChamada.Sucesso(chamada())
     } catch (erro: HttpException) {
+        // O Retrofit já deixa o corpo do erro em memória, então ler aqui não trava a tela.
+        val corpo = try {
+            erro.response()?.errorBody()?.string()
+        } catch (leitura: IOException) {
+            null
+        }
         ResultadoDaChamada.Falha(
-            motivo = "O servidor respondeu com erro ${erro.code()}.",
+            motivo = extrairDetalhe(corpo) ?: "O servidor respondeu com erro ${erro.code()}.",
             codigoHttp = erro.code(),
         )
     } catch (erro: SerializationException) {

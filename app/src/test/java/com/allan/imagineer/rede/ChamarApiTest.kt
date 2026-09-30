@@ -43,6 +43,31 @@ class ChamarApiTest {
     }
 
     @Test
+    fun `erro HTTP com detail da API mostra a mensagem da API`() = runTest {
+        val corpo = """{"detail":"Não existe livro com id 999."}""".toResponseBody()
+        val resposta = Response.error<Int>(404, corpo)
+
+        val resultado = chamarApi<Int> { throw HttpException(resposta) }
+
+        assertEquals(
+            ResultadoDaChamada.Falha("Não existe livro com id 999.", codigoHttp = 404),
+            resultado,
+        )
+    }
+
+    @Test
+    fun `erro HTTP com corpo que nao e JSON cai na mensagem generica`() = runTest {
+        val resposta = Response.error<Int>(500, "Internal Server Error".toResponseBody())
+
+        val resultado = chamarApi<Int> { throw HttpException(resposta) }
+
+        assertEquals(
+            ResultadoDaChamada.Falha("O servidor respondeu com erro 500.", codigoHttp = 500),
+            resultado,
+        )
+    }
+
+    @Test
     fun `resposta que nao e do Imagineer e distinguida da falta de conexao`() = runTest {
         val resultado = chamarApi<Int> { throw SerializationException("nao e JSON") }
 

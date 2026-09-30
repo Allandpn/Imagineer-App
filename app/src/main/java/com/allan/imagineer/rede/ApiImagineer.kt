@@ -6,8 +6,14 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import okhttp3.MultipartBody
+import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
+import retrofit2.http.PATCH
+import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
@@ -32,6 +38,22 @@ interface ApiImagineer {
     /** `GET /livros` — a biblioteca, em ordem alfabética de título (item 6.2). */
     @GET("livros")
     suspend fun livros(): List<LivroResumo>
+
+    /** `GET /livros/{id}` — o livro com a lista de capítulos, sem o texto. */
+    @GET("livros/{id}")
+    suspend fun livro(@Path("id") livroId: Int): LivroDetalhe
+
+    /**
+     * `POST /livros` — importa um EPUB (`multipart/form-data`, campo `arquivo`).
+     * Síncrono no servidor (item 6.2): a resposta já traz o livro estruturado.
+     */
+    @Multipart
+    @POST("livros")
+    suspend fun importarLivro(@Part arquivo: MultipartBody.Part): RespostaImportacao
+
+    /** `PATCH /livros/{id}` — corrige metadados; devolve o livro completo. */
+    @PATCH("livros/{id}")
+    suspend fun ajustarLivro(@Path("id") livroId: Int, @Body ajuste: LivroAjuste): LivroDetalhe
 
     /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
     @DELETE("livros/{id}")
@@ -70,6 +92,8 @@ fun criarApi(urlBase: String): ApiImagineer {
     val cliente = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
+        // O padrão (10 s por escrita) é curto para subir um EPUB numa conexão lenta.
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     return Retrofit.Builder()

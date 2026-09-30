@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,11 +16,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +54,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.telas.importacao.DialogosDeImportacao
+import com.allan.imagineer.telas.importacao.ImportacaoViewModel
 
 /**
  * A Biblioteca (item 7.2): a tela inicial, com a lista de livros importados.
@@ -71,6 +78,36 @@ fun TelaBiblioteca(
     val estado by viewModel.estado.collectAsState()
     val remocao by viewModel.remocao.collectAsState()
 
+    val importacao: ImportacaoViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer { ImportacaoViewModel(aplicacao.repositorioDeLivros, aplicacao.leitorDeArquivos) }
+        },
+    )
+    val estadoDaImportacao by importacao.estado.collectAsState()
+    val livroParaAbrir by importacao.irParaLivro.collectAsState()
+    val versaoDaBiblioteca by importacao.versaoDaBiblioteca.collectAsState()
+
+    // O seletor de arquivos do sistema. Aceita "octet-stream" também: alguns
+    // gerenciadores de arquivos classificam EPUB assim, e com o filtro estrito o
+    // arquivo apareceria acinzentado. A extensão é conferida no ViewModel.
+    val seletorDeArquivo = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> importacao.escolherArquivo(uri?.toString()) }
+
+    // Importação concluída: abre o livro. O evento é de uso único.
+    LaunchedEffect(livroParaAbrir) {
+        livroParaAbrir?.let { livroId ->
+            aoAbrirLivro(livroId)
+            importacao.consumirNavegacao()
+        }
+    }
+
+    // O servidor mudou (livro criado, removido, ajustado): recarrega a lista, mesmo
+    // que o fluxo termine sem navegar.
+    LaunchedEffect(versaoDaBiblioteca) {
+        if (versaoDaBiblioteca > 0) viewModel.carregar()
+    }
+
     // Recarrega toda vez que a tela volta a ficar visível, não só na primeira
     // vez: é o que mostra o livro recém-importado (ou removido) sem ação do
     // usuário. Também cobre a primeira abertura.
@@ -86,6 +123,20 @@ fun TelaBiblioteca(
         aoPedirRemocao = viewModel::pedirRemocao,
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
+        aoImportar = {
+            seletorDeArquivo.launch(arrayOf("application/epub+zip", "application/octet-stream"))
+        },
+    )
+
+    DialogosDeImportacao(
+        estado = estadoDaImportacao,
+        aoTentarDeNovo = importacao::tentarDeNovo,
+        aoFechar = importacao::fechar,
+        aoSeguirMesmoAssim = importacao::seguirMesmoAssim,
+        aoAbrirExistente = importacao::abrirExistente,
+        aoRemoverONovo = importacao::removerONovo,
+        aoSalvarMetadados = importacao::salvarMetadados,
+        aoRemoverLivroDoFormulario = importacao::removerLivroDoFormulario,
     )
 }
 
@@ -101,8 +152,19 @@ fun ConteudoDaBiblioteca(
     aoPedirRemocao: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
+    aoImportar: () -> Unit,
 ) {
     Scaffold(
+        floatingActionButton = {
+            // Visível em todos os estados, inclusive Vazia e Erro: escolher o arquivo é
+            // o primeiro passo do fluxo, e o estado vazio ("Importe um EPUB") não
+            // teria como cumprir o que diz sem ele.
+            ExtendedFloatingActionButton(
+                onClick = aoImportar,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("Importar") },
+            )
+        },
         topBar = {
             TopAppBar(
                 title = { Text("Biblioteca") },

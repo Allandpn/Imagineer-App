@@ -1,6 +1,10 @@
 package com.allan.imagineer.telas.biblioteca
 
+import com.allan.imagineer.dados.ArquivoEscolhido
+import com.allan.imagineer.rede.LivroAjuste
+import com.allan.imagineer.rede.LivroDetalhe
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.rede.RespostaImportacao
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.interpretarRemocao
@@ -46,6 +50,20 @@ private class RepositorioFalso(var resposta: ResultadoDaChamada<List<LivroResumo
         trava?.await()
         return resposta
     }
+
+    // A Biblioteca não usa estas três (são da importação); o falso só cumpre a interface.
+    override suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe> =
+        error("não usado pela Biblioteca")
+
+    override suspend fun importarLivro(
+        arquivo: ArquivoEscolhido,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<RespostaImportacao> = error("não usado pela Biblioteca")
+
+    override suspend fun ajustarLivro(
+        livroId: Int,
+        ajuste: LivroAjuste,
+    ): ResultadoDaChamada<LivroDetalhe> = error("não usado pela Biblioteca")
 
     override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {
         removidos += livroId
