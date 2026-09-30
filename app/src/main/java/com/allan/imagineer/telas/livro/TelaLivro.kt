@@ -15,9 +15,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,6 +38,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +56,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.CapituloResumo
 import com.allan.imagineer.rede.LivroDetalhe
+import com.allan.imagineer.rede.PerfilRenderizacao
+import com.allan.imagineer.telas.comum.DialogoDeRemocao
 import com.allan.imagineer.telas.biblioteca.descreverCapitulos
 import com.allan.imagineer.telas.importacao.nomesDosCampos
 
@@ -73,11 +80,19 @@ fun TelaLivro(
     val viewModel: LivroViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                LivroViewModel(livroId, aplicacao.repositorioDeLivros, aplicacao.repositorioDeCapitulos)
+                LivroViewModel(
+                    livroId,
+                    aplicacao.repositorioDeLivros,
+                    aplicacao.repositorioDeCapitulos,
+                    aplicacao.repositorioDePerfis,
+                )
             }
         },
     )
     val estado by viewModel.estado.collectAsState()
+    val edicao by viewModel.edicao.collectAsState()
+    val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
+    val remocao by viewModel.remocao.collectAsState()
     val avisos = remember { SnackbarHostState() }
 
     // Recarrega toda vez que a tela volta a ficar visível: ao voltar de um capítulo,
@@ -93,6 +108,11 @@ fun TelaLivro(
         }
     }
 
+    // O livro foi apagado: a tela não tem mais o que mostrar, volta para a Biblioteca.
+    LaunchedEffect(viewModel) {
+        viewModel.livroRemovido.collect { aoVoltar() }
+    }
+
     ConteudoDoLivro(
         estado = estado,
         avisos = avisos,
@@ -102,7 +122,27 @@ fun TelaLivro(
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPerfis = aoAbrirPerfis,
+        aoEditar = viewModel::abrirEdicao,
+        aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
+        aoApagar = viewModel::pedirRemocao,
     )
+
+    val livro = (estado as? EstadoDoLivro.Pronto)?.livro
+    if (livro != null && edicao is EstadoDaEdicao.Editando) {
+        DialogoDeEdicao(
+            livro = livro,
+            estado = edicao as EstadoDaEdicao.Editando,
+            aoSalvar = viewModel::salvarEdicao,
+            aoCancelar = viewModel::cancelarEdicao,
+        )
+    }
+    DialogoDePerfilPadrao(
+        estado = escolhaDePerfil,
+        perfilAtualId = livro?.perfil_renderizacao_padrao_id,
+        aoEscolher = viewModel::escolherPerfil,
+        aoFechar = viewModel::fecharEscolhaDePerfil,
+    )
+    DialogoDeRemocao(remocao, viewModel::cancelarRemocao, viewModel::confirmarRemocao)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,6 +156,9 @@ fun ConteudoDoLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
+    aoEditar: () -> Unit,
+    aoEscolherPerfilPadrao: () -> Unit,
+    aoApagar: () -> Unit,
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
@@ -132,6 +175,7 @@ fun ConteudoDoLivro(
                     if (estado is EstadoDoLivro.Pronto) {
                         TextButton(onClick = aoAbrirElementos) { Text("Elementos") }
                         TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
+                        MenuDoLivro(aoEditar, aoEscolherPerfilPadrao, aoApagar)
                     }
                 },
             )
@@ -182,7 +226,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro) }
+            item { CabecalhoDoLivro(livro, estado.perfil) }
             items(livro.capitulos, key = { it.id }) { capitulo ->
                 LinhaDeCapitulo(
                     capitulo = capitulo,
@@ -197,7 +241,7 @@ private fun ListaDoLivro(
 }
 
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe) {
+private fun CabecalhoDoLivro(livro: LivroDetalhe, perfil: PerfilRenderizacao?) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -211,12 +255,13 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe) {
             descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados),
             style = MaterialTheme.typography.bodyMedium,
         )
-        // A API só devolve o id do perfil; o nome exigiria outra chamada (item 7.5a).
+        // A API só devolve o id do perfil; o nome vem de uma busca à parte, que pode
+        // ainda não ter chegado (ou ter falhado) — aí cai no "definido".
         Text(
-            if (livro.perfil_renderizacao_padrao_id != null) {
-                "Perfil de renderização padrão: definido"
-            } else {
-                "Perfil de renderização padrão: nenhum definido"
+            when {
+                livro.perfil_renderizacao_padrao_id == null -> "Perfil de renderização padrão: nenhum definido"
+                perfil != null -> "Perfil de renderização padrão: ${perfil.nome}"
+                else -> "Perfil de renderização padrão: definido"
             },
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -276,4 +321,27 @@ private fun LinhaDeCapitulo(
             }
         },
     )
+}
+
+/** O menu ⋮ da barra superior: as ações sobre o livro aberto. */
+@Composable
+private fun MenuDoLivro(
+    aoEditar: () -> Unit,
+    aoEscolherPerfilPadrao: () -> Unit,
+    aoApagar: () -> Unit,
+) {
+    var aberto by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { aberto = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
+        }
+        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; aoEditar() })
+            DropdownMenuItem(
+                text = { Text("Perfil padrão…") },
+                onClick = { aberto = false; aoEscolherPerfilPadrao() },
+            )
+            DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; aoApagar() })
+        }
+    }
 }

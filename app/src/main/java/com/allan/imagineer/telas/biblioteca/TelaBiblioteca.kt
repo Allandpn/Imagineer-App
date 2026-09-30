@@ -54,6 +54,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.telas.comum.DialogoDeRemocao
+import com.allan.imagineer.telas.comum.EstadoDaRemocao
 import com.allan.imagineer.telas.importacao.DialogosDeImportacao
 import com.allan.imagineer.telas.importacao.ImportacaoViewModel
 
@@ -310,54 +312,4 @@ private fun MenuDoCartao(aoPedirRemocao: () -> Unit) {
             )
         }
     }
-}
-
-/**
- * O diálogo de remover livro. O aviso lista o que a rota apaga de propósito:
- * "remover um livro" soa menos grave do que apagar todo o catálogo visual que
- * ele acumulou (item 7.3a, incremento 4).
- */
-@Composable
-private fun DialogoDeRemocao(
-    remocao: EstadoDaRemocao,
-    aoCancelar: () -> Unit,
-    aoConfirmar: () -> Unit,
-) {
-    val livro = when (remocao) {
-        EstadoDaRemocao.Nenhuma -> return
-        is EstadoDaRemocao.Confirmando -> remocao.livro
-        is EstadoDaRemocao.Removendo -> remocao.livro
-        is EstadoDaRemocao.Falhou -> remocao.livro
-    }
-    val removendo = remocao is EstadoDaRemocao.Removendo
-
-    AlertDialog(
-        onDismissRequest = aoCancelar,
-        title = { Text("Remover livro?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("\"${livro.titulo}\"", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "Isto apaga também os capítulos, elementos, frames, prompts e " +
-                        "imagens deste livro. Não dá para desfazer.",
-                )
-                if (remocao is EstadoDaRemocao.Falhou) {
-                    Text(remocao.motivo, color = MaterialTheme.colorScheme.error)
-                }
-                if (removendo) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = aoConfirmar, enabled = !removendo) {
-                Text(if (remocao is EstadoDaRemocao.Falhou) "Tentar de novo" else "Remover")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = aoCancelar, enabled = !removendo) {
-                Text(if (remocao is EstadoDaRemocao.Falhou) "Fechar" else "Cancelar")
-            }
-        },
-    )
 }

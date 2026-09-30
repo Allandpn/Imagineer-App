@@ -8,6 +8,7 @@ import com.allan.imagineer.rede.RespostaImportacao
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.interpretarRemocao
+import com.allan.imagineer.telas.comum.EstadoDaRemocao
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

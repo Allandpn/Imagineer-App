@@ -97,7 +97,7 @@ class RepositorioDeLivrosPeloRetrofit(
 
     override suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe> {
         val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.ajustarLivro(livroId, ajuste) }
+        return chamarApi { api.ajustarLivro(livroId, ajuste.paraJson()) }
     }
 
     override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {

@@ -1,8 +1,6 @@
 package com.allan.imagineer.rede
 
-import kotlinx.serialization.encodeToString
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -50,17 +48,5 @@ class LivroDetalheTest {
         assertEquals("Titulo Corrigido", livro.titulo)
         // Só o autor continua pendente: mandar o título o confirmou.
         assertEquals(listOf("autor"), livro.metadados_pendentes)
-    }
-
-    @Test
-    fun `o ajuste omite os campos nulos do JSON`() {
-        // No backend, campo ausente = "não mexa"; campo null = "limpe". Mandar
-        // `"autor": null` sem querer apagaria o autor — por isso omitir importa.
-        val soTitulo = jsonDoImagineer.encodeToString(LivroAjuste(titulo = "Novo"))
-        val soAutor = jsonDoImagineer.encodeToString(LivroAjuste(autor = "Fulano"))
-
-        assertEquals("""{"titulo":"Novo"}""", soTitulo)
-        assertEquals("""{"autor":"Fulano"}""", soAutor)
-        assertFalse("autor" in soTitulo)
     }
 }

@@ -1,6 +1,10 @@
 package com.allan.imagineer.rede
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Um capítulo numa listagem, **sem** o texto — espelha o `CapituloResumo` do
@@ -55,21 +59,49 @@ data class RespostaImportacao(
 )
 
 /**
- * O corpo de `PATCH /livros/{id}`. Só os campos que o app quer mudar.
+ * O que se quer mudar num livro (`PATCH /livros/{id}`).
  *
- * Os campos nulos **não vão no JSON** (o `Json` do app não codifica valores
- * padrão), e é isso que se quer: no backend, mandar `titulo` já o confirma, e um
- * campo ausente significa "não mexa" — diferente de `null`.
+ * **Campo `null` = "não mexa"** (fica fora do JSON). No backend, campo ausente e
+ * campo `null` são coisas diferentes (item 6.2): ausente não mexe, `null` **limpa**.
+ * Para limpar de propósito, use as marcas [limparIdioma] e [limparPerfilPadrao] — e
+ * por isso esta classe não é serializada direto, mas por [paraJson].
+ *
+ * Mandar [titulo] já o **confirma** no backend, mesmo com o valor igual ao anterior;
+ * por isso o app só o envia quando o usuário de fato o mudou ou quando ele está
+ * pendente (item 7.3a).
  */
-@Serializable
 data class LivroAjuste(
     val titulo: String? = null,
     val autor: String? = null,
-)
+    val idioma: String? = null,
+    val perfil_renderizacao_padrao_id: Int? = null,
+    /** Manda `"idioma": null`: o livro fica sem idioma. */
+    val limparIdioma: Boolean = false,
+    /** Manda `"perfil_renderizacao_padrao_id": null`: o livro fica sem perfil padrão. */
+    val limparPerfilPadrao: Boolean = false,
+) {
+    /**
+     * O corpo do `PATCH`: só os campos que mudam. `autor` **nunca** vai como `null`
+     * — no backend isso faria o autor voltar a ficar pendente (é mandatório).
+     */
+    fun paraJson(): JsonObject = buildJsonObject {
+        titulo?.let { put("titulo", it) }
+        autor?.let { put("autor", it) }
+        when {
+            limparIdioma -> put("idioma", JsonNull)
+            idioma != null -> put("idioma", idioma)
+        }
+        when {
+            limparPerfilPadrao -> put("perfil_renderizacao_padrao_id", JsonNull)
+            perfil_renderizacao_padrao_id != null ->
+                put("perfil_renderizacao_padrao_id", perfil_renderizacao_padrao_id)
+        }
+    }
+}
 
 /**
- * O corpo de `PATCH /capitulos/{id}`. Como em [LivroAjuste], os campos nulos não vão
- * no JSON: no backend, campo ausente é "não mexa".
+ * O corpo de `PATCH /capitulos/{id}`. Os campos nulos não vão no JSON:
+ * no backend, campo ausente é "não mexa".
  *
  * Marcar `ignorado` é o caso mais comum — é o que confirma ou desfaz a sugestão da
  * importação (item 2.2).

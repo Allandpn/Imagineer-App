@@ -6,7 +6,9 @@ import com.allan.imagineer.rede.CapituloResumo
 import com.allan.imagineer.rede.LivroAjuste
 import com.allan.imagineer.rede.LivroDetalhe
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.rede.PerfilRenderizacao
 import com.allan.imagineer.rede.RepositorioDeCapitulos
+import com.allan.imagineer.rede.RepositorioDePerfis
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.RespostaImportacao
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -33,19 +35,26 @@ import java.util.Locale
 // Falsos e construtores de dados
 // ---------------------------------------------------------------------- //
 
-private fun capitulo(id: Int, ignorado: Boolean = false, titulo: String? = "Cap $id") = CapituloResumo(
+internal fun capitulo(id: Int, ignorado: Boolean = false, titulo: String? = "Cap $id") = CapituloResumo(
     id = id, ordem = id, titulo = titulo, ignorado = ignorado, tamanho_do_texto = 1000,
 )
 
-private fun livro(vararg capitulos: CapituloResumo) = LivroDetalhe(
+internal fun livro(vararg capitulos: CapituloResumo) = LivroDetalhe(
     id = 1, titulo = "Um Livro", autor = "Fulano", idioma = "pt-BR", nome_arquivo = "livro.epub",
     data_importacao = "2026-09-30T01:11:16", total_de_capitulos = capitulos.size,
     capitulos_ignorados = capitulos.count { it.ignorado }, capitulos = capitulos.toList(),
 )
 
-private class LivrosFalso(var resposta: ResultadoDaChamada<LivroDetalhe>) : RepositorioDeLivros {
+internal class LivrosFalso(var resposta: ResultadoDaChamada<LivroDetalhe>) : RepositorioDeLivros {
     var trava: CompletableDeferred<Unit>? = null
     var chamadas = 0
+
+    /** O que `ajustarLivro` devolve (por padrão, o próprio livro), e o que foi pedido. */
+    var respostaDoAjuste: ((LivroAjuste) -> ResultadoDaChamada<LivroDetalhe>)? = null
+    val ajustes = mutableListOf<LivroAjuste>()
+
+    var respostaDaRemocao: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    val removidos = mutableListOf<Int>()
 
     override suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe> {
         chamadas++
@@ -60,12 +69,35 @@ private class LivrosFalso(var resposta: ResultadoDaChamada<LivroDetalhe>) : Repo
         arquivo: ArquivoEscolhido,
         aoProgredir: (enviados: Long, total: Long?) -> Unit,
     ): ResultadoDaChamada<RespostaImportacao> = error("não usado")
-    override suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe> =
-        error("não usado")
-    override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> = error("não usado")
+    override suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe> {
+        ajustes += ajuste
+        return respostaDoAjuste?.invoke(ajuste) ?: resposta
+    }
+
+    override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {
+        removidos += livroId
+        return respostaDaRemocao
+    }
 }
 
-private class CapitulosFalso : RepositorioDeCapitulos {
+/** Perfis falsos: a lista, e o que `abrirPerfil` devolve por id. */
+internal class PerfisFalso(
+    var lista: ResultadoDaChamada<List<PerfilRenderizacao>> = ResultadoDaChamada.Sucesso(emptyList()),
+) : RepositorioDePerfis {
+    var abrir: (Int) -> ResultadoDaChamada<PerfilRenderizacao> = { id ->
+        ResultadoDaChamada.Sucesso(PerfilRenderizacao(id = id, nome = "Perfil $id"))
+    }
+    val abertos = mutableListOf<Int>()
+
+    override suspend fun listarPerfis() = lista
+
+    override suspend fun abrirPerfil(perfilId: Int): ResultadoDaChamada<PerfilRenderizacao> {
+        abertos += perfilId
+        return abrir(perfilId)
+    }
+}
+
+internal class CapitulosFalso : RepositorioDeCapitulos {
     val ajustes = mutableListOf<Pair<Int, CapituloAjuste>>()
     var trava: CompletableDeferred<Unit>? = null
 
@@ -171,7 +203,7 @@ class LivroViewModelTest {
     private fun vm(
         livros: LivrosFalso = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos)),
         capitulos: CapitulosFalso = CapitulosFalso(),
-    ) = LivroViewModel(1, livros, capitulos)
+    ) = LivroViewModel(1, livros, capitulos, PerfisFalso())
 
     @Test
     fun `comeca carregando`() = runTest {

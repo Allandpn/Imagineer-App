@@ -3,6 +3,7 @@ package com.allan.imagineer.rede
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -51,9 +52,13 @@ interface ApiImagineer {
     @POST("livros")
     suspend fun importarLivro(@Part arquivo: MultipartBody.Part): RespostaImportacao
 
-    /** `PATCH /livros/{id}` — corrige metadados; devolve o livro completo. */
+    /**
+     * `PATCH /livros/{id}` — corrige metadados e define o perfil padrão; devolve o livro
+     * completo. O corpo é um `JsonObject` para poder mandar `null` de propósito
+     * (ver [LivroAjuste.paraJson]).
+     */
     @PATCH("livros/{id}")
-    suspend fun ajustarLivro(@Path("id") livroId: Int, @Body ajuste: LivroAjuste): LivroDetalhe
+    suspend fun ajustarLivro(@Path("id") livroId: Int, @Body ajuste: JsonObject): LivroDetalhe
 
     /**
      * `PATCH /capitulos/{id}` — muda o título e/ou o `ignorado`. A resposta traz o
@@ -64,6 +69,14 @@ interface ApiImagineer {
         @Path("id") capituloId: Int,
         @Body ajuste: CapituloAjuste,
     ): CapituloResumo
+
+    /** `GET /perfis-renderizacao` — os perfis, compartilhados entre livros. */
+    @GET("perfis-renderizacao")
+    suspend fun perfis(): List<PerfilRenderizacao>
+
+    /** `GET /perfis-renderizacao/{id}` — um perfil. */
+    @GET("perfis-renderizacao/{id}")
+    suspend fun perfil(@Path("id") perfilId: Int): PerfilRenderizacao
 
     /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
     @DELETE("livros/{id}")
