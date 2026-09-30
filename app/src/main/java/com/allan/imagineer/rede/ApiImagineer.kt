@@ -7,7 +7,9 @@ import kotlinx.serialization.json.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import retrofit2.Response
 import retrofit2.Retrofit
+import retrofit2.http.Header
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -46,6 +48,18 @@ interface ApiImagineer {
     /** `GET /livros/{id}` — o livro com a lista de capítulos, sem o texto. */
     @GET("livros/{id}")
     suspend fun livro(@Path("id") livroId: Int): LivroDetalhe
+
+    /**
+     * `GET /livros/{id}` com `If-None-Match` (item 6.9): se [revisaoConhecida] ainda é a do
+     * servidor, ele responde `304` **sem corpo**. Devolve a resposta crua (`Response`) porque
+     * `304` não é erro nem traz livro: quem chama olha o código. Com `null`, o cabeçalho
+     * simplesmente não vai e o servidor responde `200` com o livro.
+     */
+    @GET("livros/{id}")
+    suspend fun livroSeMudou(
+        @Path("id") livroId: Int,
+        @Header("If-None-Match") revisaoConhecida: String?,
+    ): Response<LivroDetalhe>
 
     /**
      * `POST /livros` — importa um EPUB (`multipart/form-data`, campo `arquivo`).

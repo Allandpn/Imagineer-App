@@ -5,7 +5,16 @@ import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.dados.ArmazenamentoNoDataStore
 import com.allan.imagineer.dados.LeitorDeArquivos
 import com.allan.imagineer.dados.LeitorDeArquivosDoAndroid
+import com.allan.imagineer.local.ArmazemDeTextos
+import com.allan.imagineer.local.ArmazemDeTextosEmArquivos
+import com.allan.imagineer.local.BancoLocal
+import com.allan.imagineer.local.IndiceLocal
+import com.allan.imagineer.local.IndiceLocalPeloRoom
 import com.allan.imagineer.rede.ProvedorDeApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import java.io.File
 import com.allan.imagineer.rede.RepositorioDeCapitulos
 import com.allan.imagineer.rede.RepositorioDeCapitulosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivros
@@ -35,12 +44,25 @@ class ImagineerApp : Application() {
 
     private val provedorDeApi: ProvedorDeApi by lazy { ProvedorDeApi(armazenamento) }
 
+    // O que fica guardado no aparelho (item 7.0a). Na pasta "sem backup": o Android não
+    // envia estes arquivos para a nuvem do Google (regra A12).
+    private val indiceLocal: IndiceLocal by lazy {
+        IndiceLocalPeloRoom(BancoLocal.abrir(this).dao())
+    }
+
+    private val armazemDeTextos: ArmazemDeTextos by lazy {
+        ArmazemDeTextosEmArquivos(File(noBackupFilesDir, "textos"))
+    }
+
+    /** Vive tanto quanto o app: o adiantamento do próximo capítulo não pode morrer com a tela. */
+    private val escopoDeFundo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val repositorioDeLivros: RepositorioDeLivros by lazy {
-        RepositorioDeLivrosPeloRetrofit(provedorDeApi, leitorDeArquivos)
+        RepositorioDeLivrosPeloRetrofit(provedorDeApi, leitorDeArquivos, indiceLocal, armazemDeTextos)
     }
 
     val repositorioDeCapitulos: RepositorioDeCapitulos by lazy {
-        RepositorioDeCapitulosPeloRetrofit(provedorDeApi)
+        RepositorioDeCapitulosPeloRetrofit(provedorDeApi, indiceLocal, armazemDeTextos, escopoDeFundo)
     }
 
     val repositorioDeSugestoes: RepositorioDeSugestoes by lazy {

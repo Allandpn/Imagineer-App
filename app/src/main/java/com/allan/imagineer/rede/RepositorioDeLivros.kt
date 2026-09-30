@@ -2,8 +2,12 @@ package com.allan.imagineer.rede
 
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.dados.LeitorDeArquivos
+import com.allan.imagineer.local.ArmazemDeTextos
+import com.allan.imagineer.local.IndiceLocal
+import com.allan.imagineer.local.melhorEsforco
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import retrofit2.HttpException
 
 /**
  * O que as telas precisam saber fazer com livros (item 7.2 em diante).
@@ -15,7 +19,11 @@ interface RepositorioDeLivros {
     /** `GET /livros`, na ordem do servidor (alfabética por título, item 6.2). */
     suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>>
 
-    /** `GET /livros/{id}`: o livro com a lista de capítulos, sem o texto. */
+    /**
+     * `GET /livros/{id}`: o livro com a lista de capítulos, sem o texto. Consulta a cópia do
+     * aparelho antes (item 7.0a): se o servidor confirma que nada mudou, ou se não há
+     * conexão, devolve a cópia.
+     */
     suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe>
 
     /**
@@ -51,10 +59,15 @@ fun interpretarRemocao(resultado: ResultadoDaChamada<Unit>): ResultadoDaChamada<
     return if (naoExiste) ResultadoDaChamada.Sucesso(Unit) else resultado
 }
 
-/** A implementação de verdade: lê a URL salva e conversa com o servidor pelo Retrofit. */
+/**
+ * A implementação de verdade: lê a URL salva e conversa com o servidor pelo Retrofit,
+ * guardando no aparelho (item 7.0a, passo 1) o que já viu.
+ */
 class RepositorioDeLivrosPeloRetrofit(
     private val provedor: ProvedorDeApi,
     private val leitor: LeitorDeArquivos,
+    private val indice: IndiceLocal,
+    private val textos: ArmazemDeTextos,
 ) : RepositorioDeLivros {
 
     override suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>> {
@@ -62,9 +75,44 @@ class RepositorioDeLivrosPeloRetrofit(
         return chamarApi { api.livros() }
     }
 
+    /**
+     * Regras L5 e L6 do item 7.0a: pergunta ao servidor "mudou desde a revisão N?". Se não
+     * mudou (`304`, sem corpo) ou se não há conexão, entrega a cópia do aparelho; se mudou,
+     * guarda a nova e entrega.
+     */
     override suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe> {
-        val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.livro(livroId) }
+        val servidor = provedor.emUso() ?: return provedor.semServidor()
+        val guardado = melhorEsforco { indice.livro(servidor.chave, livroId) }
+
+        val resposta = chamarApi {
+            // O ETag do servidor é a revisão entre aspas.
+            val resposta = servidor.api.livroSeMudou(livroId, guardado?.let { "\"${it.revisao}\"" })
+            // 304 não é erro; qualquer outro código que não seja 2xx é, e segue o caminho de sempre.
+            if (!resposta.isSuccessful && resposta.code() != 304) throw HttpException(resposta)
+            resposta
+        }
+
+        return when (resposta) {
+            is ResultadoDaChamada.Sucesso -> {
+                val livro = resposta.dado.body()
+                when {
+                    resposta.dado.code() == 304 && guardado != null -> ResultadoDaChamada.Sucesso(guardado.detalhe)
+                    livro != null -> {
+                        melhorEsforco { indice.guardarLivro(servidor.chave, livro) }
+                        ResultadoDaChamada.Sucesso(livro)
+                    }
+                    else -> ResultadoDaChamada.Falha("O servidor respondeu de um jeito inesperado.")
+                }
+            }
+            // Sem código HTTP = o servidor nem respondeu (sem conexão, Pi desligado...): lê-se
+            // o que está no aparelho. Com código (404, 500...), a falha é real e aparece.
+            is ResultadoDaChamada.Falha ->
+                if (resposta.codigoHttp == null && guardado != null) {
+                    ResultadoDaChamada.Sucesso(guardado.detalhe)
+                } else {
+                    resposta
+                }
+        }
     }
 
     override suspend fun importarLivro(
@@ -101,7 +149,13 @@ class RepositorioDeLivrosPeloRetrofit(
     }
 
     override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {
-        val api = provedor.obter() ?: return provedor.semServidor()
-        return interpretarRemocao(chamarApi { api.removerLivro(livroId) })
+        val servidor = provedor.emUso() ?: return provedor.semServidor()
+        val resultado = interpretarRemocao(chamarApi { servidor.api.removerLivro(livroId) })
+        if (resultado is ResultadoDaChamada.Sucesso) {
+            // O livro deixou de existir: a cópia do aparelho não tem mais o que mostrar (L6).
+            melhorEsforco { indice.apagarLivro(servidor.chave, livroId) }
+            melhorEsforco { textos.apagarLivro(servidor.chave, livroId) }
+        }
+        return resultado
     }
 }

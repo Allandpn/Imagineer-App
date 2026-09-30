@@ -65,6 +65,12 @@ data class LivroDetalhe(
      */
     val metadados_pendentes: List<String> = emptyList(),
     val capitulos: List<CapituloResumo> = emptyList(),
+    /**
+     * Contador que o servidor sobe a cada mudança no que o leitor mostra do livro (item
+     * 6.9). É o que o app manda em `If-None-Match` para saber, sem baixar nada, se a cópia
+     * guardada no aparelho ainda vale.
+     */
+    val revisao: Int = 0,
 )
 
 /**
