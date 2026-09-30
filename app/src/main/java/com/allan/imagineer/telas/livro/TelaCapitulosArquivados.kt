@@ -71,6 +71,7 @@ fun TelaCapitulosArquivados(
         aoAlternarSelecao = viewModel::alternarSelecao,
         aoCancelarSelecao = viewModel::cancelarSelecao,
         aoConfirmarSelecao = viewModel::confirmarSelecao,
+        aoAlternarTodos = viewModel::alternarTodos,
         aoAbrirCapitulo = aoAbrirCapitulo,
     )
 }
@@ -87,6 +88,7 @@ fun ConteudoDosArquivados(
     aoAlternarSelecao: (capituloId: Int) -> Unit,
     aoCancelarSelecao: () -> Unit,
     aoConfirmarSelecao: () -> Unit,
+    aoAlternarTodos: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
 ) {
     Scaffold(
@@ -96,6 +98,8 @@ fun ConteudoDosArquivados(
                 BarraDeSelecao(
                     selecao = selecao,
                     rotuloDaAcao = "Restaurar",
+                    todosMarcados = estado is EstadoDoLivro.Pronto && todosMarcados(estado, selecao),
+                    aoAlternarTodos = aoAlternarTodos,
                     aoCancelar = aoCancelarSelecao,
                     aoConfirmar = aoConfirmarSelecao,
                 )

@@ -319,6 +319,23 @@ class LivroViewModel(
         _selecao.value = selecao.copy(ids = novos)
     }
 
+    /**
+     * "Selecionar todos" / "Desmarcar todos": um botão que **alterna** (R18). Marca todos os
+     * capítulos elegíveis do modo — menos os que têm chamada em andamento, que nunca podem ser
+     * marcados (R5). Se todos já estão marcados, desmarca tudo; continua no modo (R2).
+     *
+     * Não confirma nada: o usuário ainda precisa tocar em "Arquivar (N)" / "Restaurar (N)".
+     */
+    fun alternarTodos() {
+        val selecao = _selecao.value ?: return
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        if (selecao.executando) return
+
+        val elegiveis = elegiveisPara(selecao.modo, pronto.livro) - pronto.ajustando
+        val todosMarcados = elegiveis.isNotEmpty() && selecao.ids.containsAll(elegiveis)
+        _selecao.value = selecao.copy(ids = if (todosMarcados) emptySet() else elegiveis)
+    }
+
     /** Cancelar, ou o botão voltar do aparelho: sai do modo sem fazer nada. */
     fun cancelarSelecao() {
         if (_selecao.value?.executando == true) return

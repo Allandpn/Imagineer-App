@@ -92,7 +92,7 @@ fun LinhaDeCapitulo(
 }
 
 /**
- * A barra superior do modo de seleção: cancelar, "N selecionados" e o botão que
+ * A barra superior do modo de seleção: cancelar, "N selecionados", "Selecionar todos" e o botão que
  * confirma ("Arquivar (N)" ou "Restaurar (N)"). O botão é a confirmação — sem diálogo
  * extra — e fica desabilitado com zero marcados ou com o lote no ar.
  */
@@ -101,6 +101,8 @@ fun LinhaDeCapitulo(
 fun BarraDeSelecao(
     selecao: Selecao,
     rotuloDaAcao: String,
+    todosMarcados: Boolean,
+    aoAlternarTodos: () -> Unit,
     aoCancelar: () -> Unit,
     aoConfirmar: () -> Unit,
 ) {
@@ -117,12 +119,29 @@ fun BarraDeSelecao(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
             } else {
+                // O rótulo diz o que vai acontecer: marcar todos ou desmarcar todos.
+                TextButton(onClick = aoAlternarTodos) {
+                    Text(if (todosMarcados) "Desmarcar todos" else "Selecionar todos")
+                }
                 TextButton(onClick = aoConfirmar, enabled = selecao.ids.isNotEmpty()) {
                     Text("$rotuloDaAcao (${selecao.ids.size})")
                 }
             }
         },
     )
+}
+
+/**
+ * Todos os capítulos que dá para marcar agora já estão marcados? Decide o rótulo do botão:
+ * "Desmarcar todos" se sim, "Selecionar todos" se não. Os capítulos com chamada em andamento
+ * não contam — nunca podem ser marcados (R5).
+ */
+fun todosMarcados(estado: EstadoDoLivro.Pronto, selecao: Selecao): Boolean {
+    val elegiveis = estado.livro.capitulos
+        .filter { if (selecao.modo == ModoDeSelecao.ARQUIVAR) !it.ignorado else it.ignorado }
+        .map { it.id }
+        .filter { it !in estado.ajustando }
+    return elegiveis.isNotEmpty() && selecao.ids.containsAll(elegiveis)
 }
 
 /** "Nenhum selecionado", "1 selecionado", "3 selecionados" — para a barra do modo de seleção. */

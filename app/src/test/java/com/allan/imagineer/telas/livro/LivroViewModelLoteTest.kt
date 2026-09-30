@@ -442,6 +442,119 @@ class LivroViewModelLoteTest {
     }
 
     // ------------------------------------------------------------------ //
+    // Selecionar todos (R18)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    fun `R18 marca todos os elegiveis do modo, sem o arquivado`() = runTest {
+        val vm = vmPronto()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR)
+
+        vm.alternarTodos()
+
+        // O 5 está arquivado: não é elegível no modo ARQUIVAR.
+        assertEquals(setOf(1, 2, 3, 4), vm.selecao.value!!.ids)
+    }
+
+    @Test
+    fun `R18 de novo desmarca todos, e continua no modo`() = runTest {
+        val vm = vmPronto()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR)
+        vm.alternarTodos()
+
+        vm.alternarTodos()
+
+        assertEquals(Selecao(ModoDeSelecao.ARQUIVAR, emptySet()), vm.selecao.value)
+    }
+
+    @Test
+    fun `R18 com so alguns marcados, completa a selecao`() = runTest {
+        val vm = vmPronto()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR, idInicial = 2)
+
+        vm.alternarTodos()
+
+        assertEquals(setOf(1, 2, 3, 4), vm.selecao.value!!.ids)
+    }
+
+    @Test
+    fun `R18 no modo restaurar marca so os arquivados`() = runTest {
+        val vm = vmPronto(livro(capitulo(1), capitulo(2, ignorado = true), capitulo(3, ignorado = true)))
+        vm.iniciarSelecao(ModoDeSelecao.RESTAURAR)
+
+        vm.alternarTodos()
+
+        assertEquals(setOf(2, 3), vm.selecao.value!!.ids)
+    }
+
+    @Test
+    fun `R18 nao marca o capitulo com chamada em andamento`() = runTest {
+        val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
+        val vm = vmPronto(capitulos = capitulos)
+        vm.arquivar(1) // deixa o 1 "em andamento"
+        advanceUntilIdle()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR)
+
+        vm.alternarTodos()
+
+        assertEquals(setOf(2, 3, 4), vm.selecao.value!!.ids)
+    }
+
+    @Test
+    fun `R18 fora do modo de selecao nao faz nada`() = runTest {
+        val vm = vmPronto()
+
+        vm.alternarTodos()
+
+        assertNull(vm.selecao.value)
+    }
+
+    @Test
+    fun `R18 com o lote no ar e ignorado`() = runTest {
+        val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
+        val vm = vmPronto(capitulos = capitulos)
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR, idInicial = 1)
+        vm.confirmarSelecao()
+        advanceUntilIdle()
+
+        vm.alternarTodos()
+
+        assertEquals(setOf(1), vm.selecao.value!!.ids)
+    }
+
+    @Test
+    fun `R18 marcar todos nao confirma nada, so o botao de arquivar executa`() = runTest {
+        val capitulos = CapitulosFalso()
+        val vm = vmPronto(capitulos = capitulos)
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR)
+
+        vm.alternarTodos()
+        advanceUntilIdle()
+        assertTrue(capitulos.ajustes.isEmpty()) // marcou, mas nada foi chamado
+
+        vm.confirmarSelecao()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 3, 4), capitulos.ajustes.map { it.first })
+        assertEquals(listOf(1, 2, 3, 4, 5), vm.ignorados())
+    }
+
+    @Test
+    fun `R18 o rotulo do botao acompanha o que vai acontecer`() = runTest {
+        val vm = vmPronto()
+        vm.iniciarSelecao(ModoDeSelecao.ARQUIVAR)
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+
+        // Nenhum marcado: "Selecionar todos".
+        assertEquals(false, todosMarcados(pronto, vm.selecao.value!!))
+        vm.alternarSelecao(1)
+        assertEquals(false, todosMarcados(pronto, vm.selecao.value!!)) // só alguns
+        vm.alternarTodos()
+        // Todos marcados: "Desmarcar todos".
+        assertEquals(true, todosMarcados(pronto, vm.selecao.value!!))
+    }
+
+    // ------------------------------------------------------------------ //
     // Consistência (R15)
     // ------------------------------------------------------------------ //
 

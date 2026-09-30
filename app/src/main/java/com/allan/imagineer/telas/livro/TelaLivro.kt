@@ -170,6 +170,7 @@ fun TelaLivro(
         aoAlternarSelecao = viewModel::alternarSelecao,
         aoCancelarSelecao = viewModel::cancelarSelecao,
         aoConfirmarSelecao = viewModel::confirmarSelecao,
+        aoAlternarTodos = viewModel::alternarTodos,
         aoAbrirArquivados = aoAbrirArquivados,
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
@@ -209,6 +210,7 @@ fun ConteudoDoLivro(
     aoAlternarSelecao: (capituloId: Int) -> Unit,
     aoCancelarSelecao: () -> Unit,
     aoConfirmarSelecao: () -> Unit,
+    aoAlternarTodos: () -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
@@ -225,6 +227,8 @@ fun ConteudoDoLivro(
                 BarraDeSelecao(
                     selecao = selecao,
                     rotuloDaAcao = "Arquivar",
+                    todosMarcados = estado is EstadoDoLivro.Pronto && todosMarcados(estado, selecao),
+                    aoAlternarTodos = aoAlternarTodos,
                     aoCancelar = aoCancelarSelecao,
                     aoConfirmar = aoConfirmarSelecao,
                 )
