@@ -15,8 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -25,12 +25,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -43,12 +41,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -62,11 +60,37 @@ import com.allan.imagineer.telas.biblioteca.descreverCapitulos
 import com.allan.imagineer.telas.importacao.nomesDosCampos
 
 /**
- * A tela de Livro (item 7.4): metadados, lista de capítulos e o interruptor de
- * "ignorado" de cada um.
+ * O [LivroViewModel] de um livro. Sem [dono], fica preso à tela que o pede; passando
+ * o [dono] (a entrada da tela de Livro na pilha de navegação), a área de arquivados
+ * **compartilha o mesmo ViewModel** da tela de Livro — arquivar numa e restaurar na
+ * outra sempre enxergam o mesmo livro, sem recarregar nem ficar defasado.
+ */
+@Composable
+fun livroViewModel(livroId: Int, dono: ViewModelStoreOwner? = null): LivroViewModel {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val fabrica = viewModelFactory {
+        initializer {
+            LivroViewModel(
+                livroId,
+                aplicacao.repositorioDeLivros,
+                aplicacao.repositorioDeCapitulos,
+                aplicacao.repositorioDePerfis,
+            )
+        }
+    }
+    return if (dono != null) {
+        viewModel(viewModelStoreOwner = dono, factory = fabrica)
+    } else {
+        viewModel(factory = fabrica)
+    }
+}
+
+/**
+ * A tela de Livro (item 7.4): metadados, lista dos capítulos **ativos** e o acesso à
+ * área de arquivados.
  *
- * Só monta o ViewModel e entrega o estado para [ConteudoDoLivro] — a separação
- * permite pré-visualizar cada estado sem rede.
+ * Só entrega o estado do ViewModel para [ConteudoDoLivro] — a separação permite
+ * pré-visualizar cada estado sem rede.
  */
 @Composable
 fun TelaLivro(
@@ -75,20 +99,9 @@ fun TelaLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
+    aoAbrirArquivados: () -> Unit,
+    viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
-    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
-    val viewModel: LivroViewModel = viewModel(
-        factory = viewModelFactory {
-            initializer {
-                LivroViewModel(
-                    livroId,
-                    aplicacao.repositorioDeLivros,
-                    aplicacao.repositorioDeCapitulos,
-                    aplicacao.repositorioDePerfis,
-                )
-            }
-        },
-    )
     val estado by viewModel.estado.collectAsState()
     val edicao by viewModel.edicao.collectAsState()
     val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
@@ -118,7 +131,8 @@ fun TelaLivro(
         avisos = avisos,
         aoVoltar = aoVoltar,
         aoTentarDeNovo = viewModel::carregar,
-        aoAlternarIgnorado = viewModel::alternarIgnorado,
+        aoArquivar = viewModel::arquivar,
+        aoAbrirArquivados = aoAbrirArquivados,
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPerfis = aoAbrirPerfis,
@@ -152,7 +166,8 @@ fun ConteudoDoLivro(
     avisos: SnackbarHostState,
     aoVoltar: () -> Unit,
     aoTentarDeNovo: () -> Unit,
-    aoAlternarIgnorado: (capituloId: Int) -> Unit,
+    aoArquivar: (capituloId: Int) -> Unit,
+    aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
@@ -205,7 +220,8 @@ fun ConteudoDoLivro(
 
                 is EstadoDoLivro.Pronto -> ListaDoLivro(
                     estado = estado,
-                    aoAlternarIgnorado = aoAlternarIgnorado,
+                    aoArquivar = aoArquivar,
+                    aoAbrirArquivados = aoAbrirArquivados,
                     aoAbrirCapitulo = aoAbrirCapitulo,
                 )
             }
@@ -216,10 +232,14 @@ fun ConteudoDoLivro(
 @Composable
 private fun ListaDoLivro(
     estado: EstadoDoLivro.Pronto,
-    aoAlternarIgnorado: (Int) -> Unit,
+    aoArquivar: (Int) -> Unit,
+    aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
 ) {
     val livro = estado.livro
+    // A lista principal mostra só os ativos; os arquivados vivem na área própria.
+    val ativos = livro.capitulos.filter { !it.ignorado }
+    val arquivados = livro.capitulos.count { it.ignorado }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -227,16 +247,56 @@ private fun ListaDoLivro(
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             item { CabecalhoDoLivro(livro, estado.perfil) }
-            items(livro.capitulos, key = { it.id }) { capitulo ->
+
+            // Como nas conversas arquivadas do WhatsApp: só aparece quando há algo arquivado.
+            if (arquivados > 0) {
+                item {
+                    LinhaDeArquivados(arquivados, aoAbrirArquivados)
+                    HorizontalDivider()
+                }
+            }
+
+            if (ativos.isEmpty()) {
+                item {
+                    Text(
+                        if (arquivados > 0) "Todos os capítulos estão arquivados." else "Este livro não tem capítulos.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            }
+
+            items(ativos, key = { it.id }) { capitulo ->
                 LinhaDeCapitulo(
                     capitulo = capitulo,
                     ajustando = capitulo.id in estado.ajustando,
-                    aoAlternarIgnorado = { aoAlternarIgnorado(capitulo.id) },
+                    aoArquivar = { aoArquivar(capitulo.id) },
                     aoAbrir = { aoAbrirCapitulo(capitulo.id) },
                 )
                 HorizontalDivider()
             }
         }
+    }
+}
+
+/** A linha "Arquivados (N)" no topo da lista — abre a área de arquivados. */
+@Composable
+private fun LinhaDeArquivados(quantidade: Int, aoAbrir: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = aoAbrir)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text("Arquivados", style = MaterialTheme.typography.titleSmall)
+        Text(
+            quantidade.toString(),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -276,51 +336,58 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe, perfil: PerfilRenderizacao?) {
 }
 
 /**
- * Uma linha da lista. O interruptor **ligado** significa "capítulo catalogado";
- * desligado, ignorado. Um capítulo ignorado aparece esmaecido e não abre ao tocar
- * (item 7.4).
+ * Uma linha de capítulo **ativo**.
+ *
+ * **Só o bloco do título e do tamanho abre o capítulo**; o botão de arquivar, à direita,
+ * tem a área dele — um toque impreciso no título não arquiva, e um no botão não abre o
+ * capítulo (problema que a versão com a linha toda clicável tinha, achado no tablet).
+ *
+ * Arquivar é **um toque** e reversível (área de arquivados → Restaurar), então não pede
+ * confirmação.
  */
 @Composable
 private fun LinhaDeCapitulo(
     capitulo: CapituloResumo,
     ajustando: Boolean,
-    aoAlternarIgnorado: () -> Unit,
+    aoArquivar: () -> Unit,
     aoAbrir: () -> Unit,
 ) {
-    ListItem(
-        modifier = Modifier
-            .clickable(enabled = !capitulo.ignorado, onClick = aoAbrir)
-            .alpha(if (capitulo.ignorado) 0.55f else 1f),
-        headlineContent = { Text(tituloDoCapitulo(capitulo.titulo, capitulo.ordem)) },
-        supportingContent = {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = aoAbrir)
+                .padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
-                buildString {
-                    append(descreverTamanho(capitulo.tamanho_do_texto))
-                    if (capitulo.ignorado) append(" · ignorado")
-                },
+                tituloDoCapitulo(capitulo.titulo, capitulo.ordem),
+                style = MaterialTheme.typography.bodyLarge,
             )
-        },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (capitulo.sugestoes_pendentes > 0) {
-                    Badge { Text(capitulo.sugestoes_pendentes.toString()) }
-                }
-                if (ajustando) {
-                    // Esperando o servidor: um interruptor apagado não diz que o app está
-                    // esperando; um indicador de progresso diz. Ocupa o mesmo espaço do
-                    // interruptor, para a linha não "pular" de largura.
-                    Box(modifier = Modifier.size(width = 52.dp, height = 32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                } else {
-                    Switch(
-                        checked = !capitulo.ignorado,
-                        onCheckedChange = { aoAlternarIgnorado() },
-                    )
+            Text(
+                listOfNotNull(
+                    descreverTamanho(capitulo.tamanho_do_texto),
+                    descreverSugestoes(capitulo.sugestoes_pendentes),
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        Box(modifier = Modifier.padding(end = 4.dp).size(48.dp), contentAlignment = Alignment.Center) {
+            if (ajustando) {
+                // Esperando o servidor: mesmo tamanho do botão, para a linha não "pular".
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = aoArquivar) {
+                    Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulo")
                 }
             }
-        },
-    )
+        }
+    }
 }
 
 /** O menu ⋮ da barra superior: as ações sobre o livro aberto. */

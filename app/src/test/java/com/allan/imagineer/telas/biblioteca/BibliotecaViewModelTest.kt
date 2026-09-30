@@ -361,8 +361,21 @@ class BibliotecaViewModelTest {
     }
 
     @Test
-    fun `so mostra ignorados quando ha algum`() {
-        assertEquals("12 capítulos · 1 ignorado", descreverCapitulos(12, 1))
-        assertEquals("12 capítulos · 3 ignorados", descreverCapitulos(12, 3))
+    fun `conta os ativos e so mostra arquivados quando ha algum`() {
+        // total 12, 1 arquivado: 11 ativos.
+        assertEquals("11 capítulos · 1 arquivado", descreverCapitulos(12, 1))
+        assertEquals("9 capítulos · 3 arquivados", descreverCapitulos(12, 3))
+    }
+
+    @Test
+    fun `um ativo e um arquivado`() {
+        assertEquals("1 capítulo · 1 arquivado", descreverCapitulos(2, 1))
+    }
+
+    @Test
+    fun `tudo arquivado deixa zero ativos, sem numero negativo`() {
+        assertEquals("0 capítulos · 3 arquivados", descreverCapitulos(3, 3))
+        // Dado inconsistente do servidor não vira um número negativo na tela.
+        assertEquals("0 capítulos · 5 arquivados", descreverCapitulos(3, 5))
     }
 }

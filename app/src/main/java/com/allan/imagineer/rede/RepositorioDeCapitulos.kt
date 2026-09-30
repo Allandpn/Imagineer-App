@@ -6,6 +6,9 @@ package com.allan.imagineer.rede
  */
 interface RepositorioDeCapitulos {
 
+    /** `GET /capitulos/{id}`: o capítulo com o texto inteiro. */
+    suspend fun abrirCapitulo(capituloId: Int): ResultadoDaChamada<CapituloDetalhe>
+
     /**
      * `PATCH /capitulos/{id}`: muda o título e/ou marca o capítulo como ignorado.
      *
@@ -22,6 +25,11 @@ interface RepositorioDeCapitulos {
 class RepositorioDeCapitulosPeloRetrofit(
     private val provedor: ProvedorDeApi,
 ) : RepositorioDeCapitulos {
+
+    override suspend fun abrirCapitulo(capituloId: Int): ResultadoDaChamada<CapituloDetalhe> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.capitulo(capituloId) }
+    }
 
     override suspend fun ajustarCapitulo(
         capituloId: Int,

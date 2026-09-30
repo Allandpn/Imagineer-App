@@ -96,16 +96,23 @@ class BibliotecaViewModel(
 }
 
 /**
- * O texto de capítulos de um cartão: "12 capítulos", ou "12 capítulos · 3
- * ignorados" quando há ignorados. Só mostra os ignorados se houver algum.
+ * O texto de capítulos de um cartão: "9 capítulos", ou "9 capítulos · 3 arquivados"
+ * quando há arquivados. **Conta os ativos**, e não o total: o cliente subtrai os
+ * arquivados de `total_de_capitulos`. Antes o texto dizia "12 capítulos · 3
+ * ignorados", que misturava total com ignorados e deixava a soma ambígua (item 7.5a,
+ * revisão do incremento 6).
+ *
+ * @param total o `total_de_capitulos` da API (ativos + arquivados)
+ * @param arquivados o `capitulos_ignorados` da API
  *
  * Função pura, fora do Compose, para ser testável na JVM.
  */
-fun descreverCapitulos(total: Int, ignorados: Int): String {
-    val capitulos = if (total == 1) "1 capítulo" else "$total capítulos"
+fun descreverCapitulos(total: Int, arquivados: Int): String {
+    val ativos = (total - arquivados).coerceAtLeast(0)
+    val capitulos = if (ativos == 1) "1 capítulo" else "$ativos capítulos"
     return when {
-        ignorados <= 0 -> capitulos
-        ignorados == 1 -> "$capitulos · 1 ignorado"
-        else -> "$capitulos · $ignorados ignorados"
+        arquivados <= 0 -> capitulos
+        arquivados == 1 -> "$capitulos · 1 arquivado"
+        else -> "$capitulos · $arquivados arquivados"
     }
 }

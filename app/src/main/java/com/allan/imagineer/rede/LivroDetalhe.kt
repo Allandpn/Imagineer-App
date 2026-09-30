@@ -22,6 +22,26 @@ data class CapituloResumo(
 )
 
 /**
+ * Um capítulo **com o texto** — espelha o `CapituloDetalhe` do backend (item 6.2).
+ * É o que `GET /capitulos/{id}` devolve, quando o usuário abre um capítulo.
+ *
+ * O texto vem inteiro (o maior capítulo dos livros de validação tem ~110 KB), com
+ * parágrafos separados por uma linha em branco.
+ */
+@Serializable
+@Suppress("PropertyName")
+data class CapituloDetalhe(
+    val id: Int,
+    val ordem: Int,
+    val titulo: String? = null,
+    val ignorado: Boolean,
+    val tamanho_do_texto: Int,
+    val sugestoes_pendentes: Int = 0,
+    val livro_id: Int,
+    val texto: String,
+)
+
+/**
  * Um livro com a estrutura de capítulos — espelha o `LivroDetalhe` do backend.
  * É o que `POST /livros`, `GET /livros/{id}` e `PATCH /livros/{id}` devolvem.
  */

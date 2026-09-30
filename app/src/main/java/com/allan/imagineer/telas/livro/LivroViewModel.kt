@@ -96,8 +96,8 @@ fun LivroDetalhe.comoResumo() = LivroResumo(
 )
 
 /**
- * A lógica da tela de Livro (item 7.4): carregar o livro, alternar o "ignorado" de
- * cada capítulo, editar os dados, escolher o perfil padrão e apagar o livro. Não sabe
+ * A lógica da tela de Livro (item 7.4): carregar o livro, arquivar e restaurar
+ * capítulos, editar os dados, escolher o perfil padrão e apagar o livro. Não sabe
  * nada de rede — só fala com os repositórios.
  */
 class LivroViewModel(
@@ -193,22 +193,32 @@ class LivroViewModel(
     }
 
     // ------------------------------------------------------------------ //
-    // Ignorar capítulo
+    // Arquivar e restaurar capítulos
     // ------------------------------------------------------------------ //
 
     /**
-     * Liga ou desliga o "ignorado" de um capítulo. **Não é otimista**: o interruptor
-     * só muda quando o servidor confirma, e enquanto isso é trocado por um indicador
-     * de progresso (evita o duplo toque e um estado que pisca e depois volta atrás).
+     * Arquiva o capítulo: ele sai da lista principal e vai para a área de arquivados
+     * (na API, `ignorado = true`). Ver a "Revisão do incremento 6" na especificação.
      */
-    fun alternarIgnorado(capituloId: Int) {
+    fun arquivar(capituloId: Int) = definirArquivado(capituloId, arquivado = true)
+
+    /** Restaura um capítulo arquivado: volta para a lista principal (`ignorado = false`). */
+    fun restaurar(capituloId: Int) = definirArquivado(capituloId, arquivado = false)
+
+    /**
+     * **Não é otimista**: o capítulo só troca de lista quando o servidor confirma, e
+     * enquanto isso o controle daquela linha é trocado por um indicador de progresso
+     * (evita o duplo toque e um estado que pisca e depois volta atrás).
+     */
+    private fun definirArquivado(capituloId: Int, arquivado: Boolean) {
         val atual = _estado.value as? EstadoDoLivro.Pronto ?: return
         val capitulo = atual.livro.capitulos.firstOrNull { it.id == capituloId } ?: return
+        if (capitulo.ignorado == arquivado) return // já está como se pede
         if (capituloId in atual.ajustando) return
 
         _estado.value = atual.copy(ajustando = atual.ajustando + capituloId)
         viewModelScope.launch {
-            val ajuste = CapituloAjuste(ignorado = !capitulo.ignorado)
+            val ajuste = CapituloAjuste(ignorado = arquivado)
             when (val resultado = capitulos.ajustarCapitulo(capituloId, ajuste)) {
                 is ResultadoDaChamada.Sucesso -> {
                     alteracoesConfirmadas++

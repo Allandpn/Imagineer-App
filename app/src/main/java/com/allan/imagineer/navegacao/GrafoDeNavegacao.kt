@@ -3,6 +3,7 @@ package com.allan.imagineer.navegacao
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -13,8 +14,11 @@ import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
+import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
+import com.allan.imagineer.telas.livro.TelaCapitulosArquivados
 import com.allan.imagineer.telas.livro.TelaLivro
+import com.allan.imagineer.telas.livro.livroViewModel
 import kotlinx.coroutines.flow.first
 
 /**
@@ -24,7 +28,7 @@ import kotlinx.coroutines.flow.first
  * Prompt. Elementos, Perfis e Configuração ficam fora da pilha principal e
  * podem ser abertos de vários pontos.
  *
- * Biblioteca, Livro e Configuração já são reais; as demais ainda são provisórias
+ * Biblioteca, Livro, Capítulo e Configuração já são reais; as demais ainda são provisórias
  * (mostram só o nome e os parâmetros recebidos) e serão trocadas incremento a
  * incremento.
  *
@@ -64,16 +68,24 @@ fun GrafoDeNavegacao() {
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
                 aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
                 aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
+                aoAbrirArquivados = { controle.navigate(CapitulosArquivados(destino.livroId)) },
+            )
+        }
+        composable<CapitulosArquivados> { entrada ->
+            val destino = entrada.toRoute<CapitulosArquivados>()
+            // Compartilha o ViewModel da tela de Livro (escopado à entrada dela na
+            // pilha): o que se arquiva lá e o que se restaura aqui é sempre o mesmo livro.
+            val entradaDoLivro = remember(entrada) { controle.getBackStackEntry<Livro>() }
+            TelaCapitulosArquivados(
+                aoVoltar = { controle.popBackStack() },
+                aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
+                viewModel = livroViewModel(destino.livroId, dono = entradaDoLivro),
             )
         }
         composable<Capitulo> { entrada ->
             val destino = entrada.toRoute<Capitulo>()
-            TelaProvisoria(
-                titulo = "Capítulo ${destino.capituloId}",
-                descricao = "Texto, sugestões e cenas do capítulo (item 7.5).",
-                acoes = listOf(
-                    AcaoProvisoria("Abrir um frame (id 100)") { controle.navigate(Frame(frameId = 100)) },
-                ),
+            TelaCapitulo(
+                capituloId = destino.capituloId,
                 aoVoltar = { controle.popBackStack() },
             )
         }

@@ -2,6 +2,7 @@ package com.allan.imagineer.telas.livro
 
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.CapituloAjuste
+import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.CapituloResumo
 import com.allan.imagineer.rede.LivroAjuste
 import com.allan.imagineer.rede.LivroDetalhe
@@ -26,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -101,6 +103,10 @@ internal class CapitulosFalso : RepositorioDeCapitulos {
     val ajustes = mutableListOf<Pair<Int, CapituloAjuste>>()
     var trava: CompletableDeferred<Unit>? = null
 
+    // A tela de Livro não abre o texto do capítulo; o falso só cumpre a interface.
+    override suspend fun abrirCapitulo(capituloId: Int): ResultadoDaChamada<CapituloDetalhe> =
+        error("não usado pela tela de Livro")
+
     /** Por padrão o servidor "obedece": devolve o capítulo com o `ignorado` pedido. */
     var resposta: (Int, CapituloAjuste) -> ResultadoDaChamada<CapituloResumo> = { id, ajuste ->
         ResultadoDaChamada.Sucesso(capitulo(id, ignorado = ajuste.ignorado == true))
@@ -134,6 +140,19 @@ class FormatacaoDoLivroTest {
         assertEquals("Capítulo 7", tituloDoCapitulo(null, 7))
         assertEquals("Capítulo 7", tituloDoCapitulo("", 7))
         assertEquals("Capítulo 7", tituloDoCapitulo("   ", 7))
+    }
+
+    @Test
+    fun `sem sugestoes pendentes nao mostra nada`() {
+        assertNull(descreverSugestoes(0))
+        // Dado inconsistente do servidor não vira texto estranho na tela.
+        assertNull(descreverSugestoes(-1))
+    }
+
+    @Test
+    fun `sugestoes pendentes no singular e no plural, com rotulo`() {
+        assertEquals("1 sugestão a confirmar", descreverSugestoes(1))
+        assertEquals("13 sugestões a confirmar", descreverSugestoes(13))
     }
 
     @Test
@@ -250,16 +269,16 @@ class LivroViewModelTest {
         assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
     }
 
-    // --- alternar ignorado ------------------------------------------------
+    // --- arquivar e restaurar ----------------------------------------------
 
     @Test
-    fun `desligar o interruptor ignora o capitulo e atualiza a contagem`() = runTest {
+    fun `arquivar manda ignorado verdadeiro e atualiza a contagem`() = runTest {
         val capitulos = CapitulosFalso()
         val vm = vm(capitulos = capitulos)
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         assertEquals(listOf(2 to CapituloAjuste(ignorado = true)), capitulos.ajustes)
@@ -270,14 +289,14 @@ class LivroViewModelTest {
     }
 
     @Test
-    fun `religar um capitulo ignorado manda ignorado falso`() = runTest {
+    fun `restaurar um capitulo arquivado manda ignorado falso`() = runTest {
         val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, ignorado = true), capitulo(2))))
         val capitulos = CapitulosFalso()
         val vm = vm(livros, capitulos)
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(1)
+        vm.restaurar(1)
         advanceUntilIdle()
 
         assertEquals(listOf(1 to CapituloAjuste(ignorado = false)), capitulos.ajustes)
@@ -285,13 +304,13 @@ class LivroViewModelTest {
     }
 
     @Test
-    fun `nao e otimista, o interruptor so muda quando o servidor confirma`() = runTest {
+    fun `nao e otimista, o capitulo so troca de lista quando o servidor confirma`() = runTest {
         val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
         val vm = vm(capitulos = capitulos)
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         val pronto = vm.estado.value as EstadoDoLivro.Pronto
@@ -307,8 +326,8 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(2)
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         assertEquals(1, capitulos.ajustes.size)
@@ -321,8 +340,8 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(1)
-        vm.alternarIgnorado(2)
+        vm.arquivar(1)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         assertEquals(2, capitulos.ajustes.size)
@@ -330,7 +349,7 @@ class LivroViewModelTest {
     }
 
     @Test
-    fun `falha ao alternar mantem o estado, libera o interruptor e avisa`() = runTest {
+    fun `falha ao arquivar mantem o estado, libera a linha e avisa`() = runTest {
         val capitulos = CapitulosFalso().apply {
             resposta = { _, _ -> ResultadoDaChamada.Falha("Não consegui falar com o servidor.") }
         }
@@ -339,7 +358,7 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         val pronto = vm.estado.value as EstadoDoLivro.Pronto
@@ -361,11 +380,11 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
 
         assertEquals(
@@ -385,27 +404,27 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
 
-        vm.alternarIgnorado(1)
+        vm.arquivar(1)
         advanceUntilIdle()
 
         assertTrue(recebidos.isEmpty())
     }
 
     @Test
-    fun `alternar sem o livro na tela ou com capitulo inexistente nao faz nada`() = runTest {
+    fun `arquivar sem o livro na tela ou com capitulo inexistente nao faz nada`() = runTest {
         val capitulos = CapitulosFalso()
         val vm = vm(capitulos = capitulos)
 
-        vm.alternarIgnorado(1) // ainda carregando
+        vm.arquivar(1) // ainda carregando
         vm.carregar()
         advanceUntilIdle()
-        vm.alternarIgnorado(99) // não existe
+        vm.arquivar(99) // não existe
 
         assertTrue(capitulos.ajustes.isEmpty())
     }
 
     @Test
-    fun `uma recarga que estava no ar nao desfaz o que o usuario acabou de mudar`() = runTest {
+    fun `uma recarga que estava no ar nao desfaz o que o usuario acabou de arquivar`() = runTest {
         val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
         val vm = vm(livros)
         vm.carregar()
@@ -416,7 +435,7 @@ class LivroViewModelTest {
         vm.carregar()
         advanceUntilIdle()
         // ...o usuário ignora o capítulo 2 e o servidor confirma...
-        vm.alternarIgnorado(2)
+        vm.arquivar(2)
         advanceUntilIdle()
         // ...e só então a resposta velha da recarga chega.
         livros.trava!!.complete(Unit)
@@ -424,5 +443,47 @@ class LivroViewModelTest {
 
         val pronto = vm.estado.value as EstadoDoLivro.Pronto
         assertEquals(true, pronto.livro.capitulos[1].ignorado)
+    }
+
+    @Test
+    fun `arquivar o que ja esta arquivado nao chama o servidor`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, ignorado = true), capitulo(2))))
+        val capitulos = CapitulosFalso()
+        val vm = vm(livros, capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.arquivar(1)
+        advanceUntilIdle()
+
+        assertTrue(capitulos.ajustes.isEmpty())
+    }
+
+    @Test
+    fun `restaurar o que ja esta ativo nao chama o servidor`() = runTest {
+        val capitulos = CapitulosFalso()
+        val vm = vm(capitulos = capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.restaurar(1)
+        advanceUntilIdle()
+
+        assertTrue(capitulos.ajustes.isEmpty())
+    }
+
+    @Test
+    fun `restaurar tira o capitulo dos arquivados e a contagem acompanha`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, ignorado = true), capitulo(2, ignorado = true), capitulo(3))))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.restaurar(2)
+        advanceUntilIdle()
+
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        assertEquals(listOf(1), pronto.livro.capitulos.filter { it.ignorado }.map { it.id })
+        assertEquals(1, pronto.livro.capitulos_ignorados)
     }
 }

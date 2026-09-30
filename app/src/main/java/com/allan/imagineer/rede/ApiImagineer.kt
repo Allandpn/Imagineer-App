@@ -60,6 +60,10 @@ interface ApiImagineer {
     @PATCH("livros/{id}")
     suspend fun ajustarLivro(@Path("id") livroId: Int, @Body ajuste: JsonObject): LivroDetalhe
 
+    /** `GET /capitulos/{id}` — um capítulo **com** o texto. */
+    @GET("capitulos/{id}")
+    suspend fun capitulo(@Path("id") capituloId: Int): CapituloDetalhe
+
     /**
      * `PATCH /capitulos/{id}` — muda o título e/ou o `ignorado`. A resposta traz o
      * capítulo com o texto, mas o [CapituloResumo] lê só o que interessa.

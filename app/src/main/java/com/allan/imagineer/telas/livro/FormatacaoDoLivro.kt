@@ -15,6 +15,21 @@ fun tituloDoCapitulo(titulo: String?, ordem: Int): String =
     titulo?.takeIf { it.isNotBlank() } ?: "Capítulo $ordem"
 
 /**
+ * O texto das sugestões da IA que ainda esperam confirmação num capítulo — ou `null`
+ * se não há nenhuma (e então nada é mostrado).
+ *
+ * Substitui um balão numérico sem rótulo: quem via "13" ao lado do capítulo não tinha
+ * como saber o que era (achado testando no tablet). O número são as sugestões de
+ * elemento e de cena que a IA encontrou e o usuário ainda não confirmou nem descartou
+ * (item 4.6).
+ */
+fun descreverSugestoes(pendentes: Int): String? = when {
+    pendentes <= 0 -> null
+    pendentes == 1 -> "1 sugestão a confirmar"
+    else -> "$pendentes sugestões a confirmar"
+}
+
+/**
  * O tamanho de um capítulo em linguagem legível: "850 caracteres", "3,4 mil
  * caracteres", "112 mil caracteres". O servidor só devolve o número; formatar é
  * trabalho do cliente (item 7.5a).

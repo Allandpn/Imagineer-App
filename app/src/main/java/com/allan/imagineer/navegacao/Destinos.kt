@@ -43,6 +43,14 @@ data class ElementosDoLivro(val livroId: Int)
 @Serializable
 object PerfisDeRenderizacao
 
+/**
+ * A área de capítulos arquivados de um livro (item 7.5a, revisão do incremento 6).
+ * Como as conversas arquivadas do WhatsApp: os capítulos saem da lista principal e
+ * ficam aqui, de onde podem ser restaurados.
+ */
+@Serializable
+data class CapitulosArquivados(val livroId: Int)
+
 /** Configuração do app: endereço do servidor, chave própria, modelos (item 7.10). */
 @Serializable
 object Configuracao
