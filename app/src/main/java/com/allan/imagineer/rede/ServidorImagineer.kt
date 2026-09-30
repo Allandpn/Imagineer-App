@@ -1,9 +1,5 @@
 package com.allan.imagineer.rede
 
-import kotlinx.serialization.SerializationException
-import retrofit2.HttpException
-import java.io.IOException
-
 /** O resultado do botão "Testar" da tela de Configuração. */
 sealed interface ResultadoDoTeste {
 
@@ -28,21 +24,10 @@ interface ServidorImagineer {
 class ServidorPeloRetrofit : ServidorImagineer {
 
     override suspend fun testarConexao(urlBase: String): ResultadoDoTeste {
-        // Três falhas com conserto diferente (item 7.3a) — por isso três mensagens.
-        return try {
-            val configuracao = criarApi(urlBase).configuracao()
-            ResultadoDoTeste.Conectado(servidorTemChave = configuracao.tem_chave_api)
-        } catch (erro: HttpException) {
-            ResultadoDoTeste.Falhou("O servidor respondeu com erro ${erro.code()}.")
-        } catch (erro: SerializationException) {
-            // Chegou lá e respondeu, mas não é o formato do Imagineer — típico de
-            // apontar para outro serviço (uma página HTML, por exemplo).
-            ResultadoDoTeste.Falhou(
-                "Esse endereço responde, mas não parece o servidor do Imagineer.",
-            )
-        } catch (erro: IOException) {
-            // Timeout, sem conexão, Pi desligado, Tailscale desconectado.
-            ResultadoDoTeste.Falhou("Não consegui falar com o servidor.")
+        return when (val resultado = chamarApi { criarApi(urlBase).configuracao() }) {
+            is ResultadoDaChamada.Sucesso ->
+                ResultadoDoTeste.Conectado(servidorTemChave = resultado.dado.tem_chave_api)
+            is ResultadoDaChamada.Falha -> ResultadoDoTeste.Falhou(resultado.motivo)
         }
     }
 }

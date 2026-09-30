@@ -3,6 +3,8 @@ package com.allan.imagineer
 import android.app.Application
 import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.dados.ArmazenamentoNoDataStore
+import com.allan.imagineer.rede.RepositorioDeLivros
+import com.allan.imagineer.rede.RepositorioDeLivrosPeloRetrofit
 import com.allan.imagineer.rede.ServidorImagineer
 import com.allan.imagineer.rede.ServidorPeloRetrofit
 
@@ -19,4 +21,6 @@ class ImagineerApp : Application() {
     val armazenamento: ArmazenamentoDeConfiguracao by lazy { ArmazenamentoNoDataStore(this) }
 
     val servidor: ServidorImagineer = ServidorPeloRetrofit()
+
+    val repositorioDeLivros: RepositorioDeLivros by lazy { RepositorioDeLivrosPeloRetrofit(armazenamento) }
 }

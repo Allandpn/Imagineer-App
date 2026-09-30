@@ -19,14 +19,17 @@ import java.util.concurrent.TimeUnit
  * O Retrofit lê as anotações e gera a implementação sozinho. Cada função é
  * `suspend`: roda em segundo plano sem travar a tela.
  *
- * Por enquanto só existe a rota de configuração, usada pelo botão "Testar" da
- * tela de Configuração. As rotas de livros entram no incremento 3.
+ * Cresce uma rota por vez, conforme cada tela do app é implementada.
  */
 interface ApiImagineer {
 
     /** `GET /configuracao` — o que o servidor tem configurado (nunca a chave). */
     @GET("configuracao")
     suspend fun configuracao(): ConfiguracaoAtual
+
+    /** `GET /livros` — a biblioteca, em ordem alfabética de título (item 6.2). */
+    @GET("livros")
+    suspend fun livros(): List<LivroResumo>
 }
 
 /** Resposta de `GET /configuracao` (item 4.3 do backend). */

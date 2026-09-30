@@ -12,6 +12,7 @@ import androidx.navigation.toRoute
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
+import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
 import kotlinx.coroutines.flow.first
 
@@ -21,6 +22,10 @@ import kotlinx.coroutines.flow.first
  * A pilha é hierárquica (item 7.0): Biblioteca → Livro → Capítulo → Frame →
  * Prompt. Elementos, Perfis e Configuração ficam fora da pilha principal e
  * podem ser abertos de vários pontos.
+ *
+ * Biblioteca e Configuração já são reais; as demais ainda são provisórias
+ * (mostram só o nome e os parâmetros recebidos) e serão trocadas incremento a
+ * incremento.
  *
  * **Primeira abertura** (item 7.3a): sem URL salva, o app começa na Configuração
  * em vez da Biblioteca. Ler o DataStore é assíncrono, então, até a leitura
@@ -44,14 +49,9 @@ fun GrafoDeNavegacao() {
         startDestination = if (jaSeSabe) Biblioteca else Configuracao,
     ) {
         composable<Biblioteca> {
-            TelaProvisoria(
-                titulo = "Biblioteca",
-                descricao = "Tela inicial: a lista de livros importados (item 7.2).",
-                acoes = listOf(
-                    AcaoProvisoria("Abrir um livro (id 1)") { controle.navigate(Livro(livroId = 1)) },
-                    AcaoProvisoria("Perfis de renderização") { controle.navigate(PerfisDeRenderizacao) },
-                    AcaoProvisoria("Configuração") { controle.navigate(Configuracao) },
-                ),
+            TelaBiblioteca(
+                aoAbrirLivro = { livroId -> controle.navigate(Livro(livroId)) },
+                aoAbrirConfiguracao = { controle.navigate(Configuracao) },
             )
         }
         composable<Livro> { entrada ->
