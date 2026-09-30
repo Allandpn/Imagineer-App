@@ -1,0 +1,594 @@
+package com.allan.imagineer.telas.capitulo.painel
+
+import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.ParticipanteSugerido
+import com.allan.imagineer.rede.RepositorioDeSugestoes
+import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.SugestoesDeCapitulo
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+// ---------------------------------------------------------------------- //
+// Falso e construtores
+// ---------------------------------------------------------------------- //
+
+private fun elemento(
+    id: Int = 1,
+    tipo: String = "PERSONAGEM",
+    nome: String = "Jon",
+    elementoId: Int? = null,
+    automatico: Boolean = false,
+    estadoId: Int? = null,
+    manter: Boolean = false,
+) = ElementoSugerido(
+    id = id, tipo = tipo, nome = nome, elemento_id = elementoId,
+    casamento_automatico = automatico, estado_id = estadoId, manter_estado_atual = manter,
+)
+
+private val nuncaAnalisado = SugestoesDeCapitulo(gerado_em = null, sugestoes_pendentes_anteriores = 2)
+private val analisado = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38", elementos = listOf(elemento()))
+private val analisadoSemNada = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38")
+
+/**
+ * Sugestões falsas. **Conta cada chamada ao `analisar`**, que é o único ponto que gasta IA:
+ * várias regras do painel existem para garantir que ele só é chamado quando o usuário pede.
+ */
+private class SugestoesFalso(
+    var leitura: ResultadoDaChamada<SugestoesDeCapitulo> = ResultadoDaChamada.Sucesso(nuncaAnalisado),
+    var analise: ResultadoDaChamada<SugestoesDeCapitulo> = ResultadoDaChamada.Sucesso(analisado),
+) : RepositorioDeSugestoes {
+    var leituras = 0
+    val analises = mutableListOf<Boolean>() // o "forcar" de cada chamada
+    var travaDaAnalise: CompletableDeferred<Unit>? = null
+
+    override suspend fun ler(capituloId: Int): ResultadoDaChamada<SugestoesDeCapitulo> {
+        leituras++
+        return leitura
+    }
+
+    override suspend fun analisar(capituloId: Int, forcar: Boolean): ResultadoDaChamada<SugestoesDeCapitulo> {
+        analises += forcar
+        travaDaAnalise?.await()
+        return analise
+    }
+}
+
+// ---------------------------------------------------------------------- //
+// Funções puras
+// ---------------------------------------------------------------------- //
+
+class RegrasDoPainelTest {
+
+    @Test
+    fun `rotulo dos sete tipos de elemento`() {
+        assertEquals("Personagem", rotuloDoTipo("PERSONAGEM"))
+        assertEquals("Ambiente", rotuloDoTipo("AMBIENTE"))
+        assertEquals("Objeto", rotuloDoTipo("OBJETO"))
+        assertEquals("Criatura", rotuloDoTipo("CRIATURA"))
+        assertEquals("Grupo", rotuloDoTipo("GRUPO"))
+        assertEquals("Veículo", rotuloDoTipo("VEICULO"))
+        assertEquals("Edificação", rotuloDoTipo("EDIFICACAO"))
+    }
+
+    @Test
+    fun `um tipo novo no backend nao quebra o rotulo`() {
+        assertEquals("Planeta", rotuloDoTipo("PLANETA"))
+    }
+
+    // --- P12: os destaques do elemento -----------------------------------
+
+    @Test
+    fun `P12 elemento ainda nao confirmado nao tem destaque nenhum`() {
+        assertEquals(emptyList<String>(), destaquesDoElemento(elemento()))
+    }
+
+    @Test
+    fun `P12 casamento automatico vem primeiro, e junto do sem estado`() {
+        val e = elemento(elementoId = 7, automatico = true, estadoId = null)
+
+        assertEquals(listOf(CASAMENTO_AUTOMATICO, CASADO_SEM_ESTADO), destaquesDoElemento(e))
+    }
+
+    @Test
+    fun `P12 casado por revisao mas sem estado mostra os dois`() {
+        val e = elemento(elementoId = 7, automatico = false, estadoId = null)
+
+        assertEquals(listOf(CASADO_SEM_ESTADO, JA_CADASTRADO), destaquesDoElemento(e))
+    }
+
+    @Test
+    fun `P12 casado, revisado e com estado so diz que ja esta cadastrado`() {
+        val e = elemento(elementoId = 7, automatico = false, estadoId = 3)
+
+        assertEquals(listOf(JA_CADASTRADO), destaquesDoElemento(e))
+    }
+
+    @Test
+    fun `P12 manter estado e um destaque a parte e vem por ultimo`() {
+        val e = elemento(elementoId = 7, automatico = true, estadoId = 3, manter = true)
+
+        assertEquals(listOf(CASAMENTO_AUTOMATICO, MANTEM_O_ESTADO), destaquesDoElemento(e))
+        assertEquals(listOf(MANTEM_O_ESTADO), destaquesDoElemento(elemento(manter = true)))
+    }
+
+    // --- P13: participantes ----------------------------------------------
+
+    @Test
+    fun `P13 participante so destaca o casamento automatico`() {
+        val auto = ParticipanteSugerido(1, "PERSONAGEM", "Jon", elemento_id = 7, casamento_automatico = true)
+        val revisado = ParticipanteSugerido(1, "PERSONAGEM", "Jon", elemento_id = 7, casamento_automatico = false)
+        val solto = ParticipanteSugerido(1, "PERSONAGEM", "Jon")
+
+        assertEquals(CASAMENTO_AUTOMATICO, destaqueDoParticipante(auto))
+        assertNull(destaqueDoParticipante(revisado))
+        assertNull(destaqueDoParticipante(solto))
+    }
+
+    // --- P11: pendentes anteriores ---------------------------------------
+
+    @Test
+    fun `P11 sem pendentes nao mostra aviso`() {
+        assertNull(descreverPendentesAnteriores(0))
+        assertNull(descreverPendentesAnteriores(-1)) // dado estranho do servidor
+    }
+
+    @Test
+    fun `P11 aviso no singular e no plural, sem bloquear`() {
+        assertEquals(
+            "Você tem 1 sugestão não confirmada em capítulos anteriores — confirmar primeiro deixa esta análise mais precisa.",
+            descreverPendentesAnteriores(1),
+        )
+        assertEquals(
+            "Você tem 13 sugestões não confirmadas em capítulos anteriores — confirmar primeiro deixa esta análise mais precisa.",
+            descreverPendentesAnteriores(13),
+        )
+    }
+
+    // --- P4: aside x tela cheia ------------------------------------------
+
+    @Test
+    fun `P4 aside so a partir de 840 dp`() {
+        assertFalse(usarAside(411)) // celular
+        assertFalse(usarAside(839))
+        assertTrue(usarAside(840))
+        assertTrue(usarAside(1280)) // tablet na horizontal
+    }
+
+    // --- P3: o botão some ao rolar para baixo ----------------------------
+
+    @Test
+    fun `P3 comeca visivel`() {
+        assertTrue(VisibilidadeDoBotao().visivel)
+    }
+
+    @Test
+    fun `P3 some ao rolar para baixo depois do limiar`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+
+        botao.aoRolar(10f, noTopo = false, noFim = false)
+        assertTrue(botao.visivel) // ainda abaixo do limiar: um tremor não esconde
+        botao.aoRolar(20f, noTopo = false, noFim = false)
+
+        assertFalse(botao.visivel)
+    }
+
+    @Test
+    fun `P3 reaparece ao rolar para cima`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+        botao.aoRolar(50f, noTopo = false, noFim = false)
+        assertFalse(botao.visivel)
+
+        botao.aoRolar(-30f, noTopo = false, noFim = false)
+
+        assertTrue(botao.visivel)
+    }
+
+    @Test
+    fun `P3 mudar de direcao recomeca a contagem`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+        botao.aoRolar(20f, noTopo = false, noFim = false) // quase some...
+        botao.aoRolar(-5f, noTopo = false, noFim = false) // ...mas o dedo voltou
+        botao.aoRolar(10f, noTopo = false, noFim = false) // e desceu de novo
+
+        // 20, depois -5 (recomeça em -5), depois +10 (recomeça em +10): nunca chegou a 24.
+        assertTrue(botao.visivel)
+    }
+
+    @Test
+    fun `P3 no topo sempre visivel, mesmo rolando para baixo`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+        botao.aoRolar(100f, noTopo = false, noFim = false)
+        assertFalse(botao.visivel)
+
+        botao.aoRolar(5f, noTopo = true, noFim = false)
+
+        assertTrue(botao.visivel)
+    }
+
+    @Test
+    fun `P3 no fim do texto sempre visivel`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+        botao.aoRolar(100f, noTopo = false, noFim = false)
+        assertFalse(botao.visivel)
+
+        botao.aoRolar(5f, noTopo = false, noFim = true)
+
+        assertTrue(botao.visivel)
+    }
+
+    @Test
+    fun `P3 depois de sair do topo a contagem recomeca do zero`() {
+        val botao = VisibilidadeDoBotao(limiar = 24f)
+        botao.aoRolar(100f, noTopo = true, noFim = false) // parado no topo: acumula nada
+        botao.aoRolar(10f, noTopo = false, noFim = false)
+
+        assertTrue(botao.visivel) // só 10 de 24
+    }
+}
+
+// ---------------------------------------------------------------------- //
+// O ViewModel: P1, P2, P6 a P10, P14
+// ---------------------------------------------------------------------- //
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class PainelDeIaViewModelTest {
+
+    @Before
+    fun preparar() {
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
+
+    @After
+    fun limpar() {
+        Dispatchers.resetMain()
+    }
+
+    private fun vm(repositorio: SugestoesFalso = SugestoesFalso()) = PainelDeIaViewModel(5, repositorio)
+
+    // --- P1 e P2: nada é pedido até o painel abrir; abrir é só ler --------
+
+    @Test
+    fun `P1 criar o viewmodel nao chama o servidor`() = runTest {
+        val repositorio = SugestoesFalso()
+
+        val vm = vm(repositorio)
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoPainel(), vm.estado.value)
+        assertEquals(0, repositorio.leituras)
+        assertTrue(repositorio.analises.isEmpty())
+    }
+
+    @Test
+    fun `P2 abrir o painel le e nunca gera`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(1, repositorio.leituras)
+        assertTrue(repositorio.analises.isEmpty()) // o ponto central: abrir nunca gasta IA
+    }
+
+    @Test
+    fun `P2 nunca analisado mostra Analisar e guarda as pendentes anteriores`() = runTest {
+        val vm = vm()
+
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(ConteudoDoPainel.NuncaAnalisado(pendentesAnteriores = 2), vm.estado.value.conteudo)
+    }
+
+    @Test
+    fun `P2 ja analisado mostra o resultado`() = runTest {
+        val vm = vm(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado)))
+
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(ConteudoDoPainel.Pronto(analisado), vm.estado.value.conteudo)
+    }
+
+    @Test
+    fun `P1 abrir e fechar e abrir de novo nao rele`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.aoAbrirPainel()
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(1, repositorio.leituras)
+    }
+
+    @Test
+    fun `P2 falha na leitura mostra o erro, e tentar de novo recupera`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Falha("Não consegui falar com o servidor."))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+        assertEquals(ConteudoDoPainel.Erro("Não consegui falar com o servidor."), vm.estado.value.conteudo)
+
+        repositorio.leitura = ResultadoDaChamada.Sucesso(analisado)
+        vm.tentarDeNovo()
+        advanceUntilIdle()
+
+        assertEquals(ConteudoDoPainel.Pronto(analisado), vm.estado.value.conteudo)
+    }
+
+    @Test
+    fun `um erro de leitura nao se refaz sozinho ao reabrir o painel`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Falha("erro"))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(1, repositorio.leituras) // só o "Tentar de novo" relê
+    }
+
+    @Test
+    fun `tentar de novo sem erro nao faz nada`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.tentarDeNovo()
+        advanceUntilIdle()
+
+        assertEquals(1, repositorio.leituras)
+    }
+
+    // --- P6: Analisar -------------------------------------------------------
+
+    @Test
+    fun `P6 analisar chama o POST sem forcar e mostra o resultado`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar()
+        advanceUntilIdle()
+
+        assertEquals(listOf(false), repositorio.analises)
+        assertEquals(ConteudoDoPainel.Pronto(analisado), vm.estado.value.conteudo)
+        assertFalse(vm.estado.value.analisando)
+    }
+
+    @Test
+    fun `P6 enquanto analisa, marca analisando e nao aceita outra analise`() = runTest {
+        val repositorio = SugestoesFalso().apply { travaDaAnalise = CompletableDeferred() }
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar()
+        vm.analisar() // segundo toque, com o primeiro ainda no ar
+        advanceUntilIdle()
+
+        assertTrue(vm.estado.value.analisando)
+        assertEquals(1, repositorio.analises.size) // uma única cobrança
+    }
+
+    @Test
+    fun `P6 analisar so vale quando nunca foi analisado`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar() // já está analisado: quem quiser refazer usa Reanalisar
+        advanceUntilIdle()
+
+        assertTrue(repositorio.analises.isEmpty())
+    }
+
+    @Test
+    fun `P6 analisar antes de abrir o painel nao faz nada`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+
+        vm.analisar()
+        advanceUntilIdle()
+
+        assertTrue(repositorio.analises.isEmpty())
+    }
+
+    // --- P7: Reanalisar pede confirmação ------------------------------------
+
+    @Test
+    fun `P7 reanalisar pede confirmacao e nao gasta nada ate o sim`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.pedirReanalise()
+        advanceUntilIdle()
+
+        assertTrue(vm.estado.value.confirmandoReanalise)
+        assertTrue(repositorio.analises.isEmpty()) // pedir não cobra
+    }
+
+    @Test
+    fun `P7 cancelar a confirmacao nao gasta nada`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+        vm.pedirReanalise()
+
+        vm.cancelarReanalise()
+        advanceUntilIdle()
+
+        assertFalse(vm.estado.value.confirmandoReanalise)
+        assertTrue(repositorio.analises.isEmpty())
+    }
+
+    @Test
+    fun `P7 confirmar chama o POST com forcar verdadeiro`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+        vm.pedirReanalise()
+
+        vm.confirmarReanalise()
+        advanceUntilIdle()
+
+        assertEquals(listOf(true), repositorio.analises)
+        assertFalse(vm.estado.value.confirmandoReanalise)
+    }
+
+    @Test
+    fun `P7 reanalisar so existe depois de analisado`() = runTest {
+        val vm = vm() // nunca analisado
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.pedirReanalise()
+
+        assertFalse(vm.estado.value.confirmandoReanalise)
+    }
+
+    @Test
+    fun `P7 confirmar sem ter pedido nao faz nada`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.confirmarReanalise()
+        advanceUntilIdle()
+
+        assertTrue(repositorio.analises.isEmpty())
+    }
+
+    // --- P8: falha na análise não perde nada --------------------------------
+
+    @Test
+    fun `P8 falha na analise volta ao estado de antes e mostra a mensagem da API`() = runTest {
+        val repositorio = SugestoesFalso(
+            analise = ResultadoDaChamada.Falha("Não há chave de API do OpenRouter configurada.", 422),
+        )
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar()
+        advanceUntilIdle()
+
+        val estado = vm.estado.value
+        assertEquals(ConteudoDoPainel.NuncaAnalisado(2), estado.conteudo) // "Analisar" continua ali
+        assertEquals("Não há chave de API do OpenRouter configurada.", estado.erroDaAnalise)
+        assertFalse(estado.analisando)
+    }
+
+    @Test
+    fun `P8 falha ao reanalisar mantem a lista antiga`() = runTest {
+        val repositorio = SugestoesFalso(
+            leitura = ResultadoDaChamada.Sucesso(analisado),
+            analise = ResultadoDaChamada.Falha("O provedor falhou.", 502),
+        )
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+        vm.pedirReanalise()
+        vm.confirmarReanalise()
+        advanceUntilIdle()
+
+        assertEquals(ConteudoDoPainel.Pronto(analisado), vm.estado.value.conteudo) // nada se perdeu
+        assertEquals("O provedor falhou.", vm.estado.value.erroDaAnalise)
+    }
+
+    @Test
+    fun `P8 nunca repete sozinho depois de uma falha`() = runTest {
+        val repositorio = SugestoesFalso(analise = ResultadoDaChamada.Falha("erro"))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar()
+        advanceUntilIdle()
+        advanceUntilIdle()
+
+        // Repetir sozinho cobraria duas vezes sem ninguém pedir.
+        assertEquals(1, repositorio.analises.size)
+    }
+
+    @Test
+    fun `P8 o erro some quando o usuario tenta de novo`() = runTest {
+        val repositorio = SugestoesFalso(analise = ResultadoDaChamada.Falha("erro"))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+        vm.analisar()
+        advanceUntilIdle()
+        assertEquals("erro", vm.estado.value.erroDaAnalise)
+
+        repositorio.analise = ResultadoDaChamada.Sucesso(analisado)
+        vm.analisar()
+        advanceUntilIdle()
+
+        assertNull(vm.estado.value.erroDaAnalise)
+        assertEquals(2, repositorio.analises.size)
+    }
+
+    // --- P14: nada achado não é erro ----------------------------------------
+
+    @Test
+    fun `P14 analise que nao achou nada e um resultado e nao um erro`() = runTest {
+        val repositorio = SugestoesFalso(analise = ResultadoDaChamada.Sucesso(analisadoSemNada))
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel()
+        advanceUntilIdle()
+
+        vm.analisar()
+        advanceUntilIdle()
+
+        val conteudo = vm.estado.value.conteudo
+        assertTrue(conteudo is ConteudoDoPainel.Pronto)
+        assertTrue((conteudo as ConteudoDoPainel.Pronto).sugestoes.elementos.isEmpty())
+        assertNull(vm.estado.value.erroDaAnalise)
+        // E com isso Reanalisar passa a existir, porque agora está "analisado".
+        vm.pedirReanalise()
+        assertTrue(vm.estado.value.confirmandoReanalise)
+    }
+
+    // --- P9: sair no meio da análise ----------------------------------------
+
+    @Test
+    fun `P9 um viewmodel novo le o que o servidor ja salvou, sem gerar`() = runTest {
+        // O usuário saiu no meio da análise; o servidor terminou e salvou. Ao voltar, é um
+        // viewmodel novo — e ele só LÊ.
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(analisado))
+
+        val vmNovo = vm(repositorio)
+        vmNovo.aoAbrirPainel()
+        advanceUntilIdle()
+
+        assertEquals(ConteudoDoPainel.Pronto(analisado), vmNovo.estado.value.conteudo)
+        assertTrue(repositorio.analises.isEmpty()) // não gerou de novo: sem cobrança dupla
+    }
+}

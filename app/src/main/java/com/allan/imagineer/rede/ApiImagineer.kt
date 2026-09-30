@@ -5,17 +5,20 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
 // Os nomes dos campos abaixo são os do JSON do backend, em português e em
@@ -82,6 +85,28 @@ interface ApiImagineer {
     @GET("perfis-renderizacao/{id}")
     suspend fun perfil(@Path("id") perfilId: Int): PerfilRenderizacao
 
+    /**
+     * `GET /capitulos/{id}/sugestoes` — **só lê** o que está salvo. Nunca chama a IA, nunca
+     * cobra (item 6.8): é o que o painel usa ao abrir.
+     */
+    @GET("capitulos/{id}/sugestoes")
+    suspend fun sugestoes(@Path("id") capituloId: Int): SugestoesDeCapitulo
+
+    /**
+     * `POST /capitulos/{id}/sugestoes` — **gera** (e cobra): chama a IA se o capítulo nunca foi
+     * analisado ou se [forcar] é `true`. É o único ponto do app que gasta IA.
+     *
+     * O cabeçalho `X-Timeout-Leitura` **não vai ao servidor**: o [interceptador de tempo de
+     * espera][criarApi] o lê e o remove. Uma análise leva de segundos a mais de um minuto, bem
+     * além dos 30 s comuns, que a dariam como falha enganosamente (item 7.5b, P10).
+     */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("capitulos/{id}/sugestoes")
+    suspend fun analisar(
+        @Path("id") capituloId: Int,
+        @Query("forcar") forcar: Boolean,
+    ): SugestoesDeCapitulo
+
     /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
     @DELETE("livros/{id}")
     suspend fun removerLivro(@Path("id") livroId: Int)
@@ -106,6 +131,25 @@ data class ConfiguracaoAtual(
  */
 val jsonDoImagineer = Json { ignoreUnknownKeys = true }
 
+/** O cabeçalho que uma chamada usa para pedir um tempo de espera de leitura maior. */
+const val CABECALHO_TEMPO_DE_ESPERA = "X-Timeout-Leitura"
+
+/**
+ * Dá a **uma chamada** um tempo de espera de leitura maior, sem mexer nas outras.
+ *
+ * Lê o cabeçalho [CABECALHO_TEMPO_DE_ESPERA] (em segundos), aplica só àquele pedido e o
+ * **remove** antes de enviar — o servidor nunca o vê. Assim uma análise de IA, que leva
+ * muito mais que 30 s, não é dada como falha, e todas as demais chamadas continuam
+ * falhando depressa quando o servidor não responde.
+ */
+internal val interceptadorDeTempoDeEspera = Interceptor { cadeia ->
+    val pedido = cadeia.request()
+    val segundos = pedido.header(CABECALHO_TEMPO_DE_ESPERA)?.toIntOrNull()
+    val semCabecalho = pedido.newBuilder().removeHeader(CABECALHO_TEMPO_DE_ESPERA).build()
+    val cadeiaAjustada = if (segundos != null) cadeia.withReadTimeout(segundos, TimeUnit.SECONDS) else cadeia
+    cadeiaAjustada.proceed(semCabecalho)
+}
+
 /**
  * Monta o cliente da API para um endereço.
  *
@@ -115,12 +159,13 @@ val jsonDoImagineer = Json { ignoreUnknownKeys = true }
  * @param urlBase sem barra final, como o app guarda; o Retrofit exige a barra e
  * ela é acrescentada aqui.
  */
-fun criarApi(urlBase: String): ApiImagineer {
+fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30): ApiImagineer {
     val cliente = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(leituraPadraoEmSegundos, TimeUnit.SECONDS)
         // O padrão (10 s por escrita) é curto para subir um EPUB numa conexão lenta.
         .writeTimeout(60, TimeUnit.SECONDS)
+        .addInterceptor(interceptadorDeTempoDeEspera)
         .build()
 
     return Retrofit.Builder()

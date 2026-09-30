@@ -11,6 +11,8 @@ import com.allan.imagineer.rede.RepositorioDeCapitulosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.RepositorioDePerfis
 import com.allan.imagineer.rede.RepositorioDePerfisPeloRetrofit
+import com.allan.imagineer.rede.RepositorioDeSugestoes
+import com.allan.imagineer.rede.RepositorioDeSugestoesPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivrosPeloRetrofit
 import com.allan.imagineer.rede.ServidorImagineer
 import com.allan.imagineer.rede.ServidorPeloRetrofit
@@ -39,6 +41,10 @@ class ImagineerApp : Application() {
 
     val repositorioDeCapitulos: RepositorioDeCapitulos by lazy {
         RepositorioDeCapitulosPeloRetrofit(provedorDeApi)
+    }
+
+    val repositorioDeSugestoes: RepositorioDeSugestoes by lazy {
+        RepositorioDeSugestoesPeloRetrofit(provedorDeApi)
     }
 
     val repositorioDePerfis: RepositorioDePerfis by lazy {
