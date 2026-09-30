@@ -10,11 +10,13 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - A especificação vive no repositório da API: `Allandpn/Imagineer`, arquivo `ESPECIFICACAO.md`.
   A Etapa 7 descreve as telas, a Etapa 6 descreve as rotas e o item 7.0 fixa a arquitetura do app.
 - O código cita itens dela ("item 7.3a", "incremento 6"). Consulte-a antes de decidir algo de tela ou rota.
-- Este repositório NÃO altera a API nem a especificação. Se uma mudança exigir isso, avise e proponha o texto.
+- **Código da API: nunca é alterado a partir daqui.** A **especificação** pode ser: quando o app precisa de uma
+  mudança de rota, campo ou tela, escreva-a em `ESPECIFICACAO.md` seguindo as regras de convivência do
+  `CLAUDE.md` do repositório da API (que é a fonte dessas regras — não repetir aqui).
 
 ## Fluxo de trabalho (mesmo do backend)
 1. Especificar o que vai ser feito e por quê.
-2. Registrar na especificação (Allan atualiza no repositório da API).
+2. Registrar na especificação (no repositório da API, pelas regras de convivência de lá).
 3. Implementar só depois disso.
 4. Testar: nenhum item está concluído sem teste.
 - Incrementos pequenos e revisáveis, um por item da especificação. Não avançar com testes quebrados.
@@ -58,12 +60,20 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 
 ## Git
 - Commits pequenos, com o motivo da mudança, um por item da especificação.
+- **Sessão remota (nuvem), sem o Allan presente:** branch curta e pull request; quem mescla é ele.
+  **Sessão local com o Allan presente:** commit e push direto na `main`, só quando ele pedir explicitamente
+  (ele valida no tablet antes).
 
 ## Skills e agentes do projeto (.claude/)
 - `compose-expert` (aldefy/compose-skill v2.4.0, MIT, copiada em 2026-09-30, sem atualização automática):
   telas Compose. As regras acima têm precedência sobre qualquer sugestão dela
-  (em especial: não migrar para Navigation 3).
-- `code-reviewer` e `codebase-onboarding-engineer` (msitarzewski/agency-agents, MIT, copiados em 2026-09-30):
-  só leitura (`tools: Read, Grep, Glob`). Não têm conhecimento do projeto além deste arquivo.
+  (em especial: não migrar para Navigation 3). A pasta `references/source-code/` (código-fonte de
+  bibliotecas, ~2 MB) foi removida: é consultável sem precisar morar no repositório. Há uma nota local
+  na `SKILL.md` avisando isso (única edição feita no material de terceiros).
+- `code-reviewer` (msitarzewski/agency-agents, MIT, copiado em 2026-09-30): só leitura
+  (`tools: Read, Grep, Glob`). Não tem conhecimento do projeto além deste arquivo.
+  O agente `codebase-onboarding-engineer` foi removido: este arquivo e a especificação já cumprem esse papel.
+- **Aprovado pelo Allan em 30/09/2026**, depois de uma varredura (só markdown e licenças; sem scripts, hooks
+  nem instruções de rede ou segredos).
 - Revisão: telas Compose → compose-expert; o resto → code-reviewer.
 - Não instalar skills, agentes ou scripts de terceiros sem aprovação explícita.
