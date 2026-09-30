@@ -51,10 +51,10 @@ class RepositorioDeLivrosPelaRedeTest {
         servidor.shutdown()
     }
 
-    private fun repositorio(leitor: LeitorFalso = LeitorFalso(conteudo)) = RepositorioDeLivrosPeloRetrofit(
-        ArmazenamentoFalso(servidor.url("/").toString().trimEnd('/')),
-        leitor,
-    )
+    private fun provedor() = ProvedorDeApi(ArmazenamentoFalso(servidor.url("/").toString().trimEnd('/')))
+
+    private fun repositorio(leitor: LeitorFalso = LeitorFalso(conteudo)) =
+        RepositorioDeLivrosPeloRetrofit(provedor(), leitor)
 
     private val livroJson = """{"id":2,"titulo":"segundo","autor":null,"idioma":"pt-BR","nome_arquivo":"livro.epub","data_importacao":"2026-09-30T01:25:34","total_de_capitulos":2,"capitulos_ignorados":0,"identificador_epub":null,"perfil_renderizacao_padrao_id":null,"metadados_pendentes":["autor"],"capitulos":[]}"""
 

@@ -1,9 +1,7 @@
 package com.allan.imagineer.rede
 
-import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.dados.LeitorDeArquivos
-import kotlinx.coroutines.flow.first
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 
@@ -55,22 +53,17 @@ fun interpretarRemocao(resultado: ResultadoDaChamada<Unit>): ResultadoDaChamada<
 
 /** A implementação de verdade: lê a URL salva e conversa com o servidor pelo Retrofit. */
 class RepositorioDeLivrosPeloRetrofit(
-    private val armazenamento: ArmazenamentoDeConfiguracao,
+    private val provedor: ProvedorDeApi,
     private val leitor: LeitorDeArquivos,
 ) : RepositorioDeLivros {
 
-    // Montar um cliente HTTP a cada chamada jogaria fora o pool de conexões dele.
-    // Guarda o último par (URL, API) e só remonta se a URL salva mudou.
-    private var urlEmUso: String? = null
-    private var apiEmUso: ApiImagineer? = null
-
     override suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>> {
-        val api = obterApi() ?: return semServidor()
+        val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.livros() }
     }
 
     override suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe> {
-        val api = obterApi() ?: return semServidor()
+        val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.livro(livroId) }
     }
 
@@ -78,7 +71,7 @@ class RepositorioDeLivrosPeloRetrofit(
         arquivo: ArquivoEscolhido,
         aoProgredir: (enviados: Long, total: Long?) -> Unit,
     ): ResultadoDaChamada<RespostaImportacao> {
-        val api = obterApi() ?: return semServidor()
+        val api = provedor.obter() ?: return provedor.semServidor()
 
         // Abre o arquivo ANTES do pedido: se a permissão se perdeu ou o arquivo foi
         // movido, a mensagem tem de ser essa — e não a de falha de rede, que seria
@@ -103,24 +96,12 @@ class RepositorioDeLivrosPeloRetrofit(
     }
 
     override suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe> {
-        val api = obterApi() ?: return semServidor()
+        val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.ajustarLivro(livroId, ajuste) }
     }
 
     override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {
-        val api = obterApi() ?: return semServidor()
+        val api = provedor.obter() ?: return provedor.semServidor()
         return interpretarRemocao(chamarApi { api.removerLivro(livroId) })
-    }
-
-    private fun semServidor() =
-        ResultadoDaChamada.Falha("O endereço do servidor ainda não foi configurado.")
-
-    private suspend fun obterApi(): ApiImagineer? {
-        val url = armazenamento.urlDoServidor.first() ?: return null
-        if (url != urlEmUso) {
-            apiEmUso = criarApi(url)
-            urlEmUso = url
-        }
-        return apiEmUso
     }
 }

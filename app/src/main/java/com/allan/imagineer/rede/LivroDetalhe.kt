@@ -66,3 +66,16 @@ data class LivroAjuste(
     val titulo: String? = null,
     val autor: String? = null,
 )
+
+/**
+ * O corpo de `PATCH /capitulos/{id}`. Como em [LivroAjuste], os campos nulos não vão
+ * no JSON: no backend, campo ausente é "não mexa".
+ *
+ * Marcar `ignorado` é o caso mais comum — é o que confirma ou desfaz a sugestão da
+ * importação (item 2.2).
+ */
+@Serializable
+data class CapituloAjuste(
+    val titulo: String? = null,
+    val ignorado: Boolean? = null,
+)

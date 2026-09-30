@@ -1,0 +1,396 @@
+package com.allan.imagineer.telas.livro
+
+import com.allan.imagineer.dados.ArquivoEscolhido
+import com.allan.imagineer.rede.CapituloAjuste
+import com.allan.imagineer.rede.CapituloResumo
+import com.allan.imagineer.rede.LivroAjuste
+import com.allan.imagineer.rede.LivroDetalhe
+import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.rede.RepositorioDeCapitulos
+import com.allan.imagineer.rede.RepositorioDeLivros
+import com.allan.imagineer.rede.RespostaImportacao
+import com.allan.imagineer.rede.ResultadoDaChamada
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import java.util.Locale
+
+// ---------------------------------------------------------------------- //
+// Falsos e construtores de dados
+// ---------------------------------------------------------------------- //
+
+private fun capitulo(id: Int, ignorado: Boolean = false, titulo: String? = "Cap $id") = CapituloResumo(
+    id = id, ordem = id, titulo = titulo, ignorado = ignorado, tamanho_do_texto = 1000,
+)
+
+private fun livro(vararg capitulos: CapituloResumo) = LivroDetalhe(
+    id = 1, titulo = "Um Livro", autor = "Fulano", idioma = "pt-BR", nome_arquivo = "livro.epub",
+    data_importacao = "2026-09-30T01:11:16", total_de_capitulos = capitulos.size,
+    capitulos_ignorados = capitulos.count { it.ignorado }, capitulos = capitulos.toList(),
+)
+
+private class LivrosFalso(var resposta: ResultadoDaChamada<LivroDetalhe>) : RepositorioDeLivros {
+    var trava: CompletableDeferred<Unit>? = null
+    var chamadas = 0
+
+    override suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe> {
+        chamadas++
+        val respostaDestaChamada = resposta // a resposta vale no momento da chamada, não da entrega
+        trava?.await()
+        return respostaDestaChamada
+    }
+
+    // O resto não é usado pela tela de Livro; o falso só cumpre a interface.
+    override suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>> = error("não usado")
+    override suspend fun importarLivro(
+        arquivo: ArquivoEscolhido,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<RespostaImportacao> = error("não usado")
+    override suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe> =
+        error("não usado")
+    override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> = error("não usado")
+}
+
+private class CapitulosFalso : RepositorioDeCapitulos {
+    val ajustes = mutableListOf<Pair<Int, CapituloAjuste>>()
+    var trava: CompletableDeferred<Unit>? = null
+
+    /** Por padrão o servidor "obedece": devolve o capítulo com o `ignorado` pedido. */
+    var resposta: (Int, CapituloAjuste) -> ResultadoDaChamada<CapituloResumo> = { id, ajuste ->
+        ResultadoDaChamada.Sucesso(capitulo(id, ignorado = ajuste.ignorado == true))
+    }
+
+    override suspend fun ajustarCapitulo(
+        capituloId: Int,
+        ajuste: CapituloAjuste,
+    ): ResultadoDaChamada<CapituloResumo> {
+        ajustes += capituloId to ajuste
+        trava?.await()
+        return resposta(capituloId, ajuste)
+    }
+}
+
+// ---------------------------------------------------------------------- //
+// Funções puras
+// ---------------------------------------------------------------------- //
+
+class FormatacaoDoLivroTest {
+
+    private val br = Locale("pt", "BR")
+
+    @Test
+    fun `titulo do capitulo usa o titulo quando existe`() {
+        assertEquals("Bran", tituloDoCapitulo("Bran", 1))
+    }
+
+    @Test
+    fun `capitulo sem titulo mostra Capitulo e a ordem`() {
+        assertEquals("Capítulo 7", tituloDoCapitulo(null, 7))
+        assertEquals("Capítulo 7", tituloDoCapitulo("", 7))
+        assertEquals("Capítulo 7", tituloDoCapitulo("   ", 7))
+    }
+
+    @Test
+    fun `tamanho pequeno em caracteres`() {
+        assertEquals("1 caractere", descreverTamanho(1, br))
+        assertEquals("850 caracteres", descreverTamanho(850, br))
+        assertEquals("999 caracteres", descreverTamanho(999, br))
+    }
+
+    @Test
+    fun `tamanho medio com uma casa decimal e virgula`() {
+        assertEquals("3,4 mil caracteres", descreverTamanho(3400, br))
+        assertEquals("27,8 mil caracteres", descreverTamanho(27_830, br))
+    }
+
+    @Test
+    fun `mil redondo nao mostra a casa decimal`() {
+        assertEquals("1 mil caracteres", descreverTamanho(1000, br))
+        assertEquals("5 mil caracteres", descreverTamanho(5000, br))
+    }
+
+    @Test
+    fun `acima de cem mil a casa decimal e ruido`() {
+        assertEquals("112 mil caracteres", descreverTamanho(112_400, br))
+    }
+
+    @Test
+    fun `comCapituloAtualizado troca o capitulo e recalcula os ignorados`() {
+        val antes = livro(capitulo(1), capitulo(2, ignorado = true), capitulo(3))
+
+        val depois = antes.comCapituloAtualizado(capitulo(3, ignorado = true))
+
+        assertEquals(listOf(false, true, true), depois.capitulos.map { it.ignorado })
+        assertEquals(2, depois.capitulos_ignorados)
+        // O que não foi tocado continua igual.
+        assertEquals(antes.capitulos[0], depois.capitulos[0])
+        assertEquals(3, depois.total_de_capitulos)
+    }
+}
+
+// ---------------------------------------------------------------------- //
+// O ViewModel
+// ---------------------------------------------------------------------- //
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class LivroViewModelTest {
+
+    @Before
+    fun preparar() {
+        Dispatchers.setMain(StandardTestDispatcher())
+    }
+
+    @After
+    fun limpar() {
+        Dispatchers.resetMain()
+    }
+
+    private val doisCapitulos = livro(capitulo(1), capitulo(2))
+
+    /** Junta os avisos que o ViewModel emitir, numa lista, para o teste conferir. */
+    private fun TestScope.coletarAvisos(vm: LivroViewModel): List<String> {
+        val recebidos = mutableListOf<String>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.avisos.toList(recebidos) }
+        return recebidos
+    }
+
+    private fun vm(
+        livros: LivrosFalso = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos)),
+        capitulos: CapitulosFalso = CapitulosFalso(),
+    ) = LivroViewModel(1, livros, capitulos)
+
+    @Test
+    fun `comeca carregando`() = runTest {
+        assertEquals(EstadoDoLivro.Carregando, vm().estado.value)
+    }
+
+    @Test
+    fun `carregar mostra o livro`() = runTest {
+        val vm = vm()
+
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
+    }
+
+    @Test
+    fun `falha ao carregar mostra o motivo e tentar de novo recupera`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Falha("Não existe livro com id 1.", codigoHttp = 404))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+        assertEquals(EstadoDoLivro.Erro("Não existe livro com id 1."), vm.estado.value)
+
+        livros.resposta = ResultadoDaChamada.Sucesso(doisCapitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
+    }
+
+    @Test
+    fun `recarregar com o livro na tela nao volta ao carregando`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+
+        livros.trava = CompletableDeferred()
+        vm.carregar()
+        advanceUntilIdle()
+
+        // Silenciosa: o livro antigo continua na tela enquanto a busca está no ar.
+        assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
+    }
+
+    // --- alternar ignorado ------------------------------------------------
+
+    @Test
+    fun `desligar o interruptor ignora o capitulo e atualiza a contagem`() = runTest {
+        val capitulos = CapitulosFalso()
+        val vm = vm(capitulos = capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        assertEquals(listOf(2 to CapituloAjuste(ignorado = true)), capitulos.ajustes)
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        assertEquals(listOf(false, true), pronto.livro.capitulos.map { it.ignorado })
+        assertEquals(1, pronto.livro.capitulos_ignorados)
+        assertTrue(pronto.ajustando.isEmpty())
+    }
+
+    @Test
+    fun `religar um capitulo ignorado manda ignorado falso`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(livro(capitulo(1, ignorado = true), capitulo(2))))
+        val capitulos = CapitulosFalso()
+        val vm = vm(livros, capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(1)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1 to CapituloAjuste(ignorado = false)), capitulos.ajustes)
+        assertEquals(0, (vm.estado.value as EstadoDoLivro.Pronto).livro.capitulos_ignorados)
+    }
+
+    @Test
+    fun `nao e otimista, o interruptor so muda quando o servidor confirma`() = runTest {
+        val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
+        val vm = vm(capitulos = capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        // Na tela ainda está como antes, e o interruptor daquela linha está bloqueado.
+        assertEquals(false, pronto.livro.capitulos[1].ignorado)
+        assertEquals(setOf(2), pronto.ajustando)
+    }
+
+    @Test
+    fun `duplo toque nao dispara duas chamadas`() = runTest {
+        val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
+        val vm = vm(capitulos = capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(2)
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        assertEquals(1, capitulos.ajustes.size)
+    }
+
+    @Test
+    fun `capitulos diferentes podem ser ajustados ao mesmo tempo`() = runTest {
+        val capitulos = CapitulosFalso().apply { trava = CompletableDeferred() }
+        val vm = vm(capitulos = capitulos)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(1)
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        assertEquals(2, capitulos.ajustes.size)
+        assertEquals(setOf(1, 2), (vm.estado.value as EstadoDoLivro.Pronto).ajustando)
+    }
+
+    @Test
+    fun `falha ao alternar mantem o estado, libera o interruptor e avisa`() = runTest {
+        val capitulos = CapitulosFalso().apply {
+            resposta = { _, _ -> ResultadoDaChamada.Falha("Não consegui falar com o servidor.") }
+        }
+        val vm = vm(capitulos = capitulos)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        assertEquals(false, pronto.livro.capitulos[1].ignorado) // ficou onde estava
+        assertTrue(pronto.ajustando.isEmpty())
+        assertEquals(listOf("Não consegui falar com o servidor."), recebidos)
+    }
+
+    @Test
+    fun `cada falha gera um aviso, mesmo com a mesma mensagem`() = runTest {
+        // Regressão: com o servidor fora do ar toda falha tem a mesma mensagem, e o
+        // aviso, sendo um estado, não era emitido de novo — os toques seguintes ao
+        // primeiro ficavam sem nenhum retorno.
+        val capitulos = CapitulosFalso().apply {
+            resposta = { _, _ -> ResultadoDaChamada.Falha("Não consegui falar com o servidor.") }
+        }
+        val vm = vm(capitulos = capitulos)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(
+                "Não consegui falar com o servidor.",
+                "Não consegui falar com o servidor.",
+                "Não consegui falar com o servidor.",
+            ),
+            recebidos,
+        )
+    }
+
+    @Test
+    fun `sem falha nao ha aviso`() = runTest {
+        val vm = vm()
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.alternarIgnorado(1)
+        advanceUntilIdle()
+
+        assertTrue(recebidos.isEmpty())
+    }
+
+    @Test
+    fun `alternar sem o livro na tela ou com capitulo inexistente nao faz nada`() = runTest {
+        val capitulos = CapitulosFalso()
+        val vm = vm(capitulos = capitulos)
+
+        vm.alternarIgnorado(1) // ainda carregando
+        vm.carregar()
+        advanceUntilIdle()
+        vm.alternarIgnorado(99) // não existe
+
+        assertTrue(capitulos.ajustes.isEmpty())
+    }
+
+    @Test
+    fun `uma recarga que estava no ar nao desfaz o que o usuario acabou de mudar`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+
+        // Uma recarga começa (e "vê" o capítulo 2 ainda catalogado)...
+        livros.trava = CompletableDeferred()
+        vm.carregar()
+        advanceUntilIdle()
+        // ...o usuário ignora o capítulo 2 e o servidor confirma...
+        vm.alternarIgnorado(2)
+        advanceUntilIdle()
+        // ...e só então a resposta velha da recarga chega.
+        livros.trava!!.complete(Unit)
+        advanceUntilIdle()
+
+        val pronto = vm.estado.value as EstadoDoLivro.Pronto
+        assertEquals(true, pronto.livro.capitulos[1].ignorado)
+    }
+}

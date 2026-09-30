@@ -55,6 +55,16 @@ interface ApiImagineer {
     @PATCH("livros/{id}")
     suspend fun ajustarLivro(@Path("id") livroId: Int, @Body ajuste: LivroAjuste): LivroDetalhe
 
+    /**
+     * `PATCH /capitulos/{id}` — muda o título e/ou o `ignorado`. A resposta traz o
+     * capítulo com o texto, mas o [CapituloResumo] lê só o que interessa.
+     */
+    @PATCH("capitulos/{id}")
+    suspend fun ajustarCapitulo(
+        @Path("id") capituloId: Int,
+        @Body ajuste: CapituloAjuste,
+    ): CapituloResumo
+
     /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
     @DELETE("livros/{id}")
     suspend fun removerLivro(@Path("id") livroId: Int)

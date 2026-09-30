@@ -14,6 +14,7 @@ import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
+import com.allan.imagineer.telas.livro.TelaLivro
 import kotlinx.coroutines.flow.first
 
 /**
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.first
  * Prompt. Elementos, Perfis e Configuração ficam fora da pilha principal e
  * podem ser abertos de vários pontos.
  *
- * Biblioteca e Configuração já são reais; as demais ainda são provisórias
+ * Biblioteca, Livro e Configuração já são reais; as demais ainda são provisórias
  * (mostram só o nome e os parâmetros recebidos) e serão trocadas incremento a
  * incremento.
  *
@@ -57,14 +58,12 @@ fun GrafoDeNavegacao() {
         }
         composable<Livro> { entrada ->
             val destino = entrada.toRoute<Livro>()
-            TelaProvisoria(
-                titulo = "Livro ${destino.livroId}",
-                descricao = "Detalhe do livro e lista de capítulos (item 7.4).",
-                acoes = listOf(
-                    AcaoProvisoria("Abrir um capítulo (id 10)") { controle.navigate(Capitulo(capituloId = 10)) },
-                    AcaoProvisoria("Elementos do livro") { controle.navigate(ElementosDoLivro(destino.livroId)) },
-                ),
+            TelaLivro(
+                livroId = destino.livroId,
                 aoVoltar = { controle.popBackStack() },
+                aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
+                aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
+                aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
             )
         }
         composable<Capitulo> { entrada ->
