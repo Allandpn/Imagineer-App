@@ -1,12 +1,19 @@
 package com.allan.imagineer.navegacao
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
+import com.allan.imagineer.telas.configuracao.TelaConfiguracao
+import kotlinx.coroutines.flow.first
 
 /**
  * O grafo de navegação do app: quais telas existem e como se chega a cada uma.
@@ -15,15 +22,27 @@ import com.allan.imagineer.telas.TelaProvisoria
  * Prompt. Elementos, Perfis e Configuração ficam fora da pilha principal e
  * podem ser abertos de vários pontos.
  *
- * Por enquanto, todas as telas são provisórias (incremento 1): mostram só o
- * nome, os parâmetros recebidos e botões que provam que a navegação funciona.
+ * **Primeira abertura** (item 7.3a): sem URL salva, o app começa na Configuração
+ * em vez da Biblioteca. Ler o DataStore é assíncrono, então, até a leitura
+ * terminar, nada é desenhado — assim a Biblioteca não pisca antes de a tela
+ * mudar para a Configuração.
  */
 @Composable
 fun GrafoDeNavegacao() {
-    val controle = rememberNavController()
-    val voltar: () -> Unit = { controle.popBackStack() }
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
-    NavHost(navController = controle, startDestination = Biblioteca) {
+    // null = ainda lendo; true/false = já se sabe se há URL salva.
+    val temUrlSalva: Boolean? by produceState<Boolean?>(initialValue = null) {
+        value = aplicacao.armazenamento.urlDoServidor.first() != null
+    }
+
+    val jaSeSabe = temUrlSalva ?: return
+    val controle = rememberNavController()
+
+    NavHost(
+        navController = controle,
+        startDestination = if (jaSeSabe) Biblioteca else Configuracao,
+    ) {
         composable<Biblioteca> {
             TelaProvisoria(
                 titulo = "Biblioteca",
@@ -44,7 +63,7 @@ fun GrafoDeNavegacao() {
                     AcaoProvisoria("Abrir um capítulo (id 10)") { controle.navigate(Capitulo(capituloId = 10)) },
                     AcaoProvisoria("Elementos do livro") { controle.navigate(ElementosDoLivro(destino.livroId)) },
                 ),
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<Capitulo> { entrada ->
@@ -55,7 +74,7 @@ fun GrafoDeNavegacao() {
                 acoes = listOf(
                     AcaoProvisoria("Abrir um frame (id 100)") { controle.navigate(Frame(frameId = 100)) },
                 ),
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<Frame> { entrada ->
@@ -66,7 +85,7 @@ fun GrafoDeNavegacao() {
                 acoes = listOf(
                     AcaoProvisoria("Gerar um prompt") { controle.navigate(Prompt(frameId = destino.frameId)) },
                 ),
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<Prompt> { entrada ->
@@ -75,7 +94,7 @@ fun GrafoDeNavegacao() {
             TelaProvisoria(
                 titulo = "Prompt",
                 descricao = "Frame ${destino.frameId}, $qual (item 7.7).",
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<ElementosDoLivro> { entrada ->
@@ -83,22 +102,37 @@ fun GrafoDeNavegacao() {
             TelaProvisoria(
                 titulo = "Elementos",
                 descricao = "Elementos do livro ${destino.livroId} (item 7.8).",
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<PerfisDeRenderizacao> {
             TelaProvisoria(
                 titulo = "Perfis de renderização",
                 descricao = "Estilo visual dos livros (item 7.9).",
-                aoVoltar = voltar,
+                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<Configuracao> {
-            TelaProvisoria(
-                titulo = "Configuração",
-                descricao = "Endereço do servidor, chave própria e modelos (item 7.10).",
-                aoVoltar = voltar,
+            TelaConfiguracao(
+                aoSalvar = { irParaBibliotecaLimpandoAPilha(controle) },
+                // Na primeira abertura a Configuração é a raiz da pilha: sem para onde voltar.
+                aoVoltar = if (controle.previousBackStackEntry != null) {
+                    { controle.popBackStack() }
+                } else {
+                    null
+                },
             )
         }
+    }
+}
+
+/**
+ * Trocar o servidor invalida tudo o que estava aberto (ids de livros de outro
+ * servidor não significam nada no novo), então depois de salvar a pilha é zerada
+ * e a Biblioteca vira a raiz (item 7.3a).
+ */
+private fun irParaBibliotecaLimpandoAPilha(controle: NavHostController) {
+    controle.navigate(Biblioteca) {
+        popUpTo(controle.graph.id) { inclusive = true }
     }
 }

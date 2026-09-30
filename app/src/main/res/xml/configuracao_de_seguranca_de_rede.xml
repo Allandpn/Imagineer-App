@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Libera HTTP em texto puro (item 7.3a da especificacao).
+
+    O Android bloqueia HTTP sem criptografia por padrao, e o servidor do Imagineer
+    fala HTTP simples num IP do Tailscale (100.x.y.z). O mecanismo do Android so
+    consegue liberar por nome de dominio ou IP exato, e o IP muda de uma instalacao
+    para outra, entao a liberacao vale para todos os enderecos.
+
+    Aceitavel porque o trafego vai dentro do tunel criptografado do Tailscale e o
+    APK e de uso pessoal. Reavaliar se o app for distribuido a outras pessoas.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
