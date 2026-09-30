@@ -234,7 +234,9 @@ class LivroViewModel(
                     if (perfil == null) buscarNomeDoPerfil(livro)
                 }
                 is ResultadoDaChamada.Falha ->
-                    if (_estado.value is EstadoDoLivro.Pronto) {
+                    // 404: o livro não existe mais (apagado por outro caminho), então não há
+                    // o que preservar — vai para Erro, com o motivo da API.
+                    if (_estado.value is EstadoDoLivro.Pronto && resultado.codigoHttp != 404) {
                         // Recarga silenciosa que falhou (item 7.5a): o livro que já está na
                         // tela continua valendo — trocá-lo por Erro perderia a seleção em lote,
                         // as chamadas em andamento e os diálogos, por causa de um detalhe.

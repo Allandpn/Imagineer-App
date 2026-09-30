@@ -288,6 +288,37 @@ class LivroViewModelTest {
     }
 
     @Test
+    fun `recarga que recebe 404 cai em Erro, porque o livro nao existe mais`() = runTest {
+        // Apagado por outro caminho (outro aparelho, o /docs): não há livro a preservar.
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        val recebidos = coletarAvisos(vm)
+        vm.carregar()
+        advanceUntilIdle()
+
+        livros.resposta = ResultadoDaChamada.Falha("Não existe livro com id 1.", codigoHttp = 404)
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Erro("Não existe livro com id 1."), vm.estado.value)
+        assertTrue(recebidos.isEmpty())
+    }
+
+    @Test
+    fun `recarga que recebe erro 500 continua preservando o livro`() = runTest {
+        val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
+        val vm = vm(livros)
+        vm.carregar()
+        advanceUntilIdle()
+
+        livros.resposta = ResultadoDaChamada.Falha("O servidor respondeu com erro 500.", codigoHttp = 500)
+        vm.carregar()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDoLivro.Pronto(doisCapitulos), vm.estado.value)
+    }
+
+    @Test
     fun `recarga que falha nao desfaz a selecao em andamento`() = runTest {
         val livros = LivrosFalso(ResultadoDaChamada.Sucesso(doisCapitulos))
         val vm = vm(livros)
