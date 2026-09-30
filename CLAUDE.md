@@ -2,7 +2,8 @@
 
 App Android (uso pessoal, instalado por APK) que consome a API do Imagineer.
 É também um projeto de aprendizado: Allan quer entender o que está sendo construído e
-faz o trabalho por meio do Claude, sem usar o Android Studio. Explique de forma didática,
+faz o trabalho por meio do Claude e usa o Android Studio só para rodar o app no tablet de teste
+(Galaxy Tab S8, por USB) e conferir o resultado. Explique de forma didática,
 sem presumir termos técnicos, e diga o "porquê" das escolhas.
 
 ## Fonte da verdade
@@ -45,8 +46,9 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 ## Testes
 - Unitários em `app/src/test`, espelhando os pacotes (JUnit4, coroutines-test, MockWebServer).
 - Todo ViewModel novo ou alterado precisa de teste. `androidTest` ainda só tem o exemplo padrão.
-- Comando: `./gradlew testDebugUnitTest` (nome padrão do Gradle; ainda NÃO verificado neste projeto —
-  o ambiente na nuvem pode não ter o Android SDK. Se falhar, dizer o motivo em vez de dar o teste por passado).
+- Comando: `./gradlew testDebugUnitTest`. Verificado em 30/09/2026 numa cópia limpa do repositório, com o
+  Android SDK instalado: 243 testes, cerca de 1,5 minuto. Num ambiente sem o SDK (a nuvem, por exemplo) o
+  comando pode falhar; nesse caso, dizer o motivo em vez de dar o teste por passado.
 
 ## Segredos e segurança
 - Nunca ler, exibir nem commitar: `local.properties`, keystores, chaves de API.
