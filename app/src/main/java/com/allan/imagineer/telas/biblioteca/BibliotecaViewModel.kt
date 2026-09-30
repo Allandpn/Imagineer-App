@@ -35,8 +35,28 @@ sealed interface EstadoDaBiblioteca {
 }
 
 /**
- * A lógica da tela de Biblioteca (item 7.2): carregar a lista e dizer em que
- * estado ela está. Não sabe nada de rede — só fala com o [RepositorioDeLivros].
+ * O diálogo de remover livro (item 7.3a, incremento 4). Um de quatro estados.
+ * Vive separado de [EstadoDaBiblioteca] porque é uma camada por cima da lista:
+ * a lista continua visível atrás do diálogo.
+ */
+sealed interface EstadoDaRemocao {
+    /** Nenhum diálogo aberto. */
+    data object Nenhuma : EstadoDaRemocao
+
+    /** Perguntando "tem certeza?". */
+    data class Confirmando(val livro: LivroResumo) : EstadoDaRemocao
+
+    /** A chamada está no ar. Os botões ficam desabilitados, para o duplo toque não disparar dois `DELETE`. */
+    data class Removendo(val livro: LivroResumo) : EstadoDaRemocao
+
+    /** Falhou. O diálogo não fecha sozinho: o usuário precisa ver o [motivo]. */
+    data class Falhou(val livro: LivroResumo, val motivo: String) : EstadoDaRemocao
+}
+
+/**
+ * A lógica da tela de Biblioteca (item 7.2): carregar a lista, dizer em que
+ * estado ela está e remover livros. Não sabe nada de rede — só fala com o
+ * [RepositorioDeLivros].
  */
 class BibliotecaViewModel(
     private val repositorio: RepositorioDeLivros,
@@ -44,6 +64,9 @@ class BibliotecaViewModel(
 
     private val _estado = MutableStateFlow<EstadoDaBiblioteca>(EstadoDaBiblioteca.Carregando)
     val estado: StateFlow<EstadoDaBiblioteca> = _estado.asStateFlow()
+
+    private val _remocao = MutableStateFlow<EstadoDaRemocao>(EstadoDaRemocao.Nenhuma)
+    val remocao: StateFlow<EstadoDaRemocao> = _remocao.asStateFlow()
 
     private var carregamentoEmAndamento: Job? = null
 
@@ -73,6 +96,44 @@ class BibliotecaViewModel(
                         EstadoDaBiblioteca.Lista(resultado.dado)
                     }
                 is ResultadoDaChamada.Falha -> EstadoDaBiblioteca.Erro(resultado.motivo)
+            }
+        }
+    }
+
+    /** O usuário escolheu "Remover" no menu do cartão: abre o diálogo de confirmação. */
+    fun pedirRemocao(livro: LivroResumo) {
+        _remocao.value = EstadoDaRemocao.Confirmando(livro)
+    }
+
+    /** "Cancelar" ou "Fechar": fecha o diálogo sem remover nada. */
+    fun cancelarRemocao() {
+        // Com a chamada no ar, o diálogo não pode ser fechado: a remoção já foi pedida.
+        if (_remocao.value is EstadoDaRemocao.Removendo) return
+        _remocao.value = EstadoDaRemocao.Nenhuma
+    }
+
+    /**
+     * "Remover" (ou "Tentar de novo", depois de uma falha): apaga o livro no
+     * servidor. Se der certo, fecha o diálogo e recarrega a lista; se falhar,
+     * mantém o diálogo aberto mostrando o motivo.
+     */
+    fun confirmarRemocao() {
+        val livro = when (val atual = _remocao.value) {
+            is EstadoDaRemocao.Confirmando -> atual.livro
+            is EstadoDaRemocao.Falhou -> atual.livro
+            // Já removendo (duplo toque) ou sem diálogo: nada a fazer.
+            else -> return
+        }
+
+        _remocao.value = EstadoDaRemocao.Removendo(livro)
+        viewModelScope.launch {
+            when (val resultado = repositorio.removerLivro(livro.id)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    _remocao.value = EstadoDaRemocao.Nenhuma
+                    carregar()
+                }
+                is ResultadoDaChamada.Falha ->
+                    _remocao.value = EstadoDaRemocao.Falhou(livro, resultado.motivo)
             }
         }
     }

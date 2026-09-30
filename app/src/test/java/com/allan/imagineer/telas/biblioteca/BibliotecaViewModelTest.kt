@@ -3,6 +3,7 @@ package com.allan.imagineer.telas.biblioteca
 import com.allan.imagineer.rede.LivroResumo
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.interpretarRemocao
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -35,10 +36,21 @@ private class RepositorioFalso(var resposta: ResultadoDaChamada<List<LivroResumo
     /** Se preenchido, a chamada "trava" até o teste liberar — para simular demora. */
     var trava: CompletableDeferred<Unit>? = null
 
+    /** O que `removerLivro` devolve, e os ids que foram pedidos para remover. */
+    var respostaDaRemocao: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    val removidos = mutableListOf<Int>()
+    var travaDaRemocao: CompletableDeferred<Unit>? = null
+
     override suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>> {
         chamadas++
         trava?.await()
         return resposta
+    }
+
+    override suspend fun removerLivro(livroId: Int): ResultadoDaChamada<Unit> {
+        removidos += livroId
+        travaDaRemocao?.await()
+        return respostaDaRemocao
     }
 }
 
@@ -170,6 +182,157 @@ class BibliotecaViewModelTest {
         advanceUntilIdle()
 
         assertEquals(EstadoDaBiblioteca.Lista(listOf(livro(2))), vm.estado.value)
+    }
+
+    // ------------------------------------------------------------------ //
+    // Remover livro (incremento 4)
+    // ------------------------------------------------------------------ //
+
+    @Test
+    fun `pedir remocao abre o dialogo de confirmacao sem apagar nada`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        val vm = BibliotecaViewModel(repositorio)
+
+        vm.pedirRemocao(livro(1))
+        advanceUntilIdle()
+
+        assertEquals(EstadoDaRemocao.Confirmando(livro(1)), vm.remocao.value)
+        assertTrue(repositorio.removidos.isEmpty())
+    }
+
+    @Test
+    fun `cancelar fecha o dialogo sem remover`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        val vm = BibliotecaViewModel(repositorio)
+        vm.pedirRemocao(livro(1))
+
+        vm.cancelarRemocao()
+
+        assertEquals(EstadoDaRemocao.Nenhuma, vm.remocao.value)
+        assertTrue(repositorio.removidos.isEmpty())
+    }
+
+    @Test
+    fun `confirmar remove no servidor, fecha o dialogo e recarrega a lista`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1), livro(2))))
+        val vm = BibliotecaViewModel(repositorio)
+        vm.carregar()
+        advanceUntilIdle()
+
+        repositorio.resposta = ResultadoDaChamada.Sucesso(listOf(livro(2)))
+        vm.pedirRemocao(livro(1))
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), repositorio.removidos)
+        assertEquals(EstadoDaRemocao.Nenhuma, vm.remocao.value)
+        assertEquals(EstadoDaBiblioteca.Lista(listOf(livro(2))), vm.estado.value)
+    }
+
+    @Test
+    fun `remover o ultimo livro leva ao estado vazio`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        val vm = BibliotecaViewModel(repositorio)
+        vm.carregar()
+        advanceUntilIdle()
+
+        repositorio.resposta = ResultadoDaChamada.Sucesso(emptyList())
+        vm.pedirRemocao(livro(1))
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDaBiblioteca.Vazia, vm.estado.value)
+    }
+
+    @Test
+    fun `falha na remocao mantem o dialogo aberto com o motivo`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        repositorio.respostaDaRemocao = ResultadoDaChamada.Falha("Não consegui falar com o servidor.")
+        val vm = BibliotecaViewModel(repositorio)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.pedirRemocao(livro(1))
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+
+        assertEquals(
+            EstadoDaRemocao.Falhou(livro(1), "Não consegui falar com o servidor."),
+            vm.remocao.value,
+        )
+        // A lista não foi mexida: o livro continua lá.
+        assertEquals(EstadoDaBiblioteca.Lista(listOf(livro(1))), vm.estado.value)
+    }
+
+    @Test
+    fun `tentar de novo depois da falha remove`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        repositorio.respostaDaRemocao = ResultadoDaChamada.Falha("sem conexão")
+        val vm = BibliotecaViewModel(repositorio)
+        vm.pedirRemocao(livro(1))
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+        assertTrue(vm.remocao.value is EstadoDaRemocao.Falhou)
+
+        repositorio.respostaDaRemocao = ResultadoDaChamada.Sucesso(Unit)
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+
+        assertEquals(EstadoDaRemocao.Nenhuma, vm.remocao.value)
+        assertEquals(listOf(1, 1), repositorio.removidos)
+    }
+
+    @Test
+    fun `duplo toque em remover nao dispara dois DELETE`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        repositorio.travaDaRemocao = CompletableDeferred()
+        val vm = BibliotecaViewModel(repositorio)
+        vm.pedirRemocao(livro(1))
+
+        vm.confirmarRemocao()
+        vm.confirmarRemocao() // segundo toque, com a primeira chamada ainda no ar
+        advanceUntilIdle()
+
+        assertEquals(EstadoDaRemocao.Removendo(livro(1)), vm.remocao.value)
+        assertEquals(listOf(1), repositorio.removidos)
+    }
+
+    @Test
+    fun `nao da para cancelar enquanto a remocao esta no ar`() = runTest {
+        val repositorio = RepositorioFalso(ResultadoDaChamada.Sucesso(listOf(livro(1))))
+        repositorio.travaDaRemocao = CompletableDeferred()
+        val vm = BibliotecaViewModel(repositorio)
+        vm.pedirRemocao(livro(1))
+        vm.confirmarRemocao()
+        advanceUntilIdle()
+
+        vm.cancelarRemocao()
+
+        assertEquals(EstadoDaRemocao.Removendo(livro(1)), vm.remocao.value)
+    }
+
+    @Test
+    fun `404 ao remover conta como sucesso, porque o livro ja nao existe`() {
+        val resultado = interpretarRemocao(ResultadoDaChamada.Falha("erro 404", codigoHttp = 404))
+
+        assertEquals(ResultadoDaChamada.Sucesso(Unit), resultado)
+    }
+
+    @Test
+    fun `outros erros na remocao continuam sendo erro`() {
+        val erro500 = ResultadoDaChamada.Falha("erro 500", codigoHttp = 500)
+        val semConexao = ResultadoDaChamada.Falha("Não consegui falar com o servidor.")
+
+        assertEquals(erro500, interpretarRemocao(erro500))
+        assertEquals(semConexao, interpretarRemocao(semConexao))
+    }
+
+    @Test
+    fun `sucesso da remocao passa como esta`() {
+        assertEquals(
+            ResultadoDaChamada.Sucesso(Unit),
+            interpretarRemocao(ResultadoDaChamada.Sucesso(Unit)),
+        )
     }
 
     @Test

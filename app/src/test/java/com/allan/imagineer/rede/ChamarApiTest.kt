@@ -37,7 +37,7 @@ class ChamarApiTest {
         val resultado = chamarApi<Int> { throw HttpException(resposta) }
 
         assertEquals(
-            ResultadoDaChamada.Falha("O servidor respondeu com erro 500."),
+            ResultadoDaChamada.Falha("O servidor respondeu com erro 500.", codigoHttp = 500),
             resultado,
         )
     }

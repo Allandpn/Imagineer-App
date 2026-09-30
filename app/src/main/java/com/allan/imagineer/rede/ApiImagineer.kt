@@ -6,7 +6,9 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
 // Os nomes dos campos abaixo são os do JSON do backend, em português e em
@@ -30,6 +32,10 @@ interface ApiImagineer {
     /** `GET /livros` — a biblioteca, em ordem alfabética de título (item 6.2). */
     @GET("livros")
     suspend fun livros(): List<LivroResumo>
+
+    /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
+    @DELETE("livros/{id}")
+    suspend fun removerLivro(@Path("id") livroId: Int)
 }
 
 /** Resposta de `GET /configuracao` (item 4.3 do backend). */

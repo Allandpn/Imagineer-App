@@ -52,6 +52,7 @@ fun GrafoDeNavegacao() {
             TelaBiblioteca(
                 aoAbrirLivro = { livroId -> controle.navigate(Livro(livroId)) },
                 aoAbrirConfiguracao = { controle.navigate(Configuracao) },
+                aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
             )
         }
         composable<Livro> { entrada ->

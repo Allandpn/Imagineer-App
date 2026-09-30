@@ -14,7 +14,13 @@ import java.io.IOException
 sealed interface ResultadoDaChamada<out T> {
     data class Sucesso<T>(val dado: T) : ResultadoDaChamada<T>
 
-    data class Falha(val motivo: String) : ResultadoDaChamada<Nothing>
+    /**
+     * @param codigoHttp o código da resposta do servidor, quando ele chegou a
+     * responder (`404`, `500`...). Nulo para falhas em que não houve resposta
+     * (sem conexão, resposta que não é do Imagineer). Existe para o repositório
+     * poder decidir, por exemplo, que um `404` ao remover não é um problema.
+     */
+    data class Falha(val motivo: String, val codigoHttp: Int? = null) : ResultadoDaChamada<Nothing>
 }
 
 /**
@@ -32,7 +38,10 @@ suspend fun <T> chamarApi(chamada: suspend () -> T): ResultadoDaChamada<T> {
     return try {
         ResultadoDaChamada.Sucesso(chamada())
     } catch (erro: HttpException) {
-        ResultadoDaChamada.Falha("O servidor respondeu com erro ${erro.code()}.")
+        ResultadoDaChamada.Falha(
+            motivo = "O servidor respondeu com erro ${erro.code()}.",
+            codigoHttp = erro.code(),
+        )
     } catch (erro: SerializationException) {
         // Chegou lá e respondeu, mas não é o formato do Imagineer — típico de
         // apontar para outro serviço (uma página HTML, por exemplo).
