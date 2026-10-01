@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.EstadoVigente
 import com.allan.imagineer.rede.ParticipanteSugerido
 import com.allan.imagineer.rede.RepositorioDeSugestoes
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -25,7 +26,7 @@ import org.junit.Test
 // Falso e construtores
 // ---------------------------------------------------------------------- //
 
-private fun elemento(
+internal fun elemento(
     id: Int = 1,
     tipo: String = "PERSONAGEM",
     nome: String = "Jon",
@@ -33,20 +34,30 @@ private fun elemento(
     automatico: Boolean = false,
     estadoId: Int? = null,
     manter: Boolean = false,
+    /** Um estado vigente vindo de OUTRO capítulo (nenhum estado neste). */
+    vigenteDoCapitulo: Int? = null,
+    descartada: Boolean = false,
 ) = ElementoSugerido(
     id = id, tipo = tipo, nome = nome, elemento_id = elementoId,
     casamento_automatico = automatico, estado_id = estadoId, manter_estado_atual = manter,
+    // O estado vigente é o deste capítulo quando há estado_id; senão, o de outro capítulo, se houver.
+    estado_vigente = when {
+        estadoId != null -> EstadoVigente(id = estadoId, capitulo_id = 1, ordem_do_capitulo = 1, descricao = "aparência deste capítulo")
+        vigenteDoCapitulo != null -> EstadoVigente(id = 900 + vigenteDoCapitulo, capitulo_id = 1, ordem_do_capitulo = vigenteDoCapitulo, descricao = "aparência do capítulo $vigenteDoCapitulo")
+        else -> null
+    },
+    descartada = descartada,
 )
 
-private val nuncaAnalisado = SugestoesDeCapitulo(gerado_em = null, sugestoes_pendentes_anteriores = 2)
-private val analisado = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38", elementos = listOf(elemento()))
-private val analisadoSemNada = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38")
+internal val nuncaAnalisado = SugestoesDeCapitulo(gerado_em = null, sugestoes_pendentes_anteriores = 2)
+internal val analisado = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38", elementos = listOf(elemento()))
+internal val analisadoSemNada = SugestoesDeCapitulo(gerado_em = "2026-09-30T20:40:38")
 
 /**
  * Sugestões falsas. **Conta cada chamada ao `analisar`**, que é o único ponto que gasta IA:
  * várias regras do painel existem para garantir que ele só é chamado quando o usuário pede.
  */
-private class SugestoesFalso(
+internal class SugestoesFalso(
     var leitura: ResultadoDaChamada<SugestoesDeCapitulo> = ResultadoDaChamada.Sucesso(nuncaAnalisado),
     var analise: ResultadoDaChamada<SugestoesDeCapitulo> = ResultadoDaChamada.Sucesso(analisado),
 ) : RepositorioDeSugestoes {
@@ -88,40 +99,31 @@ class RegrasDoPainelTest {
         assertEquals("Planeta", rotuloDoTipo("PLANETA"))
     }
 
-    // --- P12: os destaques do elemento -----------------------------------
+    // --- E11 e E19: o estado, dito pelo título do capítulo -----------------
 
     @Test
-    fun `P12 elemento ainda nao confirmado nao tem destaque nenhum`() {
-        assertEquals(emptyList<String>(), destaquesDoElemento(elemento()))
+    fun `E11 a linha do estado diz de qual capitulo ele e, pelo titulo`() {
+        assertEquals(
+            LinhaDoEstado("Estado neste capítulo", "aparência deste capítulo"),
+            linhaDoEstado(elemento(elementoId = 7, estadoId = 3)),
+        )
+        // O número é a posição no livro; o que o usuário vê na lista de capítulos é o título.
+        val deOutro = elemento(elementoId = 7).copy(
+            estado_vigente = EstadoVigente(id = 900, capitulo_id = 11, ordem_do_capitulo = 8, titulo_do_capitulo = "Capítulo VI", descricao = "manto preto"),
+        )
+        assertEquals(
+            LinhaDoEstado("Usa o estado de «Capítulo VI»", "manto preto"),
+            linhaDoEstado(deOutro),
+        )
+        assertNull(linhaDoEstado(elemento(elementoId = 7)))
+        assertNull(linhaDoEstado(elemento()))
     }
 
     @Test
-    fun `P12 casamento automatico vem primeiro, e junto do sem estado`() {
-        val e = elemento(elementoId = 7, automatico = true, estadoId = null)
+    fun `E19 sem titulo usa Capitulo e a posicao no livro`() {
+        val semTitulo = elemento(elementoId = 7).copy(estado_vigente = EstadoVigente(id = 900, capitulo_id = 11, ordem_do_capitulo = 8, descricao = "x"))
 
-        assertEquals(listOf(CASAMENTO_AUTOMATICO, CASADO_SEM_ESTADO), destaquesDoElemento(e))
-    }
-
-    @Test
-    fun `P12 casado por revisao mas sem estado mostra os dois`() {
-        val e = elemento(elementoId = 7, automatico = false, estadoId = null)
-
-        assertEquals(listOf(CASADO_SEM_ESTADO, JA_CADASTRADO), destaquesDoElemento(e))
-    }
-
-    @Test
-    fun `P12 casado, revisado e com estado so diz que ja esta cadastrado`() {
-        val e = elemento(elementoId = 7, automatico = false, estadoId = 3)
-
-        assertEquals(listOf(JA_CADASTRADO), destaquesDoElemento(e))
-    }
-
-    @Test
-    fun `P12 manter estado e um destaque a parte e vem por ultimo`() {
-        val e = elemento(elementoId = 7, automatico = true, estadoId = 3, manter = true)
-
-        assertEquals(listOf(CASAMENTO_AUTOMATICO, MANTEM_O_ESTADO), destaquesDoElemento(e))
-        assertEquals(listOf(MANTEM_O_ESTADO), destaquesDoElemento(elemento(manter = true)))
+        assertEquals("Usa o estado de «Capítulo 8»", linhaDoEstado(semTitulo)?.rotulo)
     }
 
     // --- P13: participantes ----------------------------------------------
@@ -256,7 +258,7 @@ class PainelDeIaViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun vm(repositorio: SugestoesFalso = SugestoesFalso()) = PainelDeIaViewModel(5, repositorio)
+    private fun vm(repositorio: SugestoesFalso = SugestoesFalso()) = PainelDeIaViewModel(5, repositorio, ElementosFalso())
 
     // --- P1 e P2: nada é pedido até o painel abrir; abrir é só ler --------
 

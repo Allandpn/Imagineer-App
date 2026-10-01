@@ -52,6 +52,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -76,6 +78,8 @@ import com.allan.imagineer.telas.livro.tituloDoCapitulo
 fun TelaCapitulo(
     capituloId: Int,
     aoVoltar: () -> Unit,
+    /** Abre a ficha de um elemento (item 7.8). `doCapitulo`: veio de uma sugestão deste capítulo. */
+    aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: CapituloViewModel = viewModel(
@@ -89,7 +93,9 @@ fun TelaCapitulo(
     // por motivos diferentes. Nada dele é pedido ao servidor até o painel ser aberto (P1).
     val painel: PainelDeIaViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { PainelDeIaViewModel(capituloId, aplicacao.repositorioDeSugestoes) }
+            initializer {
+                PainelDeIaViewModel(capituloId, aplicacao.repositorioDeSugestoes, aplicacao.repositorioDeElementos)
+            }
         },
     )
     val estadoDoPainel by painel.estado.collectAsState()
@@ -102,6 +108,13 @@ fun TelaCapitulo(
     var botaoVisivel by remember { mutableStateOf(true) }
 
     LaunchedEffect(painelAberto) { if (painelAberto) painel.aoAbrirPainel() }
+
+    // As ações de elemento (10a) precisam saber de qual livro é o capítulo.
+    val livroDoCapitulo = (estado as? EstadoDoCapitulo.Pronto)?.capitulo?.livro_id
+    LaunchedEffect(livroDoCapitulo) { livroDoCapitulo?.let(painel::definirLivro) }
+
+    // Ao voltar da ficha (E31), o que foi editado lá pode mudar os cartões: o painel relê no lugar.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { painel.aoVoltarDaFicha() }
 
     // No celular o painel é a tela inteira: voltar leva ao texto, e não para fora do capítulo.
     BackHandler(enabled = painelAberto && !aside) { painelAberto = false }
@@ -121,6 +134,21 @@ fun TelaCapitulo(
             aoConfirmarReanalise = painel::confirmarReanalise,
             aoCancelarReanalise = painel::cancelarReanalise,
             aoTentarDeNovo = painel::tentarDeNovo,
+            aoExecutar = painel::executar,
+            aoCancelarDialogo = painel::cancelarDialogo,
+            aoConfirmarCriacao = painel::confirmarCriacao,
+            aoTrocarCriacaoPorVinculo = painel::trocarCriacaoPorVinculo,
+            aoEscolherElemento = painel::escolherElemento,
+            aoRecarregarLista = painel::recarregarLista,
+            aoRestaurar = painel::restaurar,
+            aoEscolherFiltro = painel::escolherFiltro,
+            aoAbrirFicha = { elementoId, doCapitulo ->
+                // Sem o livro (o capítulo ainda não carregou) não há como abrir a ficha.
+                livroDoCapitulo?.let { aoAbrirFicha(elementoId, it, capituloId.takeIf { doCapitulo }) }
+            },
+            aoAlternarApagarEstado = painel::alternarApagarEstado,
+            aoConfirmarDesfazer = painel::confirmarDesfazer,
+            aoConfirmarDescarte = painel::confirmarDescarte,
         ),
         painelAberto = painelAberto,
         aoAlternarPainel = { painelAberto = !painelAberto },

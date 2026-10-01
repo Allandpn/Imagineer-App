@@ -4,7 +4,7 @@ package com.allan.imagineer.rede
  * O que o painel de IA precisa saber fazer com as sugestões de um capítulo. Interface, para o
  * ViewModel ser testado com uma versão falsa, sem rede e **sem gastar IA**.
  *
- * As duas funções são separadas de propósito: **ler nunca custa, gerar custa** (item 6.8).
+ * As duas primeiras funções são separadas de propósito: **ler nunca custa, gerar custa** (item 6.8).
  */
 interface RepositorioDeSugestoes {
 

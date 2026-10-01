@@ -121,6 +121,81 @@ interface ApiImagineer {
         @Query("forcar") forcar: Boolean,
     ): SugestoesDeCapitulo
 
+    /** `GET /livros/{id}/elementos` — os elementos já cadastrados no livro (item 6.3). */
+    @GET("livros/{id}/elementos")
+    suspend fun elementosDoLivro(@Path("id") livroId: Int): List<ElementoDoLivro>
+
+    /**
+     * `POST /livros/{id}/elementos` — cadastra um elemento. Com `sugestoes_elemento_ids`, o
+     * servidor também cria o Estado deste capítulo e liga a sugestão (item 3.4e). O corpo é um
+     * `JsonObject` porque só vão os campos que o app preenche.
+     */
+    @POST("livros/{id}/elementos")
+    suspend fun criarElemento(@Path("id") livroId: Int, @Body corpo: JsonObject): ElementoCriado
+
+    /**
+     * `POST /elementos/{id}/estados-de-sugestoes` — liga as sugestões ao elemento **e** cria um
+     * Estado por sugestão (item 3.4e).
+     */
+    @POST("elementos/{id}/estados-de-sugestoes")
+    suspend fun registrarEstados(
+        @Path("id") elementoId: Int,
+        @Body corpo: JsonObject,
+    ): List<EstadoRegistrado>
+
+    /**
+     * `PATCH /sugestoes-elemento/{id}` — corrige **só** o casamento (`elemento_id`), sem criar
+     * Estado (item 4.6). `null` desfaz o casamento; o mesmo id confirma o automático.
+     */
+    @PATCH("sugestoes-elemento/{id}")
+    suspend fun ajustarCasamento(
+        @Path("id") sugestaoId: Int,
+        @Body corpo: JsonObject,
+    ): ElementoSugerido
+
+    /** `GET /elementos/{id}` — o elemento com os estados e o histórico de identidade (item 3.4f). */
+    @GET("elementos/{id}")
+    suspend fun elemento(@Path("id") elementoId: Int): DetalheDoElemento
+
+    /**
+     * `POST /elementos/{id}/mesclar` — junta este elemento (a origem) ao `destino_id`, que fica:
+     * estados, identidade e sugestões passam para ele, e a origem deixa de existir (item 6.3).
+     */
+    @POST("elementos/{id}/mesclar")
+    suspend fun mesclarElemento(@Path("id") elementoId: Int, @Body corpo: JsonObject): DetalheDoElemento
+
+    /** `POST /elementos/{id}/historico-identidade` — acrescenta à mão o que um capítulo revela sobre quem é (item 3.4f). */
+    @POST("elementos/{id}/historico-identidade")
+    suspend fun criarAcrescimo(@Path("id") elementoId: Int, @Body corpo: JsonObject): IdentidadeDoCapitulo
+
+    /** `PATCH /historico-identidade/{id}` — corrige o texto de um acréscimo. */
+    @PATCH("historico-identidade/{id}")
+    suspend fun ajustarAcrescimo(@Path("id") acrescimoId: Int, @Body corpo: JsonObject): IdentidadeDoCapitulo
+
+    /** `DELETE /historico-identidade/{id}` — apaga um acréscimo (204). */
+    @DELETE("historico-identidade/{id}")
+    suspend fun removerAcrescimo(@Path("id") acrescimoId: Int)
+
+    /** `DELETE /elementos/{id}` — apaga o elemento e todos os estados dele (204). */
+    @DELETE("elementos/{id}")
+    suspend fun removerElemento(@Path("id") elementoId: Int)
+
+    /** `PATCH /elementos/{id}` — corrige nome, tipo e/ou identidade; só vão os campos que mudam. */
+    @PATCH("elementos/{id}")
+    suspend fun ajustarElemento(@Path("id") elementoId: Int, @Body corpo: JsonObject): DetalheDoElemento
+
+    /** `POST /elementos/{id}/estados` — registra o estado do elemento num capítulo. */
+    @POST("elementos/{id}/estados")
+    suspend fun criarEstado(@Path("id") elementoId: Int, @Body corpo: JsonObject): EstadoRegistrado
+
+    /** `PATCH /estados/{id}` — muda a descrição do estado. */
+    @PATCH("estados/{id}")
+    suspend fun ajustarEstado(@Path("id") estadoId: Int, @Body corpo: JsonObject): EstadoRegistrado
+
+    /** `DELETE /estados/{id}` — apaga o estado (204). Frames que o citavam perdem esse participante. */
+    @DELETE("estados/{id}")
+    suspend fun removerEstado(@Path("id") estadoId: Int)
+
     /** `DELETE /livros/{id}` — remove o livro e tudo que depende dele (204, sem corpo). */
     @DELETE("livros/{id}")
     suspend fun removerLivro(@Path("id") livroId: Int)

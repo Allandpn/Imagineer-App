@@ -39,6 +39,13 @@ data class Prompt(val frameId: Int, val promptId: Int? = null)
 @Serializable
 data class ElementosDoLivro(val livroId: Int)
 
+/**
+ * A ficha de um elemento (item 7.8). [capituloId] só vem quando a ficha foi aberta a partir de uma
+ * sugestão de um capítulo: a tela oferece "Adicionar estado neste capítulo".
+ */
+@Serializable
+data class FichaDoElemento(val elementoId: Int, val livroId: Int, val capituloId: Int? = null)
+
 /** Perfis de renderização (item 7.9). */
 @Serializable
 object PerfisDeRenderizacao

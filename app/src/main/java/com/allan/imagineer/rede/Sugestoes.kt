@@ -38,9 +38,36 @@ data class ElementoSugerido(
     val elemento_id: Int? = null,
     /** `true` quando o casamento veio só do nome e ninguém o revisou (item 4.6). */
     val casamento_automatico: Boolean = false,
-    /** O Estado já registrado neste capítulo; nulo com `elemento_id` = "casada, mas sem Estado". */
+    /** O Estado já registrado **neste** capítulo; nulo pode ainda haver um [estado_vigente] de outro. */
     val estado_id: Int? = null,
+    /** Com quem a sugestão foi casada, com a identidade vigente (item 7.5b, E11). */
+    val elemento_casado: ElementoCasado? = null,
+    /** O estado que **vale** neste capítulo, talvez vindo de um capítulo anterior (E11, E12). */
+    val estado_vigente: EstadoVigente? = null,
+    /** Descartada pelo usuário: não conta como pendente e sobrevive à reanálise (E16). */
+    val descartada: Boolean = false,
     val modelo: String = "",
+)
+
+/** O elemento cadastrado a que uma sugestão está ligada, com a identidade vigente até o capítulo. */
+@Serializable
+data class ElementoCasado(
+    val id: Int,
+    val tipo: String,
+    val nome: String,
+    val identidade: String? = null,
+)
+
+/** O estado de aparência que vale para o elemento casado neste capítulo. */
+@Serializable
+@Suppress("PropertyName")
+data class EstadoVigente(
+    val id: Int,
+    val capitulo_id: Int,
+    val ordem_do_capitulo: Int,
+    /** Nulo quando o capítulo não tem título: a tela usa "Capítulo N" (E19). */
+    val titulo_do_capitulo: String? = null,
+    val descricao: String,
 )
 
 /** Uma cena sugerida: elementos interagindo num momento que vale ilustrar. */
@@ -54,6 +81,8 @@ data class CenaSugerida(
     val clima: String? = null,
     val humor: String? = null,
     val participantes: List<ParticipanteSugerido> = emptyList(),
+    /** Descartada pelo usuário: não conta como pendente (E16). */
+    val descartada: Boolean = false,
     val modelo: String = "",
 )
 

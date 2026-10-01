@@ -69,7 +69,11 @@ abstract class DaoLocal {
  * O banco do aparelho. `version = 1` e sem exportar esquema: a cópia é descartável (regras
  * A10 e L8) — se o formato mudar, o banco é apagado e refeito, sem migração à mão.
  */
-@Database(entities = [LivroLocal::class, TextoLocal::class], version = 1, exportSchema = false)
+@Database(
+    entities = [LivroLocal::class, TextoLocal::class],
+    version = 3,
+    exportSchema = false,
+)
 abstract class BancoLocal : RoomDatabase() {
 
     abstract fun dao(): DaoLocal

@@ -17,6 +17,8 @@ import kotlinx.coroutines.SupervisorJob
 import java.io.File
 import com.allan.imagineer.rede.RepositorioDeCapitulos
 import com.allan.imagineer.rede.RepositorioDeCapitulosPeloRetrofit
+import com.allan.imagineer.rede.RepositorioDeElementos
+import com.allan.imagineer.rede.RepositorioDeElementosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.RepositorioDePerfis
 import com.allan.imagineer.rede.RepositorioDePerfisPeloRetrofit
@@ -46,9 +48,9 @@ class ImagineerApp : Application() {
 
     // O que fica guardado no aparelho (item 7.0a). Na pasta "sem backup": o Android não
     // envia estes arquivos para a nuvem do Google (regra A12).
-    private val indiceLocal: IndiceLocal by lazy {
-        IndiceLocalPeloRoom(BancoLocal.abrir(this).dao())
-    }
+    private val banco: BancoLocal by lazy { BancoLocal.abrir(this) }
+
+    private val indiceLocal: IndiceLocal by lazy { IndiceLocalPeloRoom(banco.dao()) }
 
     private val armazemDeTextos: ArmazemDeTextos by lazy {
         ArmazemDeTextosEmArquivos(File(noBackupFilesDir, "textos"))
@@ -67,6 +69,10 @@ class ImagineerApp : Application() {
 
     val repositorioDeSugestoes: RepositorioDeSugestoes by lazy {
         RepositorioDeSugestoesPeloRetrofit(provedorDeApi)
+    }
+
+    val repositorioDeElementos: RepositorioDeElementos by lazy {
+        RepositorioDeElementosPeloRetrofit(provedorDeApi)
     }
 
     val repositorioDePerfis: RepositorioDePerfis by lazy {

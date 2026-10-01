@@ -16,6 +16,8 @@ import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
+import com.allan.imagineer.telas.elementos.TelaElementos
+import com.allan.imagineer.telas.elementos.TelaFichaDoElemento
 import com.allan.imagineer.telas.livro.TelaCapitulosArquivados
 import com.allan.imagineer.telas.livro.TelaLivro
 import com.allan.imagineer.telas.livro.livroViewModel
@@ -87,6 +89,9 @@ fun GrafoDeNavegacao() {
             TelaCapitulo(
                 capituloId = destino.capituloId,
                 aoVoltar = { controle.popBackStack() },
+                aoAbrirFicha = { elementoId, livroId, capituloId ->
+                    controle.navigate(FichaDoElemento(elementoId, livroId, capituloId))
+                },
             )
         }
         composable<Frame> { entrada ->
@@ -111,9 +116,19 @@ fun GrafoDeNavegacao() {
         }
         composable<ElementosDoLivro> { entrada ->
             val destino = entrada.toRoute<ElementosDoLivro>()
-            TelaProvisoria(
-                titulo = "Elementos",
-                descricao = "Elementos do livro ${destino.livroId} (item 7.8).",
+            TelaElementos(
+                livroId = destino.livroId,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrirFicha = { elementoId ->
+                    controle.navigate(FichaDoElemento(elementoId, destino.livroId))
+                },
+            )
+        }
+        composable<FichaDoElemento> { entrada ->
+            val destino = entrada.toRoute<FichaDoElemento>()
+            TelaFichaDoElemento(
+                elementoId = destino.elementoId,
+                capituloId = destino.capituloId,
                 aoVoltar = { controle.popBackStack() },
             )
         }
