@@ -1,5 +1,14 @@
 package com.allan.imagineer.navegacao
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -59,6 +68,11 @@ fun GrafoDeNavegacao() {
     val jaSeSabe = temUrlSalva ?: return
     val controle = rememberNavController()
 
+    // D1: o aviso de "análise concluída" aparece de qualquer tela, no canto inferior direito.
+    val avisos = remember { SnackbarHostState() }
+    AvisadorDeAnalises(controle, avisos)
+
+    Box(Modifier.fillMaxSize()) {
     NavHost(
         navController = controle,
         startDestination = if (jaSeSabe) Biblioteca else Configuracao,
@@ -165,6 +179,12 @@ fun GrafoDeNavegacao() {
                 },
             )
         }
+    }
+    // O aviso fica no canto inferior direito, acima do botão de IA do capítulo (que ocupa esse mesmo canto).
+    SnackbarHost(
+        hostState = avisos,
+        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 88.dp),
+    )
     }
 }
 

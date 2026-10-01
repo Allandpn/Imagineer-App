@@ -1,6 +1,7 @@
 package com.allan.imagineer
 
 import android.app.Application
+import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.dados.ArmazenamentoNoDataStore
 import com.allan.imagineer.dados.LeitorDeArquivos
@@ -72,6 +73,9 @@ class ImagineerApp : Application() {
     val repositorioDeSugestoes: RepositorioDeSugestoes by lazy {
         RepositorioDeSugestoesPeloRetrofit(provedorDeApi)
     }
+
+    /** As análises de IA, no escopo do app: sobrevivem a quem sai da tela e geram o aviso final (D1). */
+    val servicoDeAnalises: ServicoDeAnalises by lazy { ServicoDeAnalises(repositorioDeSugestoes, escopoDeFundo) }
 
     val repositorioDeArtefatos: RepositorioDeArtefatos by lazy {
         RepositorioDeArtefatosPeloRetrofit(provedorDeApi)

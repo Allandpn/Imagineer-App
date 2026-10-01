@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -100,7 +101,12 @@ private fun painelViewModel(capituloId: Int): PainelDeIaViewModel {
         key = "painel$capituloId",
         factory = viewModelFactory {
             initializer {
-                PainelDeIaViewModel(capituloId, aplicacao.repositorioDeSugestoes, aplicacao.repositorioDeElementos)
+                PainelDeIaViewModel(
+                    capituloId,
+                    aplicacao.repositorioDeSugestoes,
+                    aplicacao.repositorioDeElementos,
+                    aplicacao.servicoDeAnalises,
+                )
             }
         },
     )
@@ -188,6 +194,18 @@ private fun LeitorPaginado(
     // As ações de elemento (10a) precisam saber de qual livro é o capítulo.
     val livroDoCapitulo = (estadoDaTela as? EstadoDoCapitulo.Pronto)?.capitulo?.livro_id
     LaunchedEffect(livroDoCapitulo, painel) { livroDoCapitulo?.let(painel::definirLivro) }
+
+    // D1: o aviso de "análise concluída" precisa saber como o capítulo se chama...
+    val capituloDaTela = (estadoDaTela as? EstadoDoCapitulo.Pronto)?.capitulo
+    LaunchedEffect(capituloDaTela, painel) {
+        capituloDaTela?.let { painel.definirRotuloDoCapitulo(it.ordem, it.titulo) }
+    }
+    // ...e quando quem lê já está olhando o painel daquele capítulo (aí o resultado aparece nele, sem aviso).
+    val servicoDeAnalises = (LocalContext.current.applicationContext as ImagineerApp).servicoDeAnalises
+    DisposableEffect(painelAberto, idDaTela) {
+        servicoDeAnalises.definirPainelVisivel(if (painelAberto) idDaTela else null)
+        onDispose { servicoDeAnalises.definirPainelVisivel(null) }
+    }
 
     // Ao voltar da ficha (E31), o que foi editado lá pode mudar os cartões: o painel relê no lugar.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { painel.aoVoltarDaFicha() }

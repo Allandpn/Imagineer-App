@@ -2,12 +2,18 @@ package com.allan.imagineer.telas.capitulo.painel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.allan.imagineer.analise.ServicoDeAnalises
+import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDeSugestoes
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.SugestoesDeCapitulo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -130,6 +136,14 @@ class PainelDeIaViewModel(
     private val capituloId: Int,
     private val sugestoes: RepositorioDeSugestoes,
     private val elementos: RepositorioDeElementos,
+    /**
+     * Onde as análises de IA **de fato rodam** (defeito D1): no escopo do app, e não neste ViewModel, para
+     * sobreviverem a quem sai da tela antes de elas terminarem. O padrão cria um serviço próprio (testes).
+     */
+    private val servico: ServicoDeAnalises = ServicoDeAnalises(
+        sugestoes,
+        CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    ),
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoDoPainel())
@@ -138,11 +152,28 @@ class PainelDeIaViewModel(
     /** De qual livro é o capítulo: a tela o informa quando o capítulo carrega. */
     private var livroId: Int? = null
 
+    /** Como o capítulo se chama nos avisos de análise ("capítulo 3"): a tela informa quando o capítulo carrega. */
+    private var rotuloDoCapitulo: String = "capítulo"
+
+    init {
+        // Voltou à tela com uma análise ainda rodando (ou que acabou de terminar): reencontra o "analisando".
+        servico.emAndamento(capituloId)?.let { trabalho ->
+            _estado.update { it.copy(analisando = true, erroDaAnalise = null) }
+            aguardar(trabalho)
+        }
+    }
+
     /** Os elementos do livro, buscados uma vez para o diálogo de vincular (E3). */
     private var elementosDoLivro: List<ElementoDoLivro>? = null
 
     fun definirLivro(id: Int) {
         livroId = id
+        servico.registrarLivro(capituloId, id)
+    }
+
+    /** O nome do capítulo para o aviso de análise concluída (D1). */
+    fun definirRotuloDoCapitulo(ordem: Int, titulo: String?) {
+        rotuloDoCapitulo = rotuloDoCapituloNoAviso(ordem, titulo)
     }
 
     /**
@@ -270,8 +301,14 @@ class PainelDeIaViewModel(
      */
     private fun executarAnalise(forcar: Boolean, orientacao: String? = null) {
         _estado.update { it.copy(analisando = true, erroDaAnalise = null) }
+        // O trabalho roda no serviço do app (D1): se o usuário sair da tela, a análise continua e ele é avisado.
+        aguardar(servico.iniciar(capituloId, livroId, rotuloDoCapitulo, forcar, orientacao))
+    }
+
+    /** Espera o resultado de uma análise (a nossa, ou a que já estava rodando) e o aplica ao painel. */
+    private fun aguardar(trabalho: Deferred<ResultadoDaChamada<SugestoesDeCapitulo>>) {
         viewModelScope.launch {
-            when (val resultado = sugestoes.analisar(capituloId, forcar, orientacao)) {
+            when (val resultado = trabalho.await()) {
                 is ResultadoDaChamada.Sucesso ->
                     // Sugestões novas: os recados e ocupados de antes não valem mais.
                     _estado.update {
