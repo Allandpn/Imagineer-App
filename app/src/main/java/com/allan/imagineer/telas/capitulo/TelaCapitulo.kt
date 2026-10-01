@@ -67,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
+import com.allan.imagineer.Rastro
 import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
@@ -211,7 +212,10 @@ private fun LeitorPaginado(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { painel.aoVoltarDaFicha() }
 
     // No celular o painel é a tela inteira: voltar leva ao texto, e não para fora do capítulo.
-    BackHandler(enabled = painelCheio) { aoFecharPainel() }
+    BackHandler(enabled = painelCheio) {
+        Rastro.d("voltar do capítulo: fecha o painel em tela cheia")
+        aoFecharPainel()
+    }
 
     // Os ícones se relêem quando o painel muda o que há de sugestão (analisar, confirmar, descartar...). Cada página
     // lê os seus uma vez ao ficar pronta (ver [PaginaDoCapitulo]). Só leitura: nenhuma leitura chama a IA.

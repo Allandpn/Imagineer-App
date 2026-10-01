@@ -2,6 +2,7 @@ package com.allan.imagineer.telas.capitulo.painel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.allan.imagineer.Rastro
 import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.rede.ElementoDoLivro
@@ -237,12 +238,14 @@ class PainelDeIaViewModel(
      * foram lidas (o painel nunca foi aberto), lê agora: é só o `GET`, que nunca gasta IA.
      */
     fun abrirModal(sugestaoId: Int) {
+        Rastro.d("modal: abrir sugestão $sugestaoId")
         _estado.update { it.copy(emModal = sugestaoId) }
         aoAbrirPainel()
     }
 
     /** Fecha o modal. */
     fun fecharModal() {
+        Rastro.d("modal: fechar (estava em ${_estado.value.emModal})", comPilha = true)
         _estado.update { it.copy(emModal = null) }
     }
 

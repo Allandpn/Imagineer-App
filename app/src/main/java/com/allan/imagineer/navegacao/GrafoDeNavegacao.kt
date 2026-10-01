@@ -4,24 +4,30 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.allan.imagineer.ImagineerApp
+import com.allan.imagineer.Rastro
 import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
@@ -68,7 +74,16 @@ fun GrafoDeNavegacao() {
     val jaSeSabe = temUrlSalva ?: return
     val controle = rememberNavController()
 
-    // D1: o aviso de "análise concluída" aparece de qualquer tela, no canto inferior direito.
+    // Rastro do D3: toda mudança de tela, com a hora (o Logcat a põe) e o tamanho da pilha.
+    DisposableEffect(controle) {
+        val ouvinte = NavController.OnDestinationChangedListener { c, destino, _ ->
+            Rastro.d("destino -> ${destino.route} (pilha: ${c.currentBackStack.value.count { it.destination.route != null }})")
+        }
+        controle.addOnDestinationChangedListener(ouvinte)
+        onDispose { controle.removeOnDestinationChangedListener(ouvinte) }
+    }
+
+    // D1: o aviso de "análise concluída" aparece de qualquer tela.
     val avisos = remember { SnackbarHostState() }
     AvisadorDeAnalises(controle, avisos)
 
@@ -114,6 +129,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa
                     // janela que ainda estava de pé) não empilha uma segunda ficha.
+                    Rastro.d("pedido: abrir ficha $elementoId a partir do capítulo; naFrente=${entrada.estaNaFrente()}", comPilha = true)
                     if (entrada.estaNaFrente()) {
                         controle.navigate(FichaDoElemento(elementoId, livroId, capituloId)) { launchSingleTop = true }
                     }
@@ -158,7 +174,10 @@ fun GrafoDeNavegacao() {
                 elementoId = destino.elementoId,
                 capituloId = destino.capituloId,
                 // Só volta uma vez: um segundo toque na seta durante a transição desempilharia também o capítulo.
-                aoVoltar = { if (entrada.estaNaFrente()) controle.popBackStack() },
+                aoVoltar = {
+                    Rastro.d("pedido: voltar da ficha; naFrente=${entrada.estaNaFrente()}", comPilha = true)
+                    if (entrada.estaNaFrente()) controle.popBackStack()
+                },
             )
         }
         composable<PerfisDeRenderizacao> {
@@ -180,11 +199,18 @@ fun GrafoDeNavegacao() {
             )
         }
     }
-    // O aviso fica no canto inferior direito, acima do botão de IA do capítulo (que ocupa esse mesmo canto).
+    // O aviso: centralizado, bem embaixo e translúcido, para não esconder o texto que se lê (feedback do Allan).
     SnackbarHost(
         hostState = avisos,
-        modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 16.dp, bottom = 88.dp),
-    )
+        modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+    ) { dados ->
+        Snackbar(
+            snackbarData = dados,
+            modifier = Modifier.widthIn(max = 520.dp),
+            containerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f),
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+        )
+    }
     }
 }
 
