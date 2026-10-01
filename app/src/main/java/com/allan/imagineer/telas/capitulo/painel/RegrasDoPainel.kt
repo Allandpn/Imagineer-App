@@ -289,3 +289,19 @@ class VisibilidadeDoBotao(private val limiar: Float = 24f) {
         }
     }
 }
+
+/** O limite do texto da orientação (item 6.7, M1): o servidor recusa acima disso. */
+const val LIMITE_DA_ORIENTACAO = 1000
+
+/**
+ * O que mandar ao servidor, dado o que o usuário [digitou] e a orientação que já [vigente] no capítulo.
+ *
+ * - `null` quando não há o que dizer de novo (campo não mostrado, ou texto igual ao que já vale): o servidor
+ *   reaproveita a guardada;
+ * - o texto aparado quando mudou — e **vazio quando o usuário apagou** o que havia: é o pedido de "tirar a
+ *   orientação", e o servidor a apaga.
+ */
+fun orientacaoAEnviar(digitada: String?, vigente: String?): String? {
+    val texto = digitada?.trim() ?: return null
+    return if (texto == (vigente ?: "")) null else texto
+}

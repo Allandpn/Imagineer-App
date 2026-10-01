@@ -63,6 +63,7 @@ internal class SugestoesFalso(
 ) : RepositorioDeSugestoes {
     var leituras = 0
     val analises = mutableListOf<Boolean>() // o "forcar" de cada chamada
+    val orientacoes = mutableListOf<String?>() // a orientação enviada em cada chamada (item 6.7, M1)
     var travaDaAnalise: CompletableDeferred<Unit>? = null
 
     override suspend fun ler(capituloId: Int): ResultadoDaChamada<SugestoesDeCapitulo> {
@@ -70,8 +71,13 @@ internal class SugestoesFalso(
         return leitura
     }
 
-    override suspend fun analisar(capituloId: Int, forcar: Boolean): ResultadoDaChamada<SugestoesDeCapitulo> {
+    override suspend fun analisar(
+        capituloId: Int,
+        forcar: Boolean,
+        orientacao: String?,
+    ): ResultadoDaChamada<SugestoesDeCapitulo> {
         analises += forcar
+        orientacoes += orientacao
         travaDaAnalise?.await()
         return analise
     }

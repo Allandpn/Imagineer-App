@@ -245,23 +245,33 @@ class PainelDeIaViewModel(
         _estado.update { it.copy(confirmandoReanalise = false) }
     }
 
-    /** O "sim" do diálogo: refaz as sugestões ainda não confirmadas (`forcar = true`). */
-    fun confirmarReanalise() {
+    /**
+     * O "sim" do diálogo: refaz as sugestões ainda não confirmadas (`forcar = true`).
+     *
+     * [orientacaoDigitada] é o texto do campo "o que a análise não pegou?" (item 6.7, M1). Só vai ao servidor
+     * quando **mudou** em relação à orientação que já vale no capítulo: igual (ou campo não mostrado, `null`)
+     * = `null`, e o servidor reaproveita a guardada; diferente = o texto novo, e **vazio apaga** a guardada.
+     */
+    fun confirmarReanalise(orientacaoDigitada: String? = null) {
         val atual = _estado.value
         if (!atual.confirmandoReanalise || atual.analisando) return
         _estado.update { it.copy(confirmandoReanalise = false) }
-        executarAnalise(forcar = true)
+        executarAnalise(forcar = true, orientacao = orientacaoAEnviar(orientacaoDigitada, orientacaoVigente(atual)))
     }
+
+    /** A orientação que já vale neste capítulo (a do servidor), ou `null` se não há. */
+    private fun orientacaoVigente(estado: EstadoDoPainel): String? =
+        (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.orientacao
 
     /**
      * O único ponto que chama o `POST`. **Sem repetição automática** (P8): repetir sozinho
      * cobraria duas vezes sem ninguém pedir. Se falhar, o conteúdo de antes continua e a
      * mensagem da API aparece.
      */
-    private fun executarAnalise(forcar: Boolean) {
+    private fun executarAnalise(forcar: Boolean, orientacao: String? = null) {
         _estado.update { it.copy(analisando = true, erroDaAnalise = null) }
         viewModelScope.launch {
-            when (val resultado = sugestoes.analisar(capituloId, forcar)) {
+            when (val resultado = sugestoes.analisar(capituloId, forcar, orientacao)) {
                 is ResultadoDaChamada.Sucesso ->
                     // Sugestões novas: os recados e ocupados de antes não valem mais.
                     _estado.update {

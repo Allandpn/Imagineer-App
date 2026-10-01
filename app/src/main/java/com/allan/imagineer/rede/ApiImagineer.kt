@@ -121,6 +121,18 @@ interface ApiImagineer {
         @Query("forcar") forcar: Boolean,
     ): SugestoesDeCapitulo
 
+    /**
+     * `POST /capitulos/{id}/sugestoes` **com a orientação do usuário** (item 6.7, M1). É o mesmo `POST`: o
+     * servidor roda a IA mesmo sem `forcar`, porque mandar o texto já é o pedido de reanalisar.
+     */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("capitulos/{id}/sugestoes")
+    suspend fun analisarComOrientacao(
+        @Path("id") capituloId: Int,
+        @Query("forcar") forcar: Boolean,
+        @Body pedido: PedidoDeAnalise,
+    ): SugestoesDeCapitulo
+
     /** `GET /livros/{id}/elementos` — os elementos já cadastrados no livro (item 6.3). */
     @GET("livros/{id}/elementos")
     suspend fun elementosDoLivro(@Path("id") livroId: Int): List<ElementoDoLivro>

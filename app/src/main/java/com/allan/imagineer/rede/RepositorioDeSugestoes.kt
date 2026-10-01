@@ -15,8 +15,15 @@ interface RepositorioDeSugestoes {
      * `POST`: **gera** — chama a IA. [forcar] refaz as sugestões ainda não confirmadas; sem
      * ele, serve o que já está salvo (e só chama a IA se o capítulo nunca foi analisado).
      * É o único ponto do app que gasta IA.
+     *
+     * [orientacao] (item 6.7, M1): o que o usuário acha que faltou. Nulo = não mexe na que está guardada;
+     * **vazio apaga**; não vazio roda a IA com ela.
      */
-    suspend fun analisar(capituloId: Int, forcar: Boolean): ResultadoDaChamada<SugestoesDeCapitulo>
+    suspend fun analisar(
+        capituloId: Int,
+        forcar: Boolean,
+        orientacao: String? = null,
+    ): ResultadoDaChamada<SugestoesDeCapitulo>
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
@@ -29,8 +36,15 @@ class RepositorioDeSugestoesPeloRetrofit(
         return chamarApi { api.sugestoes(capituloId) }
     }
 
-    override suspend fun analisar(capituloId: Int, forcar: Boolean): ResultadoDaChamada<SugestoesDeCapitulo> {
+    override suspend fun analisar(
+        capituloId: Int,
+        forcar: Boolean,
+        orientacao: String?,
+    ): ResultadoDaChamada<SugestoesDeCapitulo> {
         val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.analisar(capituloId, forcar) }
+        return chamarApi {
+            if (orientacao == null) api.analisar(capituloId, forcar)
+            else api.analisarComOrientacao(capituloId, forcar, PedidoDeAnalise(orientacao))
+        }
     }
 }

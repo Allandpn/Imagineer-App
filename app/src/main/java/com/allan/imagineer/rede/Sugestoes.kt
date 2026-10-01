@@ -107,3 +107,15 @@ data class ParticipanteSugerido(
     val casamento_automatico: Boolean = false,
     val estado_id: Int? = null,
 )
+
+/**
+ * O corpo **opcional** de `POST /capitulos/{id}/sugestoes` (item 6.7, M1): o que o usuário acha que a análise
+ * deixou passar. Só vai quando há o que dizer; sem corpo, o servidor reanalisa como sempre.
+ *
+ * @property orientacao texto livre (até 1000 caracteres). Não vazio: roda a IA e fica guardado no capítulo.
+ * **Vazio (`""`): apaga** a guardada e roda a IA sem ela.
+ */
+@Serializable
+data class PedidoDeAnalise(
+    val orientacao: String,
+)

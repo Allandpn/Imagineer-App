@@ -69,7 +69,7 @@ import com.allan.imagineer.rede.SugestoesDeCapitulo
 class AcoesDoPainel(
     val aoAnalisar: () -> Unit,
     val aoPedirReanalise: () -> Unit,
-    val aoConfirmarReanalise: () -> Unit,
+    val aoConfirmarReanalise: (orientacao: String) -> Unit,
     val aoCancelarReanalise: () -> Unit,
     val aoTentarDeNovo: () -> Unit,
     // Incremento 10a: confirmar elementos (E1 a E32).
@@ -810,9 +810,10 @@ private fun AnaliseEmAndamento(estado: EstadoDoPainel) {
 /** P7: reanalisar gasta IA, então pede confirmação — e repete o aviso das pendências (P11). */
 @Composable
 private fun DialogoDeReanalise(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val pendentes = (estado.conteudo as? ConteudoDoPainel.Pronto)
-        ?.sugestoes?.sugestoes_pendentes_anteriores
-        ?.let { descreverPendentesAnteriores(it) }
+    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
+    val pendentes = sugestoes?.sugestoes_pendentes_anteriores?.let { descreverPendentesAnteriores(it) }
+    // O campo já vem com a orientação que vale no capítulo (item 6.7, M1): dá para ajustá-la ou apagá-la.
+    var orientacao by rememberSaveable { mutableStateOf(sugestoes?.orientacao.orEmpty()) }
 
     AlertDialog(
         onDismissRequest = acoes.aoCancelarReanalise,
@@ -824,9 +825,25 @@ private fun DialogoDeReanalise(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
                         "As já confirmadas e as descartadas ficam.",
                 )
                 pendentes?.let { Text(it, color = MaterialTheme.colorScheme.tertiary) }
+                OutlinedTextField(
+                    value = orientacao,
+                    onValueChange = { orientacao = it.take(LIMITE_DA_ORIENTACAO) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("O que a análise não pegou? (opcional)") },
+                    placeholder = { Text("Ex.: falta a cena em que o personagem chega ao porto") },
+                    supportingText = {
+                        Text(
+                            "A IA trata isto como palpite: o que o capítulo não traz, ela ignora. " +
+                                "Fica guardado para as próximas reanálises; apague para tirar. " +
+                                "${orientacao.length}/$LIMITE_DA_ORIENTACAO",
+                        )
+                    },
+                    minLines = 2,
+                    maxLines = 5,
+                )
             }
         },
-        confirmButton = { TextButton(onClick = acoes.aoConfirmarReanalise) { Text("Reanalisar") } },
+        confirmButton = { TextButton(onClick = { acoes.aoConfirmarReanalise(orientacao) }) { Text("Reanalisar") } },
         dismissButton = { TextButton(onClick = acoes.aoCancelarReanalise) { Text("Cancelar") } },
     )
 }
