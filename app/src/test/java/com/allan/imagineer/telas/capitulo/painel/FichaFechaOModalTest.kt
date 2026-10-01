@@ -49,6 +49,6 @@ class FichaFechaOModalTest {
 
         vm.fecharModalAoAbrirFicha()
 
-        assertEquals(antes.copy(emModal = null), vm.estado.value) // conteúdo, filtro e diálogo continuam como estavam
+        assertEquals(antes.copy(modais = emptyList()), vm.estado.value) // conteúdo, filtro e diálogo continuam como estavam
     }
 }

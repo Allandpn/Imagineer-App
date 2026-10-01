@@ -111,20 +111,29 @@ data class EstadoDoPainel(
     val mensagens: Map<Int, MensagemDoElemento> = emptyMap(),
     val dialogo: DialogoDeElemento? = null,
     /**
-     * A sugestão aberta no **modal**: o usuário tocou no ícone dela no texto (item 7.5b, E42). Mora aqui, e
-     * não na tela, para **sobreviver a uma ida à ficha de alguém**: ao voltar, o modal continua como estava.
+     * Os **modais empilhados** (C12), do de baixo para o de cima. Tocar num ícone do texto começa uma pilha nova com
+     * aquele modal; "Revisar" num participante da cena **empilha** o do elemento por cima, e fechar o de cima
+     * **revela o de baixo**, já atualizado. Moram aqui, e não na tela, pelo mesmo motivo de sempre: o estado
+     * sobrevive a recomposições.
      */
-    val emModal: Int? = null,
-    /**
-     * A **cena** aberta no modal (C1, C2): o usuário tocou no cartão dela ou no artefato dela no texto. Nunca
-     * junto de [emModal]: abrir um fecha o outro. Mora aqui pelo mesmo motivo do [emModal].
-     */
-    val emModalCena: Int? = null,
+    val modais: List<ModalAberto> = emptyList(),
     /** Cenas com uma ação em andamento (C7). */
     val cenasOcupadas: Set<Int> = emptySet(),
     /** O recado de cada cena, por id: o erro de uma ação, ou o aviso do que acabou de acontecer (C5). */
     val mensagensDeCena: Map<Int, MensagemDoElemento> = emptyMap(),
-)
+) {
+    /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
+    val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
+
+    /** A cena que está num modal aberto, ou `null`. */
+    val emModalCena: Int? get() = modais.filterIsInstance<ModalAberto.DeCena>().lastOrNull()?.cenaId
+}
+
+/** Um modal da pilha (C12): ou uma sugestão de elemento, ou uma cena. */
+sealed interface ModalAberto {
+    data class DeElemento(val sugestaoId: Int) : ModalAberto
+    data class DeCena(val cenaId: Int) : ModalAberto
+}
 
 const val AVISO_ESTADO_RASCUNHO =
     "Estado registrado. A descrição é um rascunho: a IA a refaz quando você gerar um prompt."
@@ -247,7 +256,8 @@ class PainelDeIaViewModel(
      * foram lidas (o painel nunca foi aberto), lê agora: é só o `GET`, que nunca gasta IA.
      */
     fun abrirModal(sugestaoId: Int) {
-        _estado.update { it.copy(emModal = sugestaoId, emModalCena = null) } // C2: um modal por vez
+        // Vindo do ícone no texto, começa uma pilha nova (C12).
+        _estado.update { it.copy(modais = listOf(ModalAberto.DeElemento(sugestaoId))) }
         aoAbrirPainel()
     }
 
@@ -257,12 +267,12 @@ class PainelDeIaViewModel(
      * Os **diálogos** (vincular, criar...) não fecham: estão no meio de uma tarefa e voltam como estavam (E43).
      */
     fun fecharModalAoAbrirFicha() {
-        _estado.update { it.copy(emModal = null) }
+        _estado.update { it.copy(modais = emptyList()) } // todos: ao voltar, quem lê cai no texto
     }
 
     /** Fecha o modal. */
     fun fecharModal() {
-        _estado.update { it.copy(emModal = null) }
+        _estado.update { it.copy(modais = it.modais.filterNot { m -> m is ModalAberto.DeElemento }) }
     }
 
     // ------------------------------------------------------------------ //
@@ -271,12 +281,12 @@ class PainelDeIaViewModel(
 
     /** Abre a cena [cenaId] no modal (C1); fecha o modal de elemento, se estava aberto (C2). */
     fun abrirModalDeCena(cenaId: Int) {
-        _estado.update { it.copy(emModalCena = cenaId, emModal = null) }
+        _estado.update { it.copy(modais = listOf(ModalAberto.DeCena(cenaId))) } // pilha nova (C12)
         aoAbrirPainel()
     }
 
     fun fecharModalDaCena() {
-        _estado.update { it.copy(emModalCena = null) }
+        _estado.update { it.copy(modais = it.modais.filterNot { m -> m is ModalAberto.DeCena }) }
     }
 
     /**
@@ -284,7 +294,10 @@ class PainelDeIaViewModel(
      * confirma, vincula ou cria — o caminho mais curto para destravar a cena.
      */
     fun revisarParticipante(sugestaoElementoId: Int) {
-        _estado.update { it.copy(emModalCena = null, emModal = sugestaoElementoId) }
+        // C12: **empilha** o modal do elemento por cima do da cena; fechar o de cima revela o de baixo.
+        _estado.update {
+            it.copy(modais = it.modais.filterNot { m -> m == ModalAberto.DeElemento(sugestaoElementoId) } + ModalAberto.DeElemento(sugestaoElementoId))
+        }
     }
 
     /** Uma das ações de decisão da cena (C4): confirmar, descartar ou restaurar. Nenhuma gasta IA (C8). */
@@ -327,7 +340,7 @@ class PainelDeIaViewModel(
                 atual.copy(
                     cenasOcupadas = atual.cenasOcupadas - cena.id,
                     mensagensDeCena = if (recado != null) atual.mensagensDeCena + (cena.id to recado) else atual.mensagensDeCena,
-                    emModalCena = if (concluiu && atual.emModalCena == cena.id) null else atual.emModalCena,
+                    modais = if (concluiu) atual.modais.filterNot { it == ModalAberto.DeCena(cena.id) } else atual.modais,
                 )
             }
         }
@@ -505,7 +518,7 @@ class PainelDeIaViewModel(
 
     /** Fecha o modal **só se** for o da sugestão [sugestaoId] (E44): o de outra, aberto agora, não é tocado. */
     private fun fecharModalSe(sugestaoId: Int) {
-        _estado.update { if (it.emModal == sugestaoId) it.copy(emModal = null) else it }
+        _estado.update { it.copy(modais = it.modais.filterNot { m -> m == ModalAberto.DeElemento(sugestaoId) }) }
     }
 
     private fun abrirDialogo(dialogo: DialogoDeElemento) {

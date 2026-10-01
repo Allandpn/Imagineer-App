@@ -70,6 +70,44 @@ class RegrasDaCenaTest {
     }
 }
 
+/** C3 e C11: a situação do participante, vista pelo elemento dele. */
+class SituacaoDoParticipanteTest {
+
+    private val jon = participante(10, "Jon", elementoId = 3)
+
+    @Test
+    fun `C11 casamento automatico oferece Confirmar ali mesmo`() {
+        val s = situacaoDoParticipante(jon, elemento(id = 10, elementoId = 3, automatico = true))
+
+        assertEquals("Casamento automático — confira", s.texto)
+        assertEquals(AcaoDoElemento.CONFIRMAR, s.acaoRapida)
+        assertFalse(s.precisaRevisar)
+    }
+
+    @Test
+    fun `C11 casado sem estado neste capitulo oferece Registrar estado`() {
+        val s = situacaoDoParticipante(jon, elemento(id = 10, elementoId = 3)) // casado, revisado, sem estado
+
+        assertEquals("Sem estado neste capítulo", s.texto)
+        assertEquals(AcaoDoElemento.REGISTRAR_ESTADO, s.acaoRapida)
+    }
+
+    @Test
+    fun `C11 um elemento novo pede revisar, porque criar ou vincular exige escolher`() {
+        val s = situacaoDoParticipante(participante(10, "Jon"), elemento(id = 10))
+
+        assertTrue(s.precisaRevisar)
+        assertNull(s.acaoRapida)
+    }
+
+    @Test
+    fun `C11 elemento confirmado nao tem o que fazer`() {
+        val s = situacaoDoParticipante(jon, elemento(id = 10, elementoId = 3, estadoId = 9))
+
+        assertEquals(SituacaoDoParticipante("Elemento confirmado", precisaRevisar = false), s)
+    }
+}
+
 /** O modal da cena no ViewModel do painel: C1, C2 e C5 a C8. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ModalDaCenaTest {
@@ -103,7 +141,7 @@ class ModalDaCenaTest {
     // ---- C1 e C2 ----
 
     @Test
-    fun `C1 e C2 abrir a cena fecha o modal do elemento e vice-versa`() = runTest {
+    fun `C1 e C12 tocar num icone do texto comeca uma pilha nova, no lugar da anterior`() = runTest {
         val vm = painelAberto(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCena)))
 
         vm.abrirModal(1)
@@ -129,13 +167,14 @@ class ModalDaCenaTest {
     }
 
     @Test
-    fun `C3 revisar um participante fecha o modal da cena e abre o do elemento dele`() = runTest {
+    fun `C12 revisar um participante empilha o modal do elemento por cima do da cena`() = runTest {
         val vm = painelAberto(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCena)))
         vm.abrirModalDeCena(1)
 
         vm.revisarParticipante(sugestaoElementoId = 10)
 
-        assertNull(vm.estado.value.emModalCena)
+        assertEquals(listOf(ModalAberto.DeCena(1), ModalAberto.DeElemento(10)), vm.estado.value.modais)
+        assertEquals(1, vm.estado.value.emModalCena) // o de baixo continua lá
         assertEquals(10, vm.estado.value.emModal)
     }
 
@@ -270,5 +309,75 @@ class ModalDaCenaTest {
 
         // O estado guarda o id; quem desenha mostra "não existe mais". Aqui basta não quebrar nem fechar sozinho.
         assertEquals(99, vm.estado.value.emModalCena)
+    }
+
+    // ---- C12: a pilha de modais ----
+
+    private val comCasadoAutomatico = SugestoesDeCapitulo(
+        gerado_em = "2026-10-01T10:00:00",
+        elementos = listOf(elemento(id = 10, elementoId = 3, automatico = true)), // casado sozinho, ninguém revisou
+        cenas = listOf(cena(1, participantes = arrayOf(participante(10, "Jon", elementoId = 3, automatico = true)))),
+    )
+
+    @Test
+    fun `C12 fechar o modal de cima revela o de baixo`() = runTest {
+        val vm = painelAberto(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCena)))
+        vm.abrirModalDeCena(1)
+        vm.revisarParticipante(10)
+
+        vm.fecharModal() // o "voltar" ou arrastar o modal do elemento
+
+        assertEquals(listOf<ModalAberto>(ModalAberto.DeCena(1)), vm.estado.value.modais)
+        assertEquals(1, vm.estado.value.emModalCena)
+        assertNull(vm.estado.value.emModal)
+    }
+
+    @Test
+    fun `C12 decidir o elemento no modal de cima fecha so ele e a cena de baixo continua`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCasadoAutomatico))
+        val vm = painelAberto(repositorio)
+        vm.abrirModalDeCena(1)
+        vm.revisarParticipante(10)
+
+        vm.executar(AcaoDoElemento.CONFIRMAR, comCasadoAutomatico.elementos.single())
+        advanceUntilIdle()
+
+        assertEquals(listOf<ModalAberto>(ModalAberto.DeCena(1)), vm.estado.value.modais) // E44 fecha só o de cima
+    }
+
+    @Test
+    fun `C12 revisar o mesmo participante duas vezes nao duplica o modal`() = runTest {
+        val vm = painelAberto(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCena)))
+        vm.abrirModalDeCena(1)
+
+        vm.revisarParticipante(10)
+        vm.revisarParticipante(10)
+
+        assertEquals(listOf(ModalAberto.DeCena(1), ModalAberto.DeElemento(10)), vm.estado.value.modais)
+    }
+
+    @Test
+    fun `ver a ficha fecha toda a pilha`() = runTest {
+        val vm = painelAberto(SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCena)))
+        vm.abrirModalDeCena(1)
+        vm.revisarParticipante(10)
+
+        vm.fecharModalAoAbrirFicha()
+
+        assertTrue(vm.estado.value.modais.isEmpty())
+    }
+
+    @Test
+    fun `C11 confirmar o casamento de um participante dentro da cena nao fecha a cena`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(comCasadoAutomatico))
+        val vm = painelAberto(repositorio)
+        vm.abrirModalDeCena(1)
+
+        // o botão "Confirmar" do participante usa a mesma ação do cartão do elemento
+        vm.executar(AcaoDoElemento.CONFIRMAR, comCasadoAutomatico.elementos.single())
+        advanceUntilIdle()
+
+        assertEquals(1, vm.estado.value.emModalCena) // a cena continua aberta, agora com o participante em dia
+        assertTrue(repositorio.analises.isEmpty()) // e nada gastou IA
     }
 }

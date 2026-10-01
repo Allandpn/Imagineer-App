@@ -42,6 +42,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -137,14 +138,29 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
 }
 
 /**
+ * Todos os modais da pilha (C12), **do de baixo para o de cima**: cada um é uma janela, e a última composta fica por
+ * cima. Fechar o de cima o tira da pilha e **revela o de baixo**, que se atualiza sozinho com o que se decidiu.
+ */
+@Composable
+fun ModaisDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    estado.modais.forEach { modal ->
+        key(modal) {
+            when (modal) {
+                is ModalAberto.DeElemento -> ModalDaSugestao(estado, acoes, modal.sugestaoId)
+                is ModalAberto.DeCena -> ModalDaCena(estado, acoes, modal.cenaId)
+            }
+        }
+    }
+}
+
+/**
  * O modal da sugestão tocada no texto (E42): o mesmo cartão do painel, **aberto e com as mesmas ações**
  * (confirmar, criar, vincular, descartar, ver ficha...), para decidir sem sair da leitura. Fechar volta ao
  * texto exatamente onde estava.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val id = estado.emModal ?: return
+fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
     val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
     val elemento = sugestoes?.elementos?.firstOrNull { it.id == id }
 
@@ -809,8 +825,7 @@ private fun RecadoDaCena(mensagem: MensagemDoElemento) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val id = estado.emModalCena ?: return
+fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
     val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
     val cena = sugestoes?.cenas?.firstOrNull { it.id == id }
 
@@ -845,6 +860,7 @@ fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
 @Composable
 private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val ocupada = cena.id in estado.cenasOcupadas
+    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -862,26 +878,33 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
 
     Text("Participantes", style = MaterialTheme.typography.titleSmall)
     cena.participantes.forEach { participante ->
-        val situacaoDele = situacaoDoParticipante(participante)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("${rotuloDoTipo(participante.tipo)}: ${participante.nome}", style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    situacaoDele.texto,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (situacaoDele.precisaRevisar || participante.casamento_automatico) {
-                        MaterialTheme.colorScheme.tertiary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-            }
-            if (situacaoDele.precisaRevisar) {
-                OutlinedButton(onClick = { acoes.aoRevisarParticipante(participante.sugestao_elemento_id) }) { Text("Revisar") }
+        // O elemento do participante vem na mesma resposta: com ele, sabe-se tudo o que falta para confirmar a cena.
+        val elemento = sugestoes?.elementos?.firstOrNull { it.id == participante.sugestao_elemento_id }
+        val situacaoDele = situacaoDoParticipante(participante, elemento)
+        val ocupado = elemento != null && elemento.id in estado.ocupados
+        val pendente = situacaoDele.precisaRevisar || situacaoDele.acaoRapida != null
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${rotuloDoTipo(participante.tipo)}: ${participante.nome}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                situacaoDele.texto,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (pendente) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            elemento?.let { estado.mensagens[it.id] }?.let { RecadoDaCena(it) }
+            if (ocupado) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (pendente) {
+                // C11: a ação principal ali mesmo (confirmar o casamento, registrar o estado) e, sempre, "Revisar", que
+                // empilha o modal do elemento por cima (C12).
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (elemento != null && situacaoDele.acaoRapida != null) {
+                        Button(onClick = { acoes.aoExecutar(situacaoDele.acaoRapida, elemento) }, enabled = !ocupado) {
+                            Text(situacaoDele.acaoRapida.rotulo)
+                        }
+                    }
+                    OutlinedButton(onClick = { acoes.aoRevisarParticipante(participante.sugestao_elemento_id) }, enabled = !ocupado) {
+                        Text("Revisar")
+                    }
+                }
             }
         }
     }

@@ -335,17 +335,44 @@ fun etiquetaDaCena(cena: CenaSugerida): String = when (filtroDaCena(cena)) {
 }
 
 /**
- * Como um participante da cena aparece no modal (C3).
+ * Como um participante da cena aparece no modal (C3 e C11).
  *
- * @property precisaRevisar `true` quando ainda **não é um elemento cadastrado**: sem isso o servidor recusa
- * confirmar a cena (422), então o modal oferece "Revisar", que leva ao modal daquele elemento.
+ * @property precisaRevisar `true` quando ainda **não é um elemento cadastrado**: o servidor recusa confirmar a cena
+ * (422) enquanto isso, e o modal oferece "Revisar".
+ * @property acaoRapida a ação principal do elemento do participante, que o modal da cena executa **ali mesmo**, sem
+ * sair dele (C11): "Confirmar" o casamento automático ou "Registrar estado". `null` quando não há o que fazer sem
+ * escolher (um elemento novo pede criar ou vincular) ou quando já está tudo certo.
  */
-data class SituacaoDoParticipante(val texto: String, val precisaRevisar: Boolean)
+data class SituacaoDoParticipante(
+    val texto: String,
+    val precisaRevisar: Boolean,
+    val acaoRapida: AcaoDoElemento? = null,
+)
 
-fun situacaoDoParticipante(participante: ParticipanteSugerido): SituacaoDoParticipante = when {
-    participante.elemento_id == null -> SituacaoDoParticipante("Sem elemento — revise", precisaRevisar = true)
-    participante.casamento_automatico -> SituacaoDoParticipante("Casamento automático — confira", precisaRevisar = false)
-    else -> SituacaoDoParticipante("Elemento confirmado", precisaRevisar = false)
+/**
+ * A situação de um participante. Com o [elemento] (a sugestão de elemento que o participante aponta, que vem na
+ * mesma resposta), dá para dizer **tudo** o que falta para a cena poder ser confirmada: casamento a conferir,
+ * estado a registrar. Sem ele, só se sabe se o participante já está ligado a um elemento.
+ */
+fun situacaoDoParticipante(
+    participante: ParticipanteSugerido,
+    elemento: ElementoSugerido? = null,
+): SituacaoDoParticipante {
+    if (elemento != null) {
+        return when (situacaoDoElemento(elemento)) {
+            SituacaoDoElemento.NOVA -> SituacaoDoParticipante("Sem elemento — revise", precisaRevisar = true)
+            SituacaoDoElemento.CASADA_AUTOMATICAMENTE ->
+                SituacaoDoParticipante("Casamento automático — confira", precisaRevisar = false, acaoRapida = AcaoDoElemento.CONFIRMAR)
+            SituacaoDoElemento.CASADA_SEM_ESTADO ->
+                SituacaoDoParticipante("Sem estado neste capítulo", precisaRevisar = false, acaoRapida = AcaoDoElemento.REGISTRAR_ESTADO)
+            SituacaoDoElemento.CONFIRMADA -> SituacaoDoParticipante("Elemento confirmado", precisaRevisar = false)
+        }
+    }
+    return when {
+        participante.elemento_id == null -> SituacaoDoParticipante("Sem elemento — revise", precisaRevisar = true)
+        participante.casamento_automatico -> SituacaoDoParticipante("Casamento automático — confira", precisaRevisar = false)
+        else -> SituacaoDoParticipante("Elemento confirmado", precisaRevisar = false)
+    }
 }
 
 /** O aviso quando a cena foi confirmada (C5). */

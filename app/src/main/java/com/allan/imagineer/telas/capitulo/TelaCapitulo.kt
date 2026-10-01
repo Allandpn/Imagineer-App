@@ -71,8 +71,7 @@ import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
 import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
-import com.allan.imagineer.telas.capitulo.painel.ModalDaCena
-import com.allan.imagineer.telas.capitulo.painel.ModalDaSugestao
+import com.allan.imagineer.telas.capitulo.painel.ModaisDoPainel
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
 import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
@@ -359,8 +358,7 @@ private fun LeitorPaginado(
     // Efeito colateral aceito: ao voltar da ficha o modal aparece só depois da animação (~0,3 s), e não junto dela.
     val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     if (estadoDoCiclo == Lifecycle.State.RESUMED) {
-        ModalDaSugestao(estadoDoPainel, acoesDoPainel)
-        ModalDaCena(estadoDoPainel, acoesDoPainel)
+        ModaisDoPainel(estadoDoPainel, acoesDoPainel)
         DialogosDoPainel(estadoDoPainel, acoesDoPainel)
     }
 }
