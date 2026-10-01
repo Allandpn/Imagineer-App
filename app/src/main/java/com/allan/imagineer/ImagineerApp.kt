@@ -20,6 +20,8 @@ import com.allan.imagineer.rede.RepositorioDeCapitulosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDeElementosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivros
+import com.allan.imagineer.rede.RepositorioDeMarcadores
+import com.allan.imagineer.rede.RepositorioDeMarcadoresPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDePerfis
 import com.allan.imagineer.rede.RepositorioDePerfisPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeSugestoes
@@ -69,6 +71,10 @@ class ImagineerApp : Application() {
 
     val repositorioDeSugestoes: RepositorioDeSugestoes by lazy {
         RepositorioDeSugestoesPeloRetrofit(provedorDeApi)
+    }
+
+    val repositorioDeMarcadores: RepositorioDeMarcadores by lazy {
+        RepositorioDeMarcadoresPeloRetrofit(provedorDeApi)
     }
 
     val repositorioDeElementos: RepositorioDeElementos by lazy {

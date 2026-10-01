@@ -35,8 +35,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -84,6 +86,7 @@ class AcoesDoPainel(
     val aoAlternarApagarEstado: () -> Unit,
     val aoConfirmarDesfazer: () -> Unit,
     val aoConfirmarDescarte: () -> Unit,
+    val aoFecharModal: () -> Unit,
 )
 
 /**
@@ -107,7 +110,15 @@ fun PainelDeIa(
             }
         }
     }
+}
 
+/**
+ * Os diálogos do painel (reanalisar, criar, vincular, desfazer, descartar em cena). Desenhados **uma vez só**,
+ * pela tela de Capítulo, e não dentro do painel: assim funcionam também quando o usuário age pelo modal
+ * da sugestão, com o painel fechado.
+ */
+@Composable
+fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     if (estado.confirmandoReanalise) {
         DialogoDeReanalise(estado, acoes)
     }
@@ -117,6 +128,54 @@ fun PainelDeIa(
         is DialogoDeElemento.Desfazendo -> DialogoDesfazer(dialogo, acoes)
         is DialogoDeElemento.DescartandoEmCenas -> DialogoDescartarEmCenas(dialogo, acoes)
         null -> Unit
+    }
+}
+
+/**
+ * O modal da sugestão tocada no texto (E42): o mesmo cartão do painel, **aberto e com as mesmas ações**
+ * (confirmar, criar, vincular, descartar, ver ficha...), para decidir sem sair da leitura. Fechar volta ao
+ * texto exatamente onde estava.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val id = estado.emModal ?: return
+    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
+    val elemento = sugestoes?.elementos?.firstOrNull { it.id == id }
+
+    ModalBottomSheet(
+        onDismissRequest = acoes.aoFecharModal,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when {
+                // Ainda lendo as sugestões (o painel nunca tinha sido aberto), ou a leitura falhou.
+                sugestoes == null -> when (val conteudo = estado.conteudo) {
+                    is ConteudoDoPainel.Erro -> {
+                        Text(conteudo.motivo, color = MaterialTheme.colorScheme.error)
+                        Button(onClick = acoes.aoTentarDeNovo) { Text("Tentar de novo") }
+                    }
+                    else -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) { CircularProgressIndicator() }
+                }
+                // Sumiu da lista (uma reanálise refez as sugestões): não há mais o que mostrar.
+                elemento == null -> Text(
+                    "Esta sugestão não existe mais. Feche e toque de novo no ícone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                elemento.descartada -> CartaoDeElementoDescartado(elemento, estado, acoes)
+                else -> CartaoDeElemento(
+                    elemento = elemento,
+                    cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
+                    aberto = true,
+                    aoAlternar = {},
+                    estado = estado,
+                    acoes = acoes,
+                )
+            }
+        }
     }
 }
 
@@ -311,7 +370,7 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CartaoDeElemento(
+internal fun CartaoDeElemento(
     elemento: ElementoSugerido,
     cenas: List<String>,
     aberto: Boolean,
@@ -434,7 +493,7 @@ private fun Rotulado(rotulo: String, texto: String, maxLinhas: Int = Int.MAX_VAL
 
 /** Uma sugestão descartada (E16), com o caminho de volta. */
 @Composable
-private fun CartaoDeElementoDescartado(elemento: ElementoSugerido, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+internal fun CartaoDeElementoDescartado(elemento: ElementoSugerido, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val ocupado = elemento.id in estado.ocupados
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {

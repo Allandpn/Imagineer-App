@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +17,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -38,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,19 +53,24 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.CapituloDetalhe
+import com.allan.imagineer.rede.Marcador
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
-import com.allan.imagineer.telas.capitulo.painel.EstadoDoPainel
+import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
+import com.allan.imagineer.telas.capitulo.painel.ModalDaSugestao
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
 import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
@@ -68,11 +78,40 @@ import com.allan.imagineer.telas.capitulo.painel.usarAside
 import com.allan.imagineer.telas.livro.descreverTamanho
 import com.allan.imagineer.telas.livro.tituloDoCapitulo
 
+/** O ViewModel de um capítulo; a mesma chave devolve o mesmo, então a página e a tela enxergam o mesmo estado. */
+@Composable
+private fun capituloViewModel(capituloId: Int): CapituloViewModel {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    return viewModel(
+        key = "capitulo$capituloId",
+        factory = viewModelFactory {
+            initializer {
+                CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeMarcadores)
+            }
+        },
+    )
+}
+
+/** O ViewModel do painel de IA de um capítulo (item 7.5b): cada capítulo tem o seu. */
+@Composable
+private fun painelViewModel(capituloId: Int): PainelDeIaViewModel {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    return viewModel(
+        key = "painel$capituloId",
+        factory = viewModelFactory {
+            initializer {
+                PainelDeIaViewModel(capituloId, aplicacao.repositorioDeSugestoes, aplicacao.repositorioDeElementos)
+            }
+        },
+    )
+}
+
 /**
- * A tela de Capítulo (item 7.5), por enquanto só o leitor de texto (incremento 8).
+ * A tela de Capítulo (itens 7.5 e 7.5c): o leitor de texto, o painel de IA e, agora, **a passagem de página**.
  *
- * Só monta o ViewModel e entrega o estado para [ConteudoDoCapitulo] — a separação
- * permite pré-visualizar cada estado sem rede.
+ * O texto do capítulo aberto aparece como sempre, sozinho. Assim que a lista de capítulos do livro chega (do aparelho,
+ * em geral na hora), o leitor vira um **pager**: arrastar para os lados faz a página vizinha **acompanhar o dedo**
+ * — com o texto, se já estava carregada, ou com um carregando, se ainda não.
  */
 @Composable
 fun TelaCapitulo(
@@ -82,101 +121,116 @@ fun TelaCapitulo(
     aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
-    val viewModel: CapituloViewModel = viewModel(
-        factory = viewModelFactory {
-            initializer { CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos) }
-        },
-    )
-    val estado by viewModel.estado.collectAsState()
 
-    // O painel de IA tem ViewModel próprio (item 7.5b): o estado da leitura e o da IA crescem
-    // por motivos diferentes. Nada dele é pedido ao servidor até o painel ser aberto (P1).
-    val painel: PainelDeIaViewModel = viewModel(
+    // A lista de capítulos do livro, para o pager. Pede-se depois de o texto inicial estar pronto (é dele que vem o livro).
+    val lista: ListaDoLeitorViewModel = viewModel(
         factory = viewModelFactory {
-            initializer {
-                PainelDeIaViewModel(capituloId, aplicacao.repositorioDeSugestoes, aplicacao.repositorioDeElementos)
-            }
+            initializer { ListaDoLeitorViewModel(capituloId, aplicacao.repositorioDeLivros) }
         },
     )
-    val estadoDoPainel by painel.estado.collectAsState()
-    // rememberSaveable: o painel aberto sobrevive a girar o aparelho (P4).
+    val listaDoLeitor by lista.estado.collectAsState()
+    val inicial = capituloViewModel(capituloId)
+    val estadoInicial by inicial.estado.collectAsState()
+    LaunchedEffect(inicial) { inicial.carregar() }
+    LaunchedEffect(estadoInicial) { (estadoInicial as? EstadoDoCapitulo.Pronto)?.let { lista.carregar(it.capitulo) } }
+
+    // rememberSaveable: o painel aberto sobrevive a girar o aparelho (P4); fica acima do pager, que é refeito
+    // quando a lista completa chega.
     var painelAberto by rememberSaveable { mutableStateOf(false) }
-    val aside = usarAside(LocalConfiguration.current.screenWidthDp)
 
-    // P3: só a direção da rolagem decide se o botão de IA aparece.
+    // O pager é refeito uma vez, quando a lista completa chega (de [capituloId] sozinho para todos os capítulos).
+    // O que está dentro das páginas (textos, rolagem) vive nos ViewModels, e a página aberta volta no mesmo ponto.
+    key(listaDoLeitor.completa) {
+        LeitorPaginado(
+            lista = listaDoLeitor,
+            painelAberto = painelAberto,
+            aoAlternarPainel = { painelAberto = !painelAberto },
+            aoFecharPainel = { painelAberto = false },
+            aoVoltar = aoVoltar,
+            aoAbrirFicha = aoAbrirFicha,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LeitorPaginado(
+    lista: ListaDoLeitor,
+    painelAberto: Boolean,
+    aoAlternarPainel: () -> Unit,
+    aoFecharPainel: () -> Unit,
+    aoVoltar: () -> Unit,
+    aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
+) {
+    val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
+    val aside = usarAside(LocalConfiguration.current.screenWidthDp)
+    val painelCheio = painelAberto && !aside
+
+    // O capítulo "da tela": o painel de IA, o modal, os ícones e a ficha são do capítulo em que a página PAROU
+    // (settledPage); o título acompanha a página que está mais à vista (currentPage).
+    val idDaTela = lista.ids[estadoDoPager.settledPage.coerceIn(0, lista.ids.lastIndex)]
+    val idDoTitulo = lista.ids[estadoDoPager.currentPage.coerceIn(0, lista.ids.lastIndex)]
+    val vmDaTela = capituloViewModel(idDaTela)
+    val estadoDaTela by vmDaTela.estado.collectAsState()
+    val estadoDoTitulo by capituloViewModel(idDoTitulo).estado.collectAsState()
+
+    val painel = painelViewModel(idDaTela)
+    val estadoDoPainel by painel.estado.collectAsState()
+
+    // P3: só a direção da rolagem decide se o botão de IA aparece. Trocar de página o faz reaparecer.
     val visibilidade = remember { VisibilidadeDoBotao() }
     var botaoVisivel by remember { mutableStateOf(true) }
+    LaunchedEffect(idDaTela) { botaoVisivel = true }
 
-    LaunchedEffect(painelAberto) { if (painelAberto) painel.aoAbrirPainel() }
+    // Nada do painel é pedido ao servidor até ele ser aberto (P1); trocar de página com ele aberto lê o do novo capítulo.
+    LaunchedEffect(painelAberto, idDaTela) { if (painelAberto) painel.aoAbrirPainel() }
 
     // As ações de elemento (10a) precisam saber de qual livro é o capítulo.
-    val livroDoCapitulo = (estado as? EstadoDoCapitulo.Pronto)?.capitulo?.livro_id
-    LaunchedEffect(livroDoCapitulo) { livroDoCapitulo?.let(painel::definirLivro) }
+    val livroDoCapitulo = (estadoDaTela as? EstadoDoCapitulo.Pronto)?.capitulo?.livro_id
+    LaunchedEffect(livroDoCapitulo, painel) { livroDoCapitulo?.let(painel::definirLivro) }
 
     // Ao voltar da ficha (E31), o que foi editado lá pode mudar os cartões: o painel relê no lugar.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { painel.aoVoltarDaFicha() }
 
     // No celular o painel é a tela inteira: voltar leva ao texto, e não para fora do capítulo.
-    BackHandler(enabled = painelAberto && !aside) { painelAberto = false }
+    BackHandler(enabled = painelCheio) { aoFecharPainel() }
 
-    // Carrega uma vez. Se a composição recomeçar (girar o tablet), o ViewModel já tem
-    // o texto e a chamada não se repete.
-    LaunchedEffect(viewModel) { viewModel.carregar() }
+    // Os ícones se relêem quando o painel muda o que há de sugestão (analisar, confirmar, descartar...). Cada página
+    // lê os seus uma vez ao ficar pronta (ver [PaginaDoCapitulo]). Só leitura: nenhuma leitura chama a IA.
+    val textoProntoDaTela = estadoDaTela is EstadoDoCapitulo.Pronto
+    LaunchedEffect(estadoDoPainel.conteudo) {
+        if (textoProntoDaTela && estadoDoPainel.conteudo is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Pronto) {
+            vmDaTela.carregarMarcadores()
+        }
+    }
 
-    ConteudoDoCapitulo(
-        estado = estado,
-        aoVoltar = aoVoltar,
-        aoTentarDeNovo = viewModel::tentarDeNovo,
-        estadoDoPainel = estadoDoPainel,
-        acoesDoPainel = AcoesDoPainel(
-            aoAnalisar = painel::analisar,
-            aoPedirReanalise = painel::pedirReanalise,
-            aoConfirmarReanalise = painel::confirmarReanalise,
-            aoCancelarReanalise = painel::cancelarReanalise,
-            aoTentarDeNovo = painel::tentarDeNovo,
-            aoExecutar = painel::executar,
-            aoCancelarDialogo = painel::cancelarDialogo,
-            aoConfirmarCriacao = painel::confirmarCriacao,
-            aoTrocarCriacaoPorVinculo = painel::trocarCriacaoPorVinculo,
-            aoEscolherElemento = painel::escolherElemento,
-            aoRecarregarLista = painel::recarregarLista,
-            aoRestaurar = painel::restaurar,
-            aoEscolherFiltro = painel::escolherFiltro,
-            aoAbrirFicha = { elementoId, doCapitulo ->
-                // Sem o livro (o capítulo ainda não carregou) não há como abrir a ficha.
-                livroDoCapitulo?.let { aoAbrirFicha(elementoId, it, capituloId.takeIf { doCapitulo }) }
-            },
-            aoAlternarApagarEstado = painel::alternarApagarEstado,
-            aoConfirmarDesfazer = painel::confirmarDesfazer,
-            aoConfirmarDescarte = painel::confirmarDescarte,
-        ),
-        painelAberto = painelAberto,
-        aoAlternarPainel = { painelAberto = !painelAberto },
-        botaoVisivel = botaoVisivel,
-        aoRolar = { delta, noTopo, noFim ->
-            visibilidade.aoRolar(delta, noTopo, noFim)
-            botaoVisivel = visibilidade.visivel
-        },
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ConteudoDoCapitulo(
-    estado: EstadoDoCapitulo,
-    aoVoltar: () -> Unit,
-    aoTentarDeNovo: () -> Unit,
-    estadoDoPainel: EstadoDoPainel,
-    acoesDoPainel: AcoesDoPainel,
-    painelAberto: Boolean,
-    aoAlternarPainel: () -> Unit,
-    botaoVisivel: Boolean,
-    aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
-) {
-    val titulo = (estado as? EstadoDoCapitulo.Pronto)?.capitulo
+    val titulo = (estadoDoTitulo as? EstadoDoCapitulo.Pronto)?.capitulo
         ?.let { tituloDoCapitulo(it.titulo, it.ordem) }
         ?: "Capítulo"
-    val aside = usarAside(LocalConfiguration.current.screenWidthDp)
+
+    val acoesDoPainel = AcoesDoPainel(
+        aoAnalisar = painel::analisar,
+        aoPedirReanalise = painel::pedirReanalise,
+        aoConfirmarReanalise = painel::confirmarReanalise,
+        aoCancelarReanalise = painel::cancelarReanalise,
+        aoTentarDeNovo = painel::tentarDeNovo,
+        aoExecutar = painel::executar,
+        aoCancelarDialogo = painel::cancelarDialogo,
+        aoConfirmarCriacao = painel::confirmarCriacao,
+        aoTrocarCriacaoPorVinculo = painel::trocarCriacaoPorVinculo,
+        aoEscolherElemento = painel::escolherElemento,
+        aoRecarregarLista = painel::recarregarLista,
+        aoRestaurar = painel::restaurar,
+        aoEscolherFiltro = painel::escolherFiltro,
+        aoAbrirFicha = { elementoId, doCapitulo ->
+            // Sem o livro (o capítulo ainda não carregou) não há como abrir a ficha.
+            livroDoCapitulo?.let { aoAbrirFicha(elementoId, it, idDaTela.takeIf { doCapitulo }) }
+        },
+        aoAlternarApagarEstado = painel::alternarApagarEstado,
+        aoConfirmarDesfazer = painel::confirmarDesfazer,
+        aoConfirmarDescarte = painel::confirmarDescarte,
+        aoFecharModal = painel::fecharModal,
+    )
 
     Scaffold(
         topBar = {
@@ -191,7 +245,7 @@ fun ConteudoDoCapitulo(
         },
         floatingActionButton = {
             // O botão de IA, no canto inferior direito (P3). Só com o texto na tela.
-            if (estado is EstadoDoCapitulo.Pronto) {
+            if (textoProntoDaTela) {
                 when {
                     // Tablet com o aside aberto: quem fecha é o "X" do próprio painel.
                     painelAberto && aside -> Unit
@@ -214,51 +268,119 @@ fun ConteudoDoCapitulo(
         },
     ) { margens ->
         Box(modifier = Modifier.fillMaxSize().padding(margens)) {
-            when (estado) {
-                EstadoDoCapitulo.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-
-                is EstadoDoCapitulo.Erro -> Box(Modifier.fillMaxSize().padding(16.dp), Alignment.Center) {
-                    Column(
-                        modifier = Modifier.widthIn(max = 600.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            estado.motivo,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
+            // Tablet: o painel é um aside à direita, dividindo a tela com o texto (P4). No celular, o pager ocupa tudo.
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    HorizontalPager(
+                        state = estadoDoPager,
+                        modifier = Modifier.fillMaxSize(),
+                        // Uma página de cada lado já pronta: quando o dedo chega nela, o texto costuma estar lá.
+                        beyondViewportPageCount = 1,
+                        key = { lista.ids[it] },
+                        // Com o painel em tela cheia por cima, o pager não pode reagir ao dedo por baixo.
+                        userScrollEnabled = !painelCheio,
+                    ) { pagina ->
+                        val idDaPagina = lista.ids[pagina]
+                        PaginaDoCapitulo(
+                            capituloId = idDaPagina,
+                            ehAtual = pagina == estadoDoPager.currentPage,
+                            aoTocarMarcador = { marcador -> marcador.sugestao_id?.let(painel::abrirModal) },
+                            aoRolar = { delta, noTopo, noFim ->
+                                visibilidade.aoRolar(delta, noTopo, noFim)
+                                botaoVisivel = visibilidade.visivel
+                            },
                         )
-                        Button(onClick = aoTentarDeNovo) { Text("Tentar de novo") }
                     }
                 }
-
-                is EstadoDoCapitulo.Pronto -> when {
-                    // Tablet: o painel é um aside à direita, dividindo a tela com o texto (P4).
-                    aside -> Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight()) { LeitorDeTexto(estado, aoRolar) }
-                        if (painelAberto) {
-                            VerticalDivider()
-                            PainelDeIa(
-                                estado = estadoDoPainel,
-                                acoes = acoesDoPainel,
-                                aoFechar = aoAlternarPainel,
-                                modifier = Modifier.width(380.dp).fillMaxHeight(),
-                            )
-                        }
-                    }
-                    // Celular: o painel é a tela inteira; o texto some enquanto ele está aberto.
-                    painelAberto -> PainelDeIa(
+                if (painelAberto && aside) {
+                    VerticalDivider()
+                    PainelDeIa(
                         estado = estadoDoPainel,
                         acoes = acoesDoPainel,
-                        aoFechar = null,
-                        modifier = Modifier.fillMaxSize(),
+                        aoFechar = aoAlternarPainel,
+                        modifier = Modifier.width(380.dp).fillMaxHeight(),
                     )
-                    else -> LeitorDeTexto(estado, aoRolar)
                 }
             }
+            // Celular: o painel é a tela inteira, POR CIMA do pager — que continua composto por baixo, e por isso
+            // a posição de leitura de cada capítulo não se perde (E43). O pointerInput vazio impede o toque de vazar.
+            if (painelCheio) {
+                PainelDeIa(
+                    estado = estadoDoPainel,
+                    acoes = acoesDoPainel,
+                    aoFechar = null,
+                    modifier = Modifier.fillMaxSize().pointerInput(Unit) {},
+                )
+            }
+        }
+    }
+
+    // O modal e os diálogos do painel são JANELAS próprias, por cima de tudo, e capturam o botão voltar. Se
+    // ficassem desenhados enquanto a ficha está na frente, o "voltar" cairia neles (E43). Por isso somem NO
+    // INSTANTE em que o capítulo começa a sair (ON_PAUSE) e voltam NO INSTANTE em que ele começa a voltar
+    // (ON_START), sem esperar o fim da animação. O estado deles continua no ViewModel.
+    var saindo by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { saindo = true }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { saindo = false }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { saindo = false }
+    val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    if (!saindo && estadoDoCiclo.isAtLeast(Lifecycle.State.STARTED)) {
+        ModalDaSugestao(estadoDoPainel, acoesDoPainel)
+        DialogosDoPainel(estadoDoPainel, acoesDoPainel)
+    }
+}
+
+/**
+ * Uma página do pager: o capítulo [capituloId], com o seu próprio ViewModel. Carrega o texto quando entra na composição —
+ * ou seja, quando o dedo a traz para perto — e mostra um **carregando** enquanto isso; se o texto já estava no
+ * ViewModel (a página já foi vista) ou no aparelho, aparece de imediato.
+ */
+@Composable
+private fun PaginaDoCapitulo(
+    capituloId: Int,
+    ehAtual: Boolean,
+    aoTocarMarcador: (Marcador) -> Unit,
+    aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
+) {
+    val viewModel = capituloViewModel(capituloId)
+    val estado by viewModel.estado.collectAsState()
+    val marcadores by viewModel.marcadores.collectAsState()
+    // Carrega uma vez. Se a composição recomeçar (girar o tablet), o ViewModel já tem o texto.
+    LaunchedEffect(viewModel) { viewModel.carregar() }
+    // Os ícones vêm depois do texto, nunca antes — o texto nunca espera por eles (E42).
+    val textoPronto = estado is EstadoDoCapitulo.Pronto
+    LaunchedEffect(textoPronto) { if (textoPronto) viewModel.carregarMarcadores() }
+    // A posição de leitura desta página; o pager a guarda por chave, e o painel em tela cheia não a perde.
+    val posicaoDeLeitura = rememberLazyListState()
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        when (val atual = estado) {
+            EstadoDoCapitulo.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+
+            is EstadoDoCapitulo.Erro -> Box(Modifier.fillMaxSize().padding(16.dp), Alignment.Center) {
+                Column(
+                    modifier = Modifier.widthIn(max = 600.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        atual.motivo,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                    )
+                    Button(onClick = viewModel::tentarDeNovo) { Text("Tentar de novo") }
+                }
+            }
+
+            is EstadoDoCapitulo.Pronto -> LeitorDeTexto(
+                estado = atual,
+                marcadores = marcadores,
+                aoTocarMarcador = { if (ehAtual) aoTocarMarcador(it) },
+                listaDeParagrafos = posicaoDeLeitura,
+                // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
+                aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
+            )
         }
     }
 }
@@ -271,15 +393,20 @@ fun ConteudoDoCapitulo(
 @Composable
 private fun LeitorDeTexto(
     estado: EstadoDoCapitulo.Pronto,
+    marcadores: List<Marcador>,
+    aoTocarMarcador: (Marcador) -> Unit,
+    listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val capitulo = estado.capitulo
-    val listaDeParagrafos = rememberLazyListState()
+    // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
+    val trechos = remember(capitulo.id) { dividirEmParagrafosComInicio(capitulo.texto) }
+    val distribuidos = remember(marcadores, trechos) { distribuirMarcadores(marcadores, trechos) }
 
     // Escuta a rolagem da lista para o botão de IA (P3). O sinal do deslocamento do Compose é o
     // contrário do que a regra espera (dedo para cima = y negativo = rolando para baixo), por
     // isso o "-consumed.y". No topo ou no fim o botão fica sempre visível.
-    val ouvinte = remember(listaDeParagrafos) {
+    val ouvinte = remember(listaDeParagrafos, aoRolar) {
         object : NestedScrollConnection {
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 aoRolar(
@@ -313,14 +440,35 @@ private fun LeitorDeTexto(
                     }
                 }
 
-                itemsIndexed(estado.paragrafos) { _, paragrafo ->
-                    Text(
-                        text = paragrafo,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            // Espaçamento de linha ampliado: leitura longa cansa menos.
-                            lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.6,
-                        ),
-                    )
+                // Os sem posição (o nome não foi achado no texto) ficam numa faixa no começo.
+                if (distribuidos.semPosicao.isNotEmpty()) {
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "Sem posição no texto",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            distribuidos.semPosicao.forEach { IconeDoMarcador(it, aoTocarMarcador) }
+                        }
+                    }
+                }
+
+                itemsIndexed(trechos) { indice, trecho ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        // A calha dos ícones tem sempre a mesma largura, para o texto não dançar de um
+                        // parágrafo para o outro; os ícones do parágrafo ficam empilhados nela.
+                        Column(modifier = Modifier.width(32.dp)) {
+                            distribuidos.porParagrafo[indice].orEmpty().forEach { IconeDoMarcador(it, aoTocarMarcador) }
+                        }
+                        Text(
+                            text = trecho.texto,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                // Espaçamento de linha ampliado: leitura longa cansa menos.
+                                lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.6,
+                            ),
+                        )
+                    }
                 }
             }
         }

@@ -5,6 +5,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -39,6 +41,12 @@ import kotlinx.coroutines.flow.first
  * terminar, nada é desenhado — assim a Biblioteca não pisca antes de a tela
  * mudar para a Configuração.
  */
+/**
+ * A tela desta entrada é a que o usuário está vendo (e pode tocar)? Durante uma transição de navegação a
+ * entrada de saída ainda está de pé por alguns instantes, e um toque nela dispararia uma segunda navegação.
+ */
+private fun NavBackStackEntry.estaNaFrente(): Boolean = lifecycle.currentState == Lifecycle.State.RESUMED
+
 @Composable
 fun GrafoDeNavegacao() {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
@@ -90,7 +98,11 @@ fun GrafoDeNavegacao() {
                 capituloId = destino.capituloId,
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
-                    controle.navigate(FichaDoElemento(elementoId, livroId, capituloId))
+                    // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa
+                    // janela que ainda estava de pé) não empilha uma segunda ficha.
+                    if (entrada.estaNaFrente()) {
+                        controle.navigate(FichaDoElemento(elementoId, livroId, capituloId)) { launchSingleTop = true }
+                    }
                 },
             )
         }
@@ -120,7 +132,9 @@ fun GrafoDeNavegacao() {
                 livroId = destino.livroId,
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId ->
-                    controle.navigate(FichaDoElemento(elementoId, destino.livroId))
+                    if (entrada.estaNaFrente()) {
+                        controle.navigate(FichaDoElemento(elementoId, destino.livroId)) { launchSingleTop = true }
+                    }
                 },
             )
         }
@@ -129,7 +143,8 @@ fun GrafoDeNavegacao() {
             TelaFichaDoElemento(
                 elementoId = destino.elementoId,
                 capituloId = destino.capituloId,
-                aoVoltar = { controle.popBackStack() },
+                // Só volta uma vez: um segundo toque na seta durante a transição desempilharia também o capítulo.
+                aoVoltar = { if (entrada.estaNaFrente()) controle.popBackStack() },
             )
         }
         composable<PerfisDeRenderizacao> {

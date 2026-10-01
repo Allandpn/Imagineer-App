@@ -390,4 +390,22 @@ class RepositorioDeElementosTest {
 
         assertEquals(ResultadoDaChamada.Falha("O capítulo 9 é do livro 2, não do livro 1.", 422), resultado)
     }
+
+    @Test
+    fun `marcadores e um GET so de leitura em capitulos-id-marcadores`() = runTest {
+        servidor.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"marcadores":[{"tipo":"ELEMENTO","tipo_do_elemento":"PERSONAGEM","sugestao_id":3,"frame_id":null,"rotulo":"Jon","posicao_no_texto":42,"situacao":"SUGERIDO","imagem_id":null}]}""",
+            ),
+        )
+
+        val resultado = RepositorioDeMarcadoresPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(url()))).ler(5)
+
+        val pedido = servidor.takeRequest()
+        assertEquals("GET", pedido.method)
+        assertEquals("/capitulos/5/marcadores", pedido.path)
+        val marcador = (resultado as ResultadoDaChamada.Sucesso).dado.single()
+        assertEquals("Jon", marcador.rotulo)
+        assertEquals(42, marcador.posicao_no_texto)
+    }
 }

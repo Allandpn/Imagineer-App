@@ -20,7 +20,10 @@ object Biblioteca
 @Serializable
 data class Livro(val livroId: Int)
 
-/** Um capítulo, com o texto e as sugestões (item 7.5). */
+/**
+ * Um capítulo, com o texto e as sugestões (item 7.5). É o capítulo em que o leitor **começa**: dali se passa a
+ * página para os vizinhos sem sair da tela (item 7.5c).
+ */
 @Serializable
 data class Capitulo(val capituloId: Int)
 

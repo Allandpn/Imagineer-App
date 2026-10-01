@@ -103,6 +103,11 @@ data class EstadoDoPainel(
     /** O recado de cada sugestão, por id (E9). */
     val mensagens: Map<Int, MensagemDoElemento> = emptyMap(),
     val dialogo: DialogoDeElemento? = null,
+    /**
+     * A sugestão aberta no **modal**: o usuário tocou no ícone dela no texto (item 7.5b, E42). Mora aqui, e
+     * não na tela, para **sobreviver a uma ida à ficha de alguém**: ao voltar, o modal continua como estava.
+     */
+    val emModal: Int? = null,
 )
 
 const val AVISO_ESTADO_RASCUNHO =
@@ -196,6 +201,20 @@ class PainelDeIaViewModel(
         viewModelScope.launch { reler() }
     }
 
+    /**
+     * Abre a sugestão [sugestaoId] num modal — vindo do ícone dela no texto (E42). Se as sugestões ainda não
+     * foram lidas (o painel nunca foi aberto), lê agora: é só o `GET`, que nunca gasta IA.
+     */
+    fun abrirModal(sugestaoId: Int) {
+        _estado.update { it.copy(emModal = sugestaoId) }
+        aoAbrirPainel()
+    }
+
+    /** Fecha o modal. */
+    fun fecharModal() {
+        _estado.update { it.copy(emModal = null) }
+    }
+
     /** Escolhe qual lista mostrar: pendentes, confirmados ou descartados (E24). */
     fun escolherFiltro(filtro: FiltroDoPainel) {
         _estado.update { it.copy(filtro = filtro) }
@@ -279,14 +298,14 @@ class PainelDeIaViewModel(
                     ?.let { cenasDoElemento(it.sugestoes)[elemento.id] }
                     .orEmpty()
                 if (cenas.isEmpty()) {
-                    rodar(elemento) { elementos.descartar(elemento.id, true) }
+                    rodar(elemento, concluiu = true) { elementos.descartar(elemento.id, true) }
                 } else {
                     abrirDialogo(DialogoDeElemento.DescartandoEmCenas(elemento, cenas))
                 }
             }
             // O mesmo elemento_id: o servidor só tira o "automático" (E4).
             AcaoDoElemento.CONFIRMAR ->
-                rodar(elemento) { elementos.ajustarCasamento(elemento.id, elemento.elemento_id) }
+                rodar(elemento, concluiu = true) { elementos.ajustarCasamento(elemento.id, elemento.elemento_id) }
             // E15: havendo estado neste capítulo, pergunta se também o apaga; senão, desfaz direto.
             AcaoDoElemento.DESFAZER ->
                 if (elemento.estado_id != null) {
@@ -296,7 +315,7 @@ class PainelDeIaViewModel(
                 }
             AcaoDoElemento.REGISTRAR_ESTADO -> {
                 val elementoId = elemento.elemento_id ?: return
-                rodar(elemento, aviso = AVISO_ESTADO_RASCUNHO) {
+                rodar(elemento, aviso = AVISO_ESTADO_RASCUNHO, concluiu = true) {
                     elementos.registrarEstado(elementoId, elemento.id)
                 }
             }
@@ -312,7 +331,7 @@ class PainelDeIaViewModel(
     fun confirmarDescarte() {
         val dialogo = _estado.value.dialogo as? DialogoDeElemento.DescartandoEmCenas ?: return
         _estado.update { it.copy(dialogo = null) }
-        rodar(dialogo.sugestao) { elementos.descartar(dialogo.sugestao.id, true) }
+        rodar(dialogo.sugestao, concluiu = true) { elementos.descartar(dialogo.sugestao.id, true) }
     }
 
     /**
@@ -323,6 +342,7 @@ class PainelDeIaViewModel(
     private fun rodar(
         elemento: ElementoSugerido,
         aviso: String? = null,
+        concluiu: Boolean = false,
         chamada: suspend () -> ResultadoDaChamada<Unit>,
     ) {
         if (elemento.id in _estado.value.ocupados) return
@@ -332,6 +352,8 @@ class PainelDeIaViewModel(
             if (resultado is ResultadoDaChamada.Sucesso) {
                 esquecerFichas()
                 reler()
+                // E44: a ação que conclui a decisão fecha o modal desta sugestão.
+                if (concluiu) fecharModalSe(elemento.id)
             }
             _estado.update {
                 val mensagem = when {
@@ -345,6 +367,11 @@ class PainelDeIaViewModel(
                 )
             }
         }
+    }
+
+    /** Fecha o modal **só se** for o da sugestão [sugestaoId] (E44): o de outra, aberto agora, não é tocado. */
+    private fun fecharModalSe(sugestaoId: Int) {
+        _estado.update { if (it.emModal == sugestaoId) it.copy(emModal = null) else it }
     }
 
     private fun abrirDialogo(dialogo: DialogoDeElemento) {
@@ -373,6 +400,7 @@ class PainelDeIaViewModel(
                             esquecerFichas()
                             _estado.update { it.copy(dialogo = null) }
                             reler()
+                            fecharModalSe(dialogo.sugestao.id) // E44: criou, concluiu
                         }
                         is ResultadoDaChamada.Falha -> _estado.update {
                             it.copy(
@@ -477,6 +505,7 @@ class PainelDeIaViewModel(
                         )
                     }
                     reler()
+                    fecharModalSe(sugestao.id) // E44: escolheu o elemento, concluiu
                 }
                 is ResultadoDaChamada.Falha ->
                     _estado.update { it.copy(dialogo = dialogo.copy(salvando = false, erro = resultado.motivo)) }
