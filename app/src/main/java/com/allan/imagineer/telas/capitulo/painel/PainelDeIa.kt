@@ -87,6 +87,11 @@ class AcoesDoPainel(
     val aoConfirmarDesfazer: () -> Unit,
     val aoConfirmarDescarte: () -> Unit,
     val aoFecharModal: () -> Unit,
+    // Incremento 10b, primeira fatia: a cena (C1 a C10).
+    val aoAbrirCena: (cenaId: Int) -> Unit,
+    val aoFecharModalDaCena: () -> Unit,
+    val aoExecutarCena: (AcaoDaCena, CenaSugerida) -> Unit,
+    val aoRevisarParticipante: (sugestaoElementoId: Int) -> Unit,
 )
 
 /**
@@ -356,7 +361,7 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
         if (cenas.isNotEmpty()) {
             item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
             items(cenas, key = { "c${it.id}" }) { cena ->
-                CartaoDeCena(cena, aberto = "cena:${cena.id}" in abertos) { alternar("cena:${cena.id}") }
+                CartaoDeCena(cena, estado, acoes)
             }
         }
     }
@@ -737,44 +742,162 @@ private fun DialogoDescartarEmCenas(dialogo: DialogoDeElemento.DescartandoEmCena
     )
 }
 
-/** E28: a cena compacta — título e nº de participantes; aberta, descrição, situação e participantes. */
+/**
+ * O cartão da cena (C9): título, quantos participantes e **uma etiqueta de situação**. Tocar abre o **modal da cena**
+ * (C1); o cartão deixa de se expandir no lugar, porque o modal mostra os detalhes.
+ */
 @Composable
-private fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () -> Unit) {
-    Card(onClick = aoAlternar, modifier = Modifier.fillMaxWidth()) {
+internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val ocupada = cena.id in estado.cenasOcupadas
+    Card(onClick = { acoes.aoAbrirCena(cena.id) }, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                cena.titulo,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = if (aberto) Int.MAX_VALUE else 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                when (cena.participantes.size) {
-                    0 -> "Sem participantes"
-                    1 -> "1 participante"
-                    else -> "${cena.participantes.size} participantes"
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (aberto) {
-                cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-
-                val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)
-                if (situacao.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        situacao.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        cena.titulo,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        when (cena.participantes.size) {
+                            0 -> "Sem participantes"
+                            1 -> "1 participante"
+                            else -> "${cena.participantes.size} participantes"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                cena.participantes.forEach { participante ->
-                    Text(
-                        "${rotuloDoTipo(participante.tipo)}: ${participante.nome}",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    destaqueDoParticipante(participante)?.let { Destaque(it) }
+                EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
+            }
+            estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
+            if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun EtiquetaDaCena(texto: String, filtro: FiltroDoPainel) {
+    val cor: Color = when (filtro) {
+        FiltroDoPainel.PENDENTES -> MaterialTheme.colorScheme.primaryContainer
+        FiltroDoPainel.CONFIRMADOS -> MaterialTheme.colorScheme.surfaceVariant
+        FiltroDoPainel.DESCARTADOS -> MaterialTheme.colorScheme.errorContainer
+    }
+    Surface(color = cor, shape = RoundedCornerShape(8.dp)) {
+        Text(texto, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+private fun RecadoDaCena(mensagem: MensagemDoElemento) {
+    Text(
+        mensagem.texto,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (mensagem.ehErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+    )
+}
+
+/**
+ * O modal da cena (C1 a C7): a mesma folha do modal do elemento, com título, descrição, situação, **cada participante
+ * com a sua situação** e as ações de decisão. Fechar volta ao texto exatamente onde estava.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val id = estado.emModalCena ?: return
+    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
+    val cena = sugestoes?.cenas?.firstOrNull { it.id == id }
+
+    ModalBottomSheet(
+        onDismissRequest = acoes.aoFecharModalDaCena,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when {
+                sugestoes == null -> when (val conteudo = estado.conteudo) {
+                    is ConteudoDoPainel.Erro -> {
+                        Text(conteudo.motivo, color = MaterialTheme.colorScheme.error)
+                        Button(onClick = acoes.aoTentarDeNovo) { Text("Tentar de novo") }
+                    }
+                    else -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) { CircularProgressIndicator() }
+                }
+                // Sumiu da lista (uma reanálise refez as sugestões): não há mais o que mostrar.
+                cena == null -> Text(
+                    "Esta cena não existe mais. Feche e toque de novo no ícone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                else -> ConteudoDoModalDaCena(cena, estado, acoes)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val ocupada = cena.id in estado.cenasOcupadas
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+        EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
+    }
+    cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)
+    if (situacao.isNotEmpty()) {
+        Text(situacao.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+
+    Text("Participantes", style = MaterialTheme.typography.titleSmall)
+    cena.participantes.forEach { participante ->
+        val situacaoDele = situacaoDoParticipante(participante)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("${rotuloDoTipo(participante.tipo)}: ${participante.nome}", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    situacaoDele.texto,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (situacaoDele.precisaRevisar || participante.casamento_automatico) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+            if (situacaoDele.precisaRevisar) {
+                OutlinedButton(onClick = { acoes.aoRevisarParticipante(participante.sugestao_elemento_id) }) { Text("Revisar") }
+            }
+        }
+    }
+
+    estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
+    if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+
+    val acoesDaCena = acoesDaCena(cena)
+    if (acoesDaCena.isNotEmpty()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            acoesDaCena.forEachIndexed { indice, acao ->
+                val aoTocar = { acoes.aoExecutarCena(acao, cena) }
+                if (indice == 0) {
+                    Button(onClick = aoTocar, enabled = !ocupada) { Text(acao.rotulo) }
+                } else {
+                    OutlinedButton(onClick = aoTocar, enabled = !ocupada) { Text(acao.rotulo) }
                 }
             }
         }

@@ -305,3 +305,51 @@ fun orientacaoAEnviar(digitada: String?, vigente: String?): String? {
     val texto = digitada?.trim() ?: return null
     return if (texto == (vigente ?: "")) null else texto
 }
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// A cena (incremento 10b, primeira fatia: C1 a C10)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** As ações de decisão de uma cena (C4). "Gerar prompt" e "Novo retrato" chegam nas fatias seguintes. */
+enum class AcaoDaCena(val rotulo: String) {
+    CONFIRMAR("Confirmar cena"),
+    DESCARTAR("Descartar"),
+    RESTAURAR("Restaurar"),
+}
+
+/**
+ * O que se pode decidir sobre a cena, na ordem em que aparecem (a primeira é a principal) — C4.
+ * **Pendente:** confirmar ou descartar. **Confirmada** (já virou frame): nada a decidir aqui. **Descartada:** restaurar.
+ */
+fun acoesDaCena(cena: CenaSugerida): List<AcaoDaCena> = when (filtroDaCena(cena)) {
+    FiltroDoPainel.PENDENTES -> listOf(AcaoDaCena.CONFIRMAR, AcaoDaCena.DESCARTAR)
+    FiltroDoPainel.CONFIRMADOS -> emptyList()
+    FiltroDoPainel.DESCARTADOS -> listOf(AcaoDaCena.RESTAURAR)
+}
+
+/** A etiqueta de situação do cartão da cena (C9): uma só, curta. */
+fun etiquetaDaCena(cena: CenaSugerida): String = when (filtroDaCena(cena)) {
+    FiltroDoPainel.PENDENTES -> "Pendente"
+    FiltroDoPainel.CONFIRMADOS -> "Confirmada"
+    FiltroDoPainel.DESCARTADOS -> "Descartada"
+}
+
+/**
+ * Como um participante da cena aparece no modal (C3).
+ *
+ * @property precisaRevisar `true` quando ainda **não é um elemento cadastrado**: sem isso o servidor recusa
+ * confirmar a cena (422), então o modal oferece "Revisar", que leva ao modal daquele elemento.
+ */
+data class SituacaoDoParticipante(val texto: String, val precisaRevisar: Boolean)
+
+fun situacaoDoParticipante(participante: ParticipanteSugerido): SituacaoDoParticipante = when {
+    participante.elemento_id == null -> SituacaoDoParticipante("Sem elemento — revise", precisaRevisar = true)
+    participante.casamento_automatico -> SituacaoDoParticipante("Casamento automático — confira", precisaRevisar = false)
+    else -> SituacaoDoParticipante("Elemento confirmado", precisaRevisar = false)
+}
+
+/** O aviso quando a cena foi confirmada (C5). */
+const val AVISO_CENA_CONFIRMADA = "Cena confirmada."
+
+/** O aviso quando o servidor diz que a cena já estava confirmada, por exemplo em outro aparelho (C5, 409). */
+const val AVISO_CENA_JA_CONFIRMADA = "Esta cena já estava confirmada."

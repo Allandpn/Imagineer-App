@@ -119,3 +119,13 @@ data class ParticipanteSugerido(
 data class PedidoDeAnalise(
     val orientacao: String,
 )
+
+/**
+ * O frame que `POST /capitulos/{id}/frames` devolve ao confirmar uma cena (item 6.4). O app só precisa saber que
+ * ele existe e qual é o seu id; o resto da tela de Frame (7.6) é de outro incremento.
+ */
+@Serializable
+data class FrameCriado(
+    val id: Int,
+    val titulo: String = "",
+)

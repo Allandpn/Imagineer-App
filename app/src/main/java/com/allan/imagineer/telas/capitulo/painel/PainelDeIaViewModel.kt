@@ -2,9 +2,9 @@ package com.allan.imagineer.telas.capitulo.painel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.allan.imagineer.Rastro
 import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
+import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
 import com.allan.imagineer.rede.RepositorioDeElementos
@@ -115,6 +115,15 @@ data class EstadoDoPainel(
      * não na tela, para **sobreviver a uma ida à ficha de alguém**: ao voltar, o modal continua como estava.
      */
     val emModal: Int? = null,
+    /**
+     * A **cena** aberta no modal (C1, C2): o usuário tocou no cartão dela ou no artefato dela no texto. Nunca
+     * junto de [emModal]: abrir um fecha o outro. Mora aqui pelo mesmo motivo do [emModal].
+     */
+    val emModalCena: Int? = null,
+    /** Cenas com uma ação em andamento (C7). */
+    val cenasOcupadas: Set<Int> = emptySet(),
+    /** O recado de cada cena, por id: o erro de uma ação, ou o aviso do que acabou de acontecer (C5). */
+    val mensagensDeCena: Map<Int, MensagemDoElemento> = emptyMap(),
 )
 
 const val AVISO_ESTADO_RASCUNHO =
@@ -238,8 +247,7 @@ class PainelDeIaViewModel(
      * foram lidas (o painel nunca foi aberto), lê agora: é só o `GET`, que nunca gasta IA.
      */
     fun abrirModal(sugestaoId: Int) {
-        Rastro.d("modal: abrir sugestão $sugestaoId")
-        _estado.update { it.copy(emModal = sugestaoId) }
+        _estado.update { it.copy(emModal = sugestaoId, emModalCena = null) } // C2: um modal por vez
         aoAbrirPainel()
     }
 
@@ -254,8 +262,75 @@ class PainelDeIaViewModel(
 
     /** Fecha o modal. */
     fun fecharModal() {
-        Rastro.d("modal: fechar (estava em ${_estado.value.emModal})", comPilha = true)
         _estado.update { it.copy(emModal = null) }
+    }
+
+    // ------------------------------------------------------------------ //
+    // A cena (incremento 10b, primeira fatia, C1 a C10)
+    // ------------------------------------------------------------------ //
+
+    /** Abre a cena [cenaId] no modal (C1); fecha o modal de elemento, se estava aberto (C2). */
+    fun abrirModalDeCena(cenaId: Int) {
+        _estado.update { it.copy(emModalCena = cenaId, emModal = null) }
+        aoAbrirPainel()
+    }
+
+    fun fecharModalDaCena() {
+        _estado.update { it.copy(emModalCena = null) }
+    }
+
+    /**
+     * "Revisar" num participante sem elemento (C3): fecha o modal da cena e abre o **do elemento** dele, onde se
+     * confirma, vincula ou cria — o caminho mais curto para destravar a cena.
+     */
+    fun revisarParticipante(sugestaoElementoId: Int) {
+        _estado.update { it.copy(emModalCena = null, emModal = sugestaoElementoId) }
+    }
+
+    /** Uma das ações de decisão da cena (C4): confirmar, descartar ou restaurar. Nenhuma gasta IA (C8). */
+    fun executarCena(acao: AcaoDaCena, cena: CenaSugerida) {
+        when (acao) {
+            AcaoDaCena.CONFIRMAR ->
+                rodarCena(cena, aviso = AVISO_CENA_CONFIRMADA) { sugestoes.confirmarCena(capituloId, cena.id) }
+            AcaoDaCena.DESCARTAR -> rodarCena(cena) { sugestoes.descartarCena(cena.id, true) }
+            AcaoDaCena.RESTAURAR -> rodarCena(cena) { sugestoes.descartarCena(cena.id, false) }
+        }
+    }
+
+    /**
+     * Roda uma ação **de uma vez por cena** (C7): se já há uma em andamento naquela cena, ignora. Sucesso = relê as
+     * sugestões, fecha o modal da cena (como o E44) e mostra o [aviso], se houver. Falha = a mensagem do servidor
+     * **no modal, sem fechá-lo** (C5, 422); **409** (a cena já estava confirmada) relê, fecha e avisa. **Sem
+     * repetição automática.**
+     */
+    private fun rodarCena(
+        cena: CenaSugerida,
+        aviso: String? = null,
+        chamada: suspend () -> ResultadoDaChamada<Any?>,
+    ) {
+        if (cena.id in _estado.value.cenasOcupadas) return
+        _estado.update {
+            it.copy(cenasOcupadas = it.cenasOcupadas + cena.id, mensagensDeCena = it.mensagensDeCena - cena.id)
+        }
+        viewModelScope.launch {
+            val resultado = chamada()
+            val jaConfirmada = resultado is ResultadoDaChamada.Falha && resultado.codigoHttp == 409
+            if (resultado is ResultadoDaChamada.Sucesso || jaConfirmada) reler()
+
+            _estado.update { atual ->
+                val recado = when {
+                    resultado is ResultadoDaChamada.Sucesso -> aviso?.let { MensagemDoElemento(it, ehErro = false) }
+                    jaConfirmada -> MensagemDoElemento(AVISO_CENA_JA_CONFIRMADA, ehErro = false)
+                    else -> MensagemDoElemento((resultado as ResultadoDaChamada.Falha).motivo, ehErro = true)
+                }
+                val concluiu = resultado is ResultadoDaChamada.Sucesso || jaConfirmada
+                atual.copy(
+                    cenasOcupadas = atual.cenasOcupadas - cena.id,
+                    mensagensDeCena = if (recado != null) atual.mensagensDeCena + (cena.id to recado) else atual.mensagensDeCena,
+                    emModalCena = if (concluiu && atual.emModalCena == cena.id) null else atual.emModalCena,
+                )
+            }
+        }
     }
 
     /** Escolhe qual lista mostrar: pendentes, confirmados ou descartados (E24). */

@@ -165,6 +165,27 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): ElementoSugerido
 
+    /**
+     * `PATCH /sugestoes-cena/{id}` — descarta (`descartada: true`) ou restaura a cena sugerida (item 6.8).
+     * Uma coisa por pedido; reversível; não gasta IA.
+     */
+    @PATCH("sugestoes-cena/{id}")
+    suspend fun ajustarCena(
+        @Path("id") sugestaoCenaId: Int,
+        @Body corpo: JsonObject,
+    ): CenaSugerida
+
+    /**
+     * `POST /capitulos/{id}/frames` **a partir de uma cena sugerida** (`sugestao_cena_id`, item 6.4): o servidor
+     * cria o frame com o estado vigente de cada participante. Responde 422 se algum participante ainda não é um
+     * elemento confirmado (ou não tem estado), e 409 se a cena já foi confirmada.
+     */
+    @POST("capitulos/{id}/frames")
+    suspend fun confirmarCena(
+        @Path("id") capituloId: Int,
+        @Body corpo: JsonObject,
+    ): FrameCriado
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo

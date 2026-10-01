@@ -67,11 +67,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
-import com.allan.imagineer.Rastro
 import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
 import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
+import com.allan.imagineer.telas.capitulo.painel.ModalDaCena
 import com.allan.imagineer.telas.capitulo.painel.ModalDaSugestao
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
@@ -212,10 +212,7 @@ private fun LeitorPaginado(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { painel.aoVoltarDaFicha() }
 
     // No celular o painel é a tela inteira: voltar leva ao texto, e não para fora do capítulo.
-    BackHandler(enabled = painelCheio) {
-        Rastro.d("voltar do capítulo: fecha o painel em tela cheia")
-        aoFecharPainel()
-    }
+    BackHandler(enabled = painelCheio) { aoFecharPainel() }
 
     // Os ícones se relêem quando o painel muda o que há de sugestão (analisar, confirmar, descartar...). Cada página
     // lê os seus uma vez ao ficar pronta (ver [PaginaDoCapitulo]). Só leitura: nenhuma leitura chama a IA.
@@ -244,6 +241,10 @@ private fun LeitorPaginado(
         aoRecarregarLista = painel::recarregarLista,
         aoRestaurar = painel::restaurar,
         aoEscolherFiltro = painel::escolherFiltro,
+        aoAbrirCena = painel::abrirModalDeCena,
+        aoFecharModalDaCena = painel::fecharModalDaCena,
+        aoExecutarCena = painel::executarCena,
+        aoRevisarParticipante = painel::revisarParticipante,
         aoAbrirFicha = { elementoId, doCapitulo ->
             // Sem o livro (o capítulo ainda não carregou) não há como abrir a ficha.
             livroDoCapitulo?.let {
@@ -309,7 +310,12 @@ private fun LeitorPaginado(
                         PaginaDoCapitulo(
                             capituloId = idDaPagina,
                             ehAtual = pagina == estadoDoPager.currentPage,
-                            aoTocarArtefato = { artefato -> artefato.sugestao_id?.let(painel::abrirModal) },
+                            aoTocarArtefato = { artefato ->
+                                // C1: o id de uma cena e o de um elemento são de tabelas diferentes; cada um abre o seu modal.
+                                artefato.sugestao_id?.let { id ->
+                                    if (artefato.tipo == "CENA") painel.abrirModalDeCena(id) else painel.abrirModal(id)
+                                }
+                            },
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -354,6 +360,7 @@ private fun LeitorPaginado(
     val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     if (estadoDoCiclo == Lifecycle.State.RESUMED) {
         ModalDaSugestao(estadoDoPainel, acoesDoPainel)
+        ModalDaCena(estadoDoPainel, acoesDoPainel)
         DialogosDoPainel(estadoDoPainel, acoesDoPainel)
     }
 }

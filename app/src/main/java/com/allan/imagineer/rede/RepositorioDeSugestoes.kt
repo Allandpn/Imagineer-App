@@ -1,5 +1,9 @@
 package com.allan.imagineer.rede
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
 /**
  * O que o painel de IA precisa saber fazer com as sugestões de um capítulo. Interface, para o
  * ViewModel ser testado com uma versão falsa, sem rede e **sem gastar IA**.
@@ -24,6 +28,15 @@ interface RepositorioDeSugestoes {
         forcar: Boolean,
         orientacao: String? = null,
     ): ResultadoDaChamada<SugestoesDeCapitulo>
+
+    /** `PATCH /sugestoes-cena/{id}`: descarta (`true`) ou restaura (`false`) a cena. Imediato e reversível (C6). */
+    suspend fun descartarCena(sugestaoCenaId: Int, descartada: Boolean): ResultadoDaChamada<Unit>
+
+    /**
+     * `POST /capitulos/{id}/frames` com `sugestao_cena_id`: **confirma a cena** — vira um frame (C5). A falha traz
+     * o código HTTP: **422** = falta confirmar um elemento da cena; **409** = a cena já estava confirmada.
+     */
+    suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado>
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
@@ -46,5 +59,18 @@ class RepositorioDeSugestoesPeloRetrofit(
             if (orientacao == null) api.analisar(capituloId, forcar)
             else api.analisarComOrientacao(capituloId, forcar, PedidoDeAnalise(orientacao))
         }
+    }
+
+    override suspend fun descartarCena(sugestaoCenaId: Int, descartada: Boolean): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("descartada", descartada) }
+        return chamarApi { api.ajustarCena(sugestaoCenaId, corpo); Unit }
+    }
+
+    override suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        // Só `sugestao_cena_id`: título, descrição e participantes vêm da própria sugestão (item 6.4).
+        val corpo: JsonObject = buildJsonObject { put("sugestao_cena_id", sugestaoCenaId) }
+        return chamarApi { api.confirmarCena(capituloId, corpo) }
     }
 }

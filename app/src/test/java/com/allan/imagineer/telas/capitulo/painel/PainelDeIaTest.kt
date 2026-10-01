@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.FrameCriado
 import com.allan.imagineer.rede.EstadoVigente
 import com.allan.imagineer.rede.ParticipanteSugerido
 import com.allan.imagineer.rede.RepositorioDeSugestoes
@@ -64,6 +65,26 @@ internal class SugestoesFalso(
     var leituras = 0
     val analises = mutableListOf<Boolean>() // o "forcar" de cada chamada
     val orientacoes = mutableListOf<String?>() // a orientação enviada em cada chamada (item 6.7, M1)
+
+    /** As cenas descartadas (`true`) ou restauradas (`false`), na ordem: o que o painel pediu (C6). */
+    val descartesDeCena = mutableListOf<Pair<Int, Boolean>>()
+    var resultadoDoDescarteDeCena: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    /** As cenas que o painel pediu para confirmar (C5). */
+    val confirmacoesDeCena = mutableListOf<Int>()
+    var resultadoDaConfirmacaoDeCena: ResultadoDaChamada<FrameCriado> = ResultadoDaChamada.Sucesso(FrameCriado(id = 70, titulo = "Cena"))
+    var travaDaConfirmacaoDeCena: CompletableDeferred<Unit>? = null
+
+    override suspend fun descartarCena(sugestaoCenaId: Int, descartada: Boolean): ResultadoDaChamada<Unit> {
+        descartesDeCena += sugestaoCenaId to descartada
+        return resultadoDoDescarteDeCena
+    }
+
+    override suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado> {
+        confirmacoesDeCena += sugestaoCenaId
+        travaDaConfirmacaoDeCena?.await()
+        return resultadoDaConfirmacaoDeCena
+    }
     var travaDaAnalise: CompletableDeferred<Unit>? = null
 
     override suspend fun ler(capituloId: Int): ResultadoDaChamada<SugestoesDeCapitulo> {
