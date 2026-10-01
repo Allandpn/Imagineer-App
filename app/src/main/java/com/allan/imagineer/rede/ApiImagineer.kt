@@ -153,9 +153,9 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): ElementoSugerido
 
-    /** `GET /capitulos/{id}/marcadores` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
-    @GET("capitulos/{id}/marcadores")
-    suspend fun marcadores(@Path("id") capituloId: Int): MarcadoresDoCapitulo
+    /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
+    @GET("capitulos/{id}/artefatos")
+    suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo
 
     /** `GET /elementos/{id}` — o elemento com os estados e o histórico de identidade (item 3.4f). */
     @GET("elementos/{id}")

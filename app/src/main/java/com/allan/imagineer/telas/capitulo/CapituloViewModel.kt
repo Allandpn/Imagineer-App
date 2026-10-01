@@ -3,9 +3,9 @@ package com.allan.imagineer.telas.capitulo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.rede.CapituloDetalhe
-import com.allan.imagineer.rede.Marcador
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.RepositorioDeCapitulos
-import com.allan.imagineer.rede.RepositorioDeMarcadores
+import com.allan.imagineer.rede.RepositorioDeArtefatos
 import com.allan.imagineer.rede.ResultadoDaChamada
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,29 +54,29 @@ sealed interface EstadoDoCapitulo {
 class CapituloViewModel(
     private val capituloId: Int,
     private val capitulos: RepositorioDeCapitulos,
-    private val marcadoresDoCapitulo: RepositorioDeMarcadores,
+    private val artefatosDoCapitulo: RepositorioDeArtefatos,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow<EstadoDoCapitulo>(EstadoDoCapitulo.Carregando)
     val estado: StateFlow<EstadoDoCapitulo> = _estado.asStateFlow()
 
-    private val _marcadores = MutableStateFlow<List<Marcador>>(emptyList())
+    private val _artefatos = MutableStateFlow<List<Artefato>>(emptyList())
 
     /**
      * Os ícones a desenhar sobre o texto (item 7.5b, incremento 11). **O texto nunca espera por eles**: vêm
      * por uma chamada à parte, depois, e, se falharem, o capítulo continua legível, só sem ícones.
      */
-    val marcadores: StateFlow<List<Marcador>> = _marcadores.asStateFlow()
+    val artefatos: StateFlow<List<Artefato>> = _artefatos.asStateFlow()
 
     /**
-     * Lê (ou relê) os marcadores. Só leitura — **nunca chama a IA**. Falha em silêncio: ícone é um
+     * Lê (ou relê) os artefatos. Só leitura — **nunca chama a IA**. Falha em silêncio: ícone é um
      * enfeite útil, não pode atrapalhar a leitura nem trocar a tela por um erro. Quem chama relê quando
      * o painel de IA muda o que há de sugestão (analisar, confirmar, descartar...).
      */
-    fun carregarMarcadores() {
+    fun carregarArtefatos() {
         viewModelScope.launch {
-            val resultado = marcadoresDoCapitulo.ler(capituloId)
-            if (resultado is ResultadoDaChamada.Sucesso) _marcadores.value = resultado.dado
+            val resultado = artefatosDoCapitulo.ler(capituloId)
+            if (resultado is ResultadoDaChamada.Sucesso) _artefatos.value = resultado.dado
         }
     }
 

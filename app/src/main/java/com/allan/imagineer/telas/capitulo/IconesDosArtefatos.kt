@@ -27,22 +27,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import com.allan.imagineer.rede.Marcador
+import com.allan.imagineer.rede.Artefato
 
 // Os ícones sobre o texto (item 7.5b): um por tipo de elemento, mais um para a cena. Só o desenho fica
-// aqui; as regras (quem vai em qual parágrafo) estão em MarcadoresNoTexto.kt, testadas na JVM.
+// aqui; as regras (quem vai em qual parágrafo) estão em ArtefatosNoTexto.kt, testadas na JVM.
 
 /**
- * O ícone de um marcador: **o tipo** escolhe o desenho (um por tipo de elemento, mais a cena) e **a
+ * O ícone de um artefato: **o tipo** escolhe o desenho (um por tipo de elemento, mais a cena) e **a
  * situação** o enche — sugestão ainda não confirmada fica só no **contorno**; confirmada, **cheia**.
  * Um tipo que o app não conhece (novo no servidor) cai num ícone genérico, em vez de quebrar.
  */
-fun iconeDoMarcador(marcador: Marcador): ImageVector {
-    val contorno = marcador.situacao == "SUGERIDO"
-    return if (marcador.tipo == "CENA") {
+fun iconeDoArtefato(artefato: Artefato): ImageVector {
+    val contorno = artefato.situacao == "SUGERIDO"
+    return if (artefato.tipo == "CENA") {
         if (contorno) Icons.Outlined.Movie else Icons.Filled.Movie
     } else {
-        when (marcador.tipo_do_elemento) {
+        when (artefato.tipo_do_elemento) {
             "PERSONAGEM" -> if (contorno) Icons.Outlined.Person else Icons.Filled.Person
             "AMBIENTE" -> if (contorno) Icons.Outlined.Landscape else Icons.Filled.Landscape
             "OBJETO" -> if (contorno) Icons.Outlined.Category else Icons.Filled.Category
@@ -57,21 +57,21 @@ fun iconeDoMarcador(marcador: Marcador): ImageVector {
 
 /** A cor da situação: do apagado (sugerido) ao destaque (ilustrado), para ver onde se parou. */
 @Composable
-private fun corDoMarcador(marcador: Marcador): Color = when (marcador.situacao) {
+private fun corDoArtefato(artefato: Artefato): Color = when (artefato.situacao) {
     "SUGERIDO" -> MaterialTheme.colorScheme.onSurfaceVariant
     "PROMPT_PRONTO" -> MaterialTheme.colorScheme.tertiary
     "ILUSTRADO" -> MaterialTheme.colorScheme.primary
     else -> MaterialTheme.colorScheme.onSurface
 }
 
-/** O ícone tocável de um marcador; tocar leva ao item no painel de IA. */
+/** O ícone tocável de um artefato; tocar leva ao item no painel de IA. */
 @Composable
-fun IconeDoMarcador(marcador: Marcador, aoTocar: (Marcador) -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = { aoTocar(marcador) }, modifier = modifier.size(32.dp)) {
+fun IconeDoArtefato(artefato: Artefato, aoTocar: (Artefato) -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = { aoTocar(artefato) }, modifier = modifier.size(32.dp)) {
         Icon(
-            imageVector = iconeDoMarcador(marcador),
-            contentDescription = descreverMarcador(marcador),
-            tint = corDoMarcador(marcador),
+            imageVector = iconeDoArtefato(artefato),
+            contentDescription = descreverArtefato(artefato),
+            tint = corDoArtefato(artefato),
             modifier = Modifier.size(20.dp),
         )
     }

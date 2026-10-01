@@ -272,10 +272,10 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
     // E33: trocar de filtro fecha tudo, para cada lista sempre começar compacta.
     LaunchedEffect(estado.filtro) { abertos.clear() }
 
-    val contagem = contagemPorFiltro(sugestoes.elementos)
+    val contagem = contagemPorFiltro(sugestoes.elementos, sugestoes.cenas)
     val doFiltro = elementosDoFiltro(sugestoes.elementos, estado.filtro)
     val cenasDosElementos = cenasDoElemento(sugestoes)
-    val cenas = sugestoes.cenas.filter { !it.descartada }
+    val cenas = cenasDoFiltro(sugestoes.cenas, estado.filtro) // D2: as cenas também obedecem ao filtro
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -308,10 +308,10 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
             }
         }
 
-        if (sugestoes.elementos.isNotEmpty()) {
+        if (sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Elementos", style = MaterialTheme.typography.titleSmall)
+                    Text("Elementos e cenas", style = MaterialTheme.typography.titleSmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FiltroDoPainel.entries.forEach { filtro ->
                             FilterChip(
@@ -323,13 +323,13 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
                     }
                 }
             }
-            if (doFiltro.isEmpty()) {
+            if (doFiltro.isEmpty() && cenas.isEmpty()) {
                 item {
                     Text(
                         when (estado.filtro) {
                             FiltroDoPainel.PENDENTES -> "Nada pendente por aqui."
-                            FiltroDoPainel.CONFIRMADOS -> "Nenhum elemento confirmado neste capítulo ainda."
-                            FiltroDoPainel.DESCARTADOS -> "Nenhum elemento descartado."
+                            FiltroDoPainel.CONFIRMADOS -> "Nada confirmado neste capítulo ainda."
+                            FiltroDoPainel.DESCARTADOS -> "Nada descartado."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -361,6 +361,9 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
         }
     }
 }
+
+/** O aviso do cartão cujo nome a IA sugeriu mas o texto do capítulo não traz (item 6.7, `achado_no_texto`). */
+internal const val AVISO_DE_NAO_ACHADO_NO_TEXTO = "Não achado no texto — confira"
 
 /**
  * E24 e E25: o cartão **fechado** tem tipo, nome, **uma** etiqueta de situação e, se for o caso, "Aparece em
@@ -405,6 +408,13 @@ internal fun CartaoDeElemento(
             }
             descreverCenasDoElemento(cenas)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            }
+            if (!elemento.achado_no_texto) {
+                Text(
+                    AVISO_DE_NAO_ACHADO_NO_TEXTO,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
 
             estado.mensagens[elemento.id]?.let { mensagem ->

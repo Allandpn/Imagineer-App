@@ -67,7 +67,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.CapituloDetalhe
-import com.allan.imagineer.rede.Marcador
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
 import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ModalDaSugestao
@@ -86,7 +86,7 @@ private fun capituloViewModel(capituloId: Int): CapituloViewModel {
         key = "capitulo$capituloId",
         factory = viewModelFactory {
             initializer {
-                CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeMarcadores)
+                CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeArtefatos)
             }
         },
     )
@@ -200,7 +200,7 @@ private fun LeitorPaginado(
     val textoProntoDaTela = estadoDaTela is EstadoDoCapitulo.Pronto
     LaunchedEffect(estadoDoPainel.conteudo) {
         if (textoProntoDaTela && estadoDoPainel.conteudo is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Pronto) {
-            vmDaTela.carregarMarcadores()
+            vmDaTela.carregarArtefatos()
         }
     }
 
@@ -284,7 +284,7 @@ private fun LeitorPaginado(
                         PaginaDoCapitulo(
                             capituloId = idDaPagina,
                             ehAtual = pagina == estadoDoPager.currentPage,
-                            aoTocarMarcador = { marcador -> marcador.sugestao_id?.let(painel::abrirModal) },
+                            aoTocarArtefato = { artefato -> artefato.sugestao_id?.let(painel::abrirModal) },
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -339,17 +339,17 @@ private fun LeitorPaginado(
 private fun PaginaDoCapitulo(
     capituloId: Int,
     ehAtual: Boolean,
-    aoTocarMarcador: (Marcador) -> Unit,
+    aoTocarArtefato: (Artefato) -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
     val estado by viewModel.estado.collectAsState()
-    val marcadores by viewModel.marcadores.collectAsState()
+    val artefatos by viewModel.artefatos.collectAsState()
     // Carrega uma vez. Se a composição recomeçar (girar o tablet), o ViewModel já tem o texto.
     LaunchedEffect(viewModel) { viewModel.carregar() }
     // Os ícones vêm depois do texto, nunca antes — o texto nunca espera por eles (E42).
     val textoPronto = estado is EstadoDoCapitulo.Pronto
-    LaunchedEffect(textoPronto) { if (textoPronto) viewModel.carregarMarcadores() }
+    LaunchedEffect(textoPronto) { if (textoPronto) viewModel.carregarArtefatos() }
     // A posição de leitura desta página; o pager a guarda por chave, e o painel em tela cheia não a perde.
     val posicaoDeLeitura = rememberLazyListState()
 
@@ -375,8 +375,8 @@ private fun PaginaDoCapitulo(
 
             is EstadoDoCapitulo.Pronto -> LeitorDeTexto(
                 estado = atual,
-                marcadores = marcadores,
-                aoTocarMarcador = { if (ehAtual) aoTocarMarcador(it) },
+                artefatos = artefatos,
+                aoTocarArtefato = { if (ehAtual) aoTocarArtefato(it) },
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -393,15 +393,15 @@ private fun PaginaDoCapitulo(
 @Composable
 private fun LeitorDeTexto(
     estado: EstadoDoCapitulo.Pronto,
-    marcadores: List<Marcador>,
-    aoTocarMarcador: (Marcador) -> Unit,
+    artefatos: List<Artefato>,
+    aoTocarArtefato: (Artefato) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val capitulo = estado.capitulo
     // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
     val trechos = remember(capitulo.id) { dividirEmParagrafosComInicio(capitulo.texto) }
-    val distribuidos = remember(marcadores, trechos) { distribuirMarcadores(marcadores, trechos) }
+    val distribuidos = remember(artefatos, trechos) { distribuirArtefatos(artefatos, trechos) }
 
     // Escuta a rolagem da lista para o botão de IA (P3). O sinal do deslocamento do Compose é o
     // contrário do que a regra espera (dedo para cima = y negativo = rolando para baixo), por
@@ -449,7 +449,7 @@ private fun LeitorDeTexto(
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            distribuidos.semPosicao.forEach { IconeDoMarcador(it, aoTocarMarcador) }
+                            distribuidos.semPosicao.forEach { IconeDoArtefato(it, aoTocarArtefato) }
                         }
                     }
                 }
@@ -459,7 +459,7 @@ private fun LeitorDeTexto(
                         // A calha dos ícones tem sempre a mesma largura, para o texto não dançar de um
                         // parágrafo para o outro; os ícones do parágrafo ficam empilhados nela.
                         Column(modifier = Modifier.width(32.dp)) {
-                            distribuidos.porParagrafo[indice].orEmpty().forEach { IconeDoMarcador(it, aoTocarMarcador) }
+                            distribuidos.porParagrafo[indice].orEmpty().forEach { IconeDoArtefato(it, aoTocarArtefato) }
                         }
                         Text(
                             text = trecho.texto,

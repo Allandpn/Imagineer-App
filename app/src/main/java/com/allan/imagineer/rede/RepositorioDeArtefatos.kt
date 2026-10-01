@@ -4,10 +4,10 @@ import kotlinx.serialization.Serializable
 
 // Os nomes dos campos são os do JSON do backend (item 7.3a).
 
-/** O que `GET /capitulos/{id}/marcadores` devolve (item 6.8): os ícones a desenhar sobre o texto. */
+/** O que `GET /capitulos/{id}/artefatos` devolve (item 6.8): os ícones a desenhar sobre o texto. */
 @Serializable
-data class MarcadoresDoCapitulo(
-    val marcadores: List<Marcador> = emptyList(),
+data class ArtefatosDoCapitulo(
+    val artefatos: List<Artefato> = emptyList(),
 )
 
 /**
@@ -16,7 +16,7 @@ data class MarcadoresDoCapitulo(
  */
 @Serializable
 @Suppress("PropertyName")
-data class Marcador(
+data class Artefato(
     /** `ELEMENTO` ou `CENA`. */
     val tipo: String,
     /** Só nos de `ELEMENTO`: `PERSONAGEM`, `AMBIENTE`, `OBJETO`, `CRIATURA`, `GRUPO`, `VEICULO` ou `EDIFICACAO`. */
@@ -35,18 +35,18 @@ data class Marcador(
  * O que o leitor do capítulo precisa para desenhar os ícones. Interface, para o ViewModel ser testado
  * com uma versão falsa. **Nunca chama a IA**: é só leitura.
  */
-interface RepositorioDeMarcadores {
-    /** `GET /capitulos/{id}/marcadores`. */
-    suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Marcador>>
+interface RepositorioDeArtefatos {
+    /** `GET /capitulos/{id}/artefatos`. */
+    suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Artefato>>
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
-class RepositorioDeMarcadoresPeloRetrofit(
+class RepositorioDeArtefatosPeloRetrofit(
     private val provedor: ProvedorDeApi,
-) : RepositorioDeMarcadores {
+) : RepositorioDeArtefatos {
 
-    override suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Marcador>> {
+    override suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Artefato>> {
         val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.marcadores(capituloId).marcadores }
+        return chamarApi { api.artefatos(capituloId).artefatos }
     }
 }

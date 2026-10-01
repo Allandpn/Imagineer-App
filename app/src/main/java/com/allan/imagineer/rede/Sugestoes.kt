@@ -19,6 +19,8 @@ import kotlinx.serialization.Serializable
 data class SugestoesDeCapitulo(
     val gerado_em: String? = null,
     val sugestoes_pendentes_anteriores: Int = 0,
+    /** A orientação do usuário que vale neste capítulo (item 6.7, M1); nulo = nenhuma. */
+    val orientacao: String? = null,
     val elementos: List<ElementoSugerido> = emptyList(),
     val cenas: List<CenaSugerida> = emptyList(),
 )
@@ -38,6 +40,12 @@ data class ElementoSugerido(
     val elemento_id: Int? = null,
     /** `true` quando o casamento veio só do nome e ninguém o revisou (item 4.6). */
     val casamento_automatico: Boolean = false,
+    /**
+     * `false` quando o nome não aparece no texto do capítulo (a IA pode ter listado o que o capítulo não traz,
+     * ou o texto o chama por outro nome). Só sinaliza: o cartão mostra "confira" e vai para o fim da lista
+     * (item 6.7). Padrão `true`: um servidor antigo, sem o campo, não gera aviso falso.
+     */
+    val achado_no_texto: Boolean = true,
     /** O Estado já registrado **neste** capítulo; nulo pode ainda haver um [estado_vigente] de outro. */
     val estado_id: Int? = null,
     /** Com quem a sugestão foi casada, com a identidade vigente (item 7.5b, E11). */
@@ -83,6 +91,8 @@ data class CenaSugerida(
     val participantes: List<ParticipanteSugerido> = emptyList(),
     /** Descartada pelo usuário: não conta como pendente (E16). */
     val descartada: Boolean = false,
+    /** O frame criado a partir da cena: **nulo = pendente (ou descartada); preenchido = confirmada** (item 6.7). */
+    val frame_id: Int? = null,
     val modelo: String = "",
 )
 

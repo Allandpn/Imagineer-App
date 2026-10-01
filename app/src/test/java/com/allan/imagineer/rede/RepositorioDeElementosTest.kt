@@ -392,20 +392,20 @@ class RepositorioDeElementosTest {
     }
 
     @Test
-    fun `marcadores e um GET so de leitura em capitulos-id-marcadores`() = runTest {
+    fun `artefatos e um GET so de leitura em capitulos-id-artefatos`() = runTest {
         servidor.enqueue(
             MockResponse().setResponseCode(200).setBody(
-                """{"marcadores":[{"tipo":"ELEMENTO","tipo_do_elemento":"PERSONAGEM","sugestao_id":3,"frame_id":null,"rotulo":"Jon","posicao_no_texto":42,"situacao":"SUGERIDO","imagem_id":null}]}""",
+                """{"artefatos":[{"tipo":"ELEMENTO","tipo_do_elemento":"PERSONAGEM","sugestao_id":3,"frame_id":null,"rotulo":"Jon","posicao_no_texto":42,"situacao":"SUGERIDO","imagem_id":null}]}""",
             ),
         )
 
-        val resultado = RepositorioDeMarcadoresPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(url()))).ler(5)
+        val resultado = RepositorioDeArtefatosPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(url()))).ler(5)
 
         val pedido = servidor.takeRequest()
         assertEquals("GET", pedido.method)
-        assertEquals("/capitulos/5/marcadores", pedido.path)
-        val marcador = (resultado as ResultadoDaChamada.Sucesso).dado.single()
-        assertEquals("Jon", marcador.rotulo)
-        assertEquals(42, marcador.posicao_no_texto)
+        assertEquals("/capitulos/5/artefatos", pedido.path)
+        val artefato = (resultado as ResultadoDaChamada.Sucesso).dado.single()
+        assertEquals("Jon", artefato.rotulo)
+        assertEquals(42, artefato.posicao_no_texto)
     }
 }

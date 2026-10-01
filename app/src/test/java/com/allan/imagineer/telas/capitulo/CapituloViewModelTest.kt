@@ -3,9 +3,9 @@ package com.allan.imagineer.telas.capitulo
 import com.allan.imagineer.rede.CapituloAjuste
 import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.CapituloResumo
-import com.allan.imagineer.rede.Marcador
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.RepositorioDeCapitulos
-import com.allan.imagineer.rede.RepositorioDeMarcadores
+import com.allan.imagineer.rede.RepositorioDeArtefatos
 import com.allan.imagineer.rede.ResultadoDaChamada
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -27,13 +27,13 @@ private fun capituloComTexto(texto: String) = CapituloDetalhe(
 )
 
 /** Só a leitura do texto; o resto o ViewModel de Capítulo não usa. */
-/** Marcadores falsos: devolvem o que o teste combinar e contam as leituras. */
-internal class MarcadoresFalso(
-    var resposta: ResultadoDaChamada<List<Marcador>> = ResultadoDaChamada.Sucesso(emptyList()),
-) : RepositorioDeMarcadores {
+/** Artefatos falsos: devolvem o que o teste combinar e contam as leituras. */
+internal class ArtefatosFalso(
+    var resposta: ResultadoDaChamada<List<Artefato>> = ResultadoDaChamada.Sucesso(emptyList()),
+) : RepositorioDeArtefatos {
     var leituras = 0
 
-    override suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Marcador>> {
+    override suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Artefato>> {
         leituras++
         return resposta
     }
@@ -116,14 +116,14 @@ class CapituloViewModelTest {
 
     @Test
     fun `comeca carregando`() = runTest {
-        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo)), MarcadoresFalso())
+        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo)), ArtefatosFalso())
 
         assertEquals(EstadoDoCapitulo.Carregando, vm.estado.value)
     }
 
     @Test
     fun `carregar entrega o capitulo com o texto ja dividido`() = runTest {
-        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo)), MarcadoresFalso())
+        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo)), ArtefatosFalso())
 
         vm.carregar()
         advanceUntilIdle()
@@ -137,7 +137,7 @@ class CapituloViewModelTest {
     @Test
     fun `falha mostra o motivo e tentar de novo recupera`() = runTest {
         val repositorio = CapitulosParaLeitura(ResultadoDaChamada.Falha("Não existe capítulo com id 5.", 404))
-        val vm = CapituloViewModel(5, repositorio, MarcadoresFalso())
+        val vm = CapituloViewModel(5, repositorio, ArtefatosFalso())
         vm.carregar()
         advanceUntilIdle()
         assertEquals(EstadoDoCapitulo.Erro("Não existe capítulo com id 5."), vm.estado.value)
@@ -153,7 +153,7 @@ class CapituloViewModelTest {
     fun `carregar de novo com o texto ja na tela nao gasta outra chamada`() = runTest {
         // Girar o tablet recomeça a composição e chama carregar() outra vez.
         val repositorio = CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo))
-        val vm = CapituloViewModel(5, repositorio, MarcadoresFalso())
+        val vm = CapituloViewModel(5, repositorio, ArtefatosFalso())
         vm.carregar()
         advanceUntilIdle()
 
@@ -168,7 +168,7 @@ class CapituloViewModelTest {
     fun `carregar durante um carregamento nao duplica a chamada`() = runTest {
         val repositorio = CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo))
         repositorio.trava = CompletableDeferred()
-        val vm = CapituloViewModel(5, repositorio, MarcadoresFalso())
+        val vm = CapituloViewModel(5, repositorio, ArtefatosFalso())
 
         vm.carregar()
         advanceUntilIdle()
@@ -182,7 +182,7 @@ class CapituloViewModelTest {
     @Test
     fun `tentar de novo sem erro nao faz nada`() = runTest {
         val repositorio = CapitulosParaLeitura(ResultadoDaChamada.Sucesso(capitulo))
-        val vm = CapituloViewModel(5, repositorio, MarcadoresFalso())
+        val vm = CapituloViewModel(5, repositorio, ArtefatosFalso())
         vm.carregar()
         advanceUntilIdle()
 
@@ -195,7 +195,7 @@ class CapituloViewModelTest {
     @Test
     fun `capitulo sem texto fica pronto, com zero paragrafos`() = runTest {
         val vazio = capituloComTexto("")
-        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(vazio)), MarcadoresFalso())
+        val vm = CapituloViewModel(5, CapitulosParaLeitura(ResultadoDaChamada.Sucesso(vazio)), ArtefatosFalso())
 
         vm.carregar()
         advanceUntilIdle()

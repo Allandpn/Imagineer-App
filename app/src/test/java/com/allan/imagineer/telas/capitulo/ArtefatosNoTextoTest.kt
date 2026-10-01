@@ -1,7 +1,7 @@
 package com.allan.imagineer.telas.capitulo
 
 import com.allan.imagineer.rede.CapituloDetalhe
-import com.allan.imagineer.rede.Marcador
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.SugestoesDeCapitulo
 import com.allan.imagineer.rede.jsonDoImagineer
@@ -26,18 +26,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-private fun marcador(
+private fun artefato(
     rotulo: String,
     posicao: Int?,
     tipo: String = "PERSONAGEM",
     situacao: String = "SUGERIDO",
     sugestaoId: Int? = null,
-) = Marcador(
+) = Artefato(
     tipo = "ELEMENTO", tipo_do_elemento = tipo, sugestao_id = sugestaoId, rotulo = rotulo,
     posicao_no_texto = posicao, situacao = situacao,
 )
 
-class MarcadoresNoTextoTest {
+class ArtefatosNoTextoTest {
 
     private val texto = "Primeiro parágrafo.\n\nJon chegou ao muro.\nOutra linha.\n\n\n\n  Terceiro, com Ned.  "
 
@@ -73,13 +73,13 @@ class MarcadoresNoTextoTest {
     }
 
     @Test
-    fun `cada marcador vai para o paragrafo em que a posicao cai`() {
+    fun `cada artefato vai para o paragrafo em que a posicao cai`() {
         val paragrafos = dividirEmParagrafosComInicio(texto)
-        val jon = marcador("Jon", paragrafos[1].inicio)
-        val ned = marcador("Ned", paragrafos[2].inicio)
-        val muro = marcador("Muro", paragrafos[1].inicio, tipo = "AMBIENTE")
+        val jon = artefato("Jon", paragrafos[1].inicio)
+        val ned = artefato("Ned", paragrafos[2].inicio)
+        val muro = artefato("Muro", paragrafos[1].inicio, tipo = "AMBIENTE")
 
-        val distribuidos = distribuirMarcadores(listOf(jon, ned, muro), paragrafos)
+        val distribuidos = distribuirArtefatos(listOf(jon, ned, muro), paragrafos)
 
         assertEquals(listOf(jon, muro), distribuidos.porParagrafo[1])
         assertEquals(listOf(ned), distribuidos.porParagrafo[2])
@@ -90,11 +90,11 @@ class MarcadoresNoTextoTest {
     @Test
     fun `uma posicao no meio de um paragrafo cai nele, e uma na folga entre dois cai no anterior`() {
         val paragrafos = dividirEmParagrafosComInicio(texto)
-        val noMeio = marcador("Jon", paragrafos[1].inicio + 5)
+        val noMeio = artefato("Jon", paragrafos[1].inicio + 5)
         // uma unidade antes do início do terceiro: está nas quebras de linha que o aparo tirou, ainda do segundo
-        val naFolga = marcador("Ned", paragrafos[2].inicio - 1)
+        val naFolga = artefato("Ned", paragrafos[2].inicio - 1)
 
-        val distribuidos = distribuirMarcadores(listOf(noMeio, naFolga), paragrafos)
+        val distribuidos = distribuirArtefatos(listOf(noMeio, naFolga), paragrafos)
 
         assertEquals(listOf(noMeio, naFolga), distribuidos.porParagrafo[1])
         assertEquals(setOf(1), distribuidos.porParagrafo.keys)
@@ -103,37 +103,37 @@ class MarcadoresNoTextoTest {
     @Test
     fun `sem posicao, ou antes do primeiro paragrafo, vai para a faixa sem posicao`() {
         val paragrafos = dividirEmParagrafosComInicio("\n\n   Começa tarde.\n\nFim.")
-        val sem = marcador("Arya", null)
-        val antes = marcador("Cedo", 0)
+        val sem = artefato("Arya", null)
+        val antes = artefato("Cedo", 0)
 
-        val distribuidos = distribuirMarcadores(listOf(sem, antes), paragrafos)
+        val distribuidos = distribuirArtefatos(listOf(sem, antes), paragrafos)
 
         assertEquals(listOf(sem, antes), distribuidos.semPosicao)
         assertTrue(distribuidos.porParagrafo.isEmpty())
     }
 
     @Test
-    fun `sem paragrafos todos os marcadores ficam sem posicao`() {
-        val distribuidos = distribuirMarcadores(listOf(marcador("Jon", 10)), emptyList())
+    fun `sem paragrafos todos os artefatos ficam sem posicao`() {
+        val distribuidos = distribuirArtefatos(listOf(artefato("Jon", 10)), emptyList())
 
         assertEquals(1, distribuidos.semPosicao.size)
     }
 
     @Test
     fun `a descricao de acessibilidade diz o nome e onde o usuario parou`() {
-        assertEquals("Jon, sugerido, ainda não confirmado", descreverMarcador(marcador("Jon", 0)))
-        assertEquals("Jon, confirmado", descreverMarcador(marcador("Jon", 0, situacao = "CONFIRMADO")))
-        assertEquals("Jon, com prompt pronto", descreverMarcador(marcador("Jon", 0, situacao = "PROMPT_PRONTO")))
-        assertEquals("Jon, ilustrado", descreverMarcador(marcador("Jon", 0, situacao = "ILUSTRADO")))
+        assertEquals("Jon, sugerido, ainda não confirmado", descreverArtefato(artefato("Jon", 0)))
+        assertEquals("Jon, confirmado", descreverArtefato(artefato("Jon", 0, situacao = "CONFIRMADO")))
+        assertEquals("Jon, com prompt pronto", descreverArtefato(artefato("Jon", 0, situacao = "PROMPT_PRONTO")))
+        assertEquals("Jon, ilustrado", descreverArtefato(artefato("Jon", 0, situacao = "ILUSTRADO")))
     }
 
     @Test
     fun `o JSON real do servidor desserializa, com e sem os campos opcionais`() {
-        val json = """{"marcadores":[
+        val json = """{"artefatos":[
             {"tipo":"ELEMENTO","tipo_do_elemento":"VEICULO","sugestao_id":4,"frame_id":null,"rotulo":"Navio","posicao_no_texto":120,"situacao":"CONFIRMADO","imagem_id":null},
             {"tipo":"CENA","rotulo":"O duelo","situacao":"SUGERIDO"}]}"""
 
-        val lidos = jsonDoImagineer.decodeFromString<com.allan.imagineer.rede.MarcadoresDoCapitulo>(json).marcadores
+        val lidos = jsonDoImagineer.decodeFromString<com.allan.imagineer.rede.ArtefatosDoCapitulo>(json).artefatos
 
         assertEquals("VEICULO", lidos[0].tipo_do_elemento)
         assertEquals(120, lidos[0].posicao_no_texto)
@@ -143,7 +143,7 @@ class MarcadoresNoTextoTest {
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class MarcadoresDoCapituloViewModelTest {
+class ArtefatosDoCapituloViewModelTest {
 
     @Before
     fun preparar() {
@@ -159,40 +159,40 @@ class MarcadoresDoCapituloViewModelTest {
         id = 5, ordem = 1, titulo = "Um", ignorado = false, tamanho_do_texto = 9, livro_id = 1, texto = "Jon chegou.",
     )
 
-    private fun vm(marcadores: MarcadoresFalso) =
-        CapituloViewModel(5, CapitulosParaLeituraDe(capitulo), marcadores)
+    private fun vm(artefatos: ArtefatosFalso) =
+        CapituloViewModel(5, CapitulosParaLeituraDe(capitulo), artefatos)
 
     @Test
-    fun `carregar os marcadores guarda o que o servidor devolveu`() = runTest {
-        val falso = MarcadoresFalso(ResultadoDaChamada.Sucesso(listOf(marcador("Jon", 0))))
+    fun `carregar os artefatos guarda o que o servidor devolveu`() = runTest {
+        val falso = ArtefatosFalso(ResultadoDaChamada.Sucesso(listOf(artefato("Jon", 0))))
         val vm = vm(falso)
 
-        vm.carregarMarcadores()
+        vm.carregarArtefatos()
         advanceUntilIdle()
 
-        assertEquals(listOf(marcador("Jon", 0)), vm.marcadores.value)
+        assertEquals(listOf(artefato("Jon", 0)), vm.artefatos.value)
         assertEquals(1, falso.leituras)
     }
 
     @Test
-    fun `falhar nos marcadores nao troca o texto por erro e mantem os que ja havia`() = runTest {
-        val falso = MarcadoresFalso(ResultadoDaChamada.Sucesso(listOf(marcador("Jon", 0))))
+    fun `falhar nos artefatos nao troca o texto por erro e mantem os que ja havia`() = runTest {
+        val falso = ArtefatosFalso(ResultadoDaChamada.Sucesso(listOf(artefato("Jon", 0))))
         val vm = vm(falso)
         vm.carregar()
-        vm.carregarMarcadores()
+        vm.carregarArtefatos()
         advanceUntilIdle()
 
         falso.resposta = ResultadoDaChamada.Falha("Não consegui falar com o servidor.")
-        vm.carregarMarcadores()
+        vm.carregarArtefatos()
         advanceUntilIdle()
 
-        assertEquals(listOf(marcador("Jon", 0)), vm.marcadores.value) // ficou o que estava
+        assertEquals(listOf(artefato("Jon", 0)), vm.artefatos.value) // ficou o que estava
         assertTrue(vm.estado.value is EstadoDoCapitulo.Pronto) // o texto continua lá
     }
 
     @Test
-    fun `o texto carrega sem pedir marcadores - eles vem a parte`() = runTest {
-        val falso = MarcadoresFalso()
+    fun `o texto carrega sem pedir artefatos - eles vem a parte`() = runTest {
+        val falso = ArtefatosFalso()
         val vm = vm(falso)
 
         vm.carregar()
@@ -204,16 +204,16 @@ class MarcadoresDoCapituloViewModelTest {
 
     @Test
     fun `reler depois de uma mudanca mostra os novos`() = runTest {
-        val falso = MarcadoresFalso(ResultadoDaChamada.Sucesso(listOf(marcador("Jon", 0))))
+        val falso = ArtefatosFalso(ResultadoDaChamada.Sucesso(listOf(artefato("Jon", 0))))
         val vm = vm(falso)
-        vm.carregarMarcadores()
+        vm.carregarArtefatos()
         advanceUntilIdle()
 
-        falso.resposta = ResultadoDaChamada.Sucesso(listOf(marcador("Jon", 0, situacao = "CONFIRMADO")))
-        vm.carregarMarcadores()
+        falso.resposta = ResultadoDaChamada.Sucesso(listOf(artefato("Jon", 0, situacao = "CONFIRMADO")))
+        vm.carregarArtefatos()
         advanceUntilIdle()
 
-        assertEquals("CONFIRMADO", vm.marcadores.value.single().situacao)
+        assertEquals("CONFIRMADO", vm.artefatos.value.single().situacao)
     }
 }
 

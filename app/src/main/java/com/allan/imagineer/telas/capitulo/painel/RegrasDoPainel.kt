@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.DetalheDoElemento
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
@@ -133,10 +134,32 @@ fun filtroDoElemento(elemento: ElementoSugerido): FiltroDoPainel = when {
  */
 fun chaveDoCartao(elemento: ElementoSugerido): String = "${filtroDoElemento(elemento).name}:${elemento.id}"
 
-/** Quantas sugestões há em cada filtro, para os contadores (E24). */
-fun contagemPorFiltro(elementos: List<ElementoSugerido>): Map<FiltroDoPainel, Int> {
-    val contagem = elementos.groupingBy(::filtroDoElemento).eachCount()
-    return FiltroDoPainel.entries.associateWith { contagem[it] ?: 0 }
+/**
+ * Em qual filtro cai uma **cena** (defeito D2): descartada, confirmada (já virou frame) ou o resto (pendente).
+ * Antes, a lista de cenas aparecia inteira em todos os filtros porque o servidor não dizia se a cena estava
+ * confirmada; agora diz (`frame_id`, item 6.7).
+ */
+fun filtroDaCena(cena: CenaSugerida): FiltroDoPainel = when {
+    cena.descartada -> FiltroDoPainel.DESCARTADOS
+    cena.frame_id != null -> FiltroDoPainel.CONFIRMADOS
+    else -> FiltroDoPainel.PENDENTES
+}
+
+/** As cenas de um filtro, na ordem em que a IA as listou. */
+fun cenasDoFiltro(cenas: List<CenaSugerida>, filtro: FiltroDoPainel): List<CenaSugerida> =
+    cenas.filter { filtroDaCena(it) == filtro }
+
+/**
+ * Quantas sugestões há em cada filtro, para os contadores (E24). Com [cenas], os contadores somam
+ * elementos **e** cenas: o filtro vale para as duas listas (D2).
+ */
+fun contagemPorFiltro(
+    elementos: List<ElementoSugerido>,
+    cenas: List<CenaSugerida> = emptyList(),
+): Map<FiltroDoPainel, Int> {
+    val dosElementos = elementos.groupingBy(::filtroDoElemento).eachCount()
+    val dasCenas = cenas.groupingBy(::filtroDaCena).eachCount()
+    return FiltroDoPainel.entries.associateWith { (dosElementos[it] ?: 0) + (dasCenas[it] ?: 0) }
 }
 
 /**
@@ -145,7 +168,14 @@ fun contagemPorFiltro(elementos: List<ElementoSugerido>): Map<FiltroDoPainel, In
  */
 fun elementosDoFiltro(elementos: List<ElementoSugerido>, filtro: FiltroDoPainel): List<ElementoSugerido> {
     val doFiltro = elementos.filter { filtroDoElemento(it) == filtro }
-    return if (filtro == FiltroDoPainel.PENDENTES) doFiltro.sortedBy { situacaoDoElemento(it).ordinal } else doFiltro
+    // O que o texto do capítulo não traz (`achado_no_texto = false`) vai para o fim: provavelmente a IA o
+    // inventou, e não deve passar na frente do que é certo. A ordenação é estável: o resto mantém a ordem.
+    val naoAchadosPorUltimo = doFiltro.sortedBy { !it.achado_no_texto }
+    return if (filtro == FiltroDoPainel.PENDENTES) {
+        naoAchadosPorUltimo.sortedWith(compareBy({ !it.achado_no_texto }, { situacaoDoElemento(it).ordinal }))
+    } else {
+        naoAchadosPorUltimo
+    }
 }
 
 /**
