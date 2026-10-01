@@ -246,7 +246,10 @@ private fun LeitorPaginado(
         aoEscolherFiltro = painel::escolherFiltro,
         aoAbrirFicha = { elementoId, doCapitulo ->
             // Sem o livro (o capítulo ainda não carregou) não há como abrir a ficha.
-            livroDoCapitulo?.let { aoAbrirFicha(elementoId, it, idDaTela.takeIf { doCapitulo }) }
+            livroDoCapitulo?.let {
+                painel.fecharModalAoAbrirFicha() // ao voltar, o modal não reabre sozinho
+                aoAbrirFicha(elementoId, it, idDaTela.takeIf { doCapitulo })
+            }
         },
         aoAlternarApagarEstado = painel::alternarApagarEstado,
         aoConfirmarDesfazer = painel::confirmarDesfazer,

@@ -243,6 +243,15 @@ class PainelDeIaViewModel(
         aoAbrirPainel()
     }
 
+    /**
+     * "Ver ficha" a partir do modal **fecha o modal** (decisão do Allan após o teste de 01/10/2026): ao voltar,
+     * quem lê cai no texto onde estava, sem o modal reabrindo sozinho "instantes depois", o que parecia um defeito.
+     * Os **diálogos** (vincular, criar...) não fecham: estão no meio de uma tarefa e voltam como estavam (E43).
+     */
+    fun fecharModalAoAbrirFicha() {
+        _estado.update { it.copy(emModal = null) }
+    }
+
     /** Fecha o modal. */
     fun fecharModal() {
         Rastro.d("modal: fechar (estava em ${_estado.value.emModal})", comPilha = true)
