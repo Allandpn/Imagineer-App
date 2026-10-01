@@ -337,16 +337,19 @@ private fun LeitorPaginado(
         }
     }
 
-    // O modal e os diálogos do painel são JANELAS próprias, por cima de tudo, e capturam o botão voltar. Se
-    // ficassem desenhados enquanto a ficha está na frente, o "voltar" cairia neles (E43). Por isso somem NO
-    // INSTANTE em que o capítulo começa a sair (ON_PAUSE) e voltam NO INSTANTE em que ele começa a voltar
-    // (ON_START), sem esperar o fim da animação. O estado deles continua no ViewModel.
-    var saindo by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { saindo = true }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) { saindo = false }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { saindo = false }
+    // O modal e os diálogos do painel são JANELAS próprias, por cima de tudo, e capturam o botão voltar (E43).
+    // **Só são desenhados com o capítulo RESUMED**, isto é, na frente e com a animação já terminada.
+    //
+    // Causa do D3 (achada com o rastro do Logcat, 01/10/2026): o "voltar" do Android anima a volta ENQUANTO o
+    // usuário o executa, e nessa fase o capítulo já está STARTED (visível por baixo da ficha), mas ainda não
+    // RESUMED. Se o modal aparecesse em STARTED, a janela dele nascia por cima no meio do gesto, ficava como
+    // destino do "voltar" e **cancelava a animação da navegação**: a ficha reaparecia ("pisca e volta"), sem
+    // nenhuma mudança de tela registrada. Várias toques seguidos só funcionavam quando um deles pegava a
+    // navegação antes de o modal compor.
+    //
+    // Efeito colateral aceito: ao voltar da ficha o modal aparece só depois da animação (~0,3 s), e não junto dela.
     val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    if (!saindo && estadoDoCiclo.isAtLeast(Lifecycle.State.STARTED)) {
+    if (estadoDoCiclo == Lifecycle.State.RESUMED) {
         ModalDaSugestao(estadoDoPainel, acoesDoPainel)
         DialogosDoPainel(estadoDoPainel, acoesDoPainel)
     }
