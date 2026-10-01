@@ -88,6 +88,11 @@ class AcoesDoPainel(
     val aoConfirmarDesfazer: () -> Unit,
     val aoConfirmarDescarte: () -> Unit,
     val aoFecharModal: () -> Unit,
+    // Confirmar todos (pedido do Allan, 01/10/2026).
+    val aoPedirConfirmarTodos: () -> Unit,
+    val aoConfirmarTodos: () -> Unit,
+    val aoCancelarConfirmarTodos: () -> Unit,
+    val aoDispensarResultadoDoLote: () -> Unit,
     // Incremento 10b, primeira fatia: a cena (C1 a C10).
     val aoAbrirCena: (cenaId: Int) -> Unit,
     val aoFecharModalDaCena: () -> Unit,
@@ -128,6 +133,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     if (estado.confirmandoReanalise) {
         DialogoDeReanalise(estado, acoes)
     }
+    estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -310,13 +316,21 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text("Sugestões da IA", style = MaterialTheme.typography.titleSmall)
-                OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando) {
-                    Text("Reanalisar")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // L1: só tem sentido quando há algo a confirmar; o diálogo mostra a conta antes de agir.
+                    Button(
+                        onClick = acoes.aoPedirConfirmarTodos,
+                        enabled = !estado.analisando && !estado.executandoLote && resumoParaConfirmarTodos(sugestoes).temAlgoParaConfirmar,
+                    ) { Text("Confirmar todos") }
+                    OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
+                        Text("Reanalisar")
+                    }
                 }
             }
         }
         item { ErroDaAnalise(estado) }
         item { AnaliseEmAndamento(estado) }
+        item { ResultadoDoLote(estado, acoes) }
 
         // P14: uma análise que não achou nada é um resultado, não um erro.
         if (sugestoes.elementos.isEmpty() && sugestoes.cenas.isEmpty()) {
@@ -942,6 +956,30 @@ private fun ErroDaAnalise(estado: EstadoDoPainel) {
     }
 }
 
+/** O lote de "Confirmar todos": o progresso enquanto roda e, depois, o resumo do que foi feito (L5), que se dispensa. */
+@Composable
+private fun ResultadoDoLote(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    if (estado.executandoLote) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text("Confirmando… uma chamada por vez.", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    estado.resultadoDoLote?.let { resumo ->
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(resumo, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = acoes.aoDispensarResultadoDoLote) {
+                    Icon(Icons.Filled.Close, contentDescription = "Dispensar o resumo")
+                }
+            }
+        }
+    }
+}
+
 /** P6/P10: enquanto a IA roda — o que pode levar mais de um minuto. */
 @Composable
 private fun AnaliseEmAndamento(estado: EstadoDoPainel) {
@@ -951,6 +989,18 @@ private fun AnaliseEmAndamento(estado: EstadoDoPainel) {
             Text("Analisando… pode levar até um minuto.", style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+/** "Confirmar todos" (L2): diz o que vai acontecer **e o que não vai**, antes de agir. */
+@Composable
+private fun DialogoConfirmarTodos(resumo: ResumoDoLote, acoes: AcoesDoPainel) {
+    AlertDialog(
+        onDismissRequest = acoes.aoCancelarConfirmarTodos,
+        title = { Text("Confirmar todos?") },
+        text = { Text(descreverLoteParaConfirmar(resumo)) },
+        confirmButton = { TextButton(onClick = acoes.aoConfirmarTodos) { Text("Confirmar todos") } },
+        dismissButton = { TextButton(onClick = acoes.aoCancelarConfirmarTodos) { Text("Cancelar") } },
+    )
 }
 
 /** P7: reanalisar gasta IA, então pede confirmação — e repete o aviso das pendências (P11). */

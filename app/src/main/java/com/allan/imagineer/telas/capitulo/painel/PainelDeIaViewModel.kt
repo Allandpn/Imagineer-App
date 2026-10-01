@@ -121,6 +121,12 @@ data class EstadoDoPainel(
     val cenasOcupadas: Set<Int> = emptySet(),
     /** O recado de cada cena, por id: o erro de uma ação, ou o aviso do que acabou de acontecer (C5). */
     val mensagensDeCena: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** O diálogo "Confirmar todos?" está aberto, com a conta do que vai acontecer (L2). */
+    val confirmandoTodos: ResumoDoLote? = null,
+    /** O lote de "Confirmar todos" está rodando (L3): os botões ficam desabilitados. */
+    val executandoLote: Boolean = false,
+    /** O resumo do último lote (L5); some quando a pessoa o dispensa ou começa outro. */
+    val resultadoDoLote: String? = null,
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -273,6 +279,99 @@ class PainelDeIaViewModel(
     /** Fecha o modal. */
     fun fecharModal() {
         _estado.update { it.copy(modais = it.modais.filterNot { m -> m is ModalAberto.DeElemento }) }
+    }
+
+    // ------------------------------------------------------------------ //
+    // Confirmar todos (pedido do Allan, 01/10/2026)
+    // ------------------------------------------------------------------ //
+
+    /** "Confirmar todos": abre o diálogo com a conta do que vai acontecer — só se há algo a confirmar (L1, L2). */
+    fun pedirConfirmarTodos() {
+        val atual = _estado.value
+        val sugestoesDeAgora = (atual.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes ?: return
+        if (atual.executandoLote || atual.analisando) return
+        val resumo = resumoParaConfirmarTodos(sugestoesDeAgora)
+        if (!resumo.temAlgoParaConfirmar) return
+        _estado.update { it.copy(confirmandoTodos = resumo) }
+    }
+
+    fun cancelarConfirmarTodos() {
+        _estado.update { it.copy(confirmandoTodos = null) }
+    }
+
+    fun dispensarResultadoDoLote() {
+        _estado.update { it.copy(resultadoDoLote = null) }
+    }
+
+    /**
+     * O "sim" do diálogo (L3): roda o lote **em ordem e uma chamada por vez** — (1) confirma os casamentos
+     * automáticos, (2) registra o estado de quem ainda não tem, (3) tenta confirmar as cenas pendentes. Relê as
+     * sugestões entre os passos, porque cada um muda o que o seguinte encontra.
+     *
+     * **Nunca cria elemento novo, nunca descarta e nunca gasta IA** (L6). Uma chamada que o servidor recusa deixa o
+     * item pendente e o lote **continua**; já uma falha de **conexão** (sem código HTTP) o **interrompe** (L4), para
+     * não esperar N tempos limites seguidos. Sem repetição automática.
+     */
+    fun confirmarTodos() {
+        val atual = _estado.value
+        if (atual.confirmandoTodos == null || atual.executandoLote) return
+        _estado.update { it.copy(confirmandoTodos = null, executandoLote = true, resultadoDoLote = null) }
+
+        viewModelScope.launch {
+            val falhas = mutableListOf<String>()
+            var interrompidoPor: String? = null
+            var casamentos = 0
+            var estados = 0
+            var cenas = 0
+
+            /** Registra o resultado de uma chamada; devolve `true` se deu certo (ou se já estava feito, 409). */
+            fun deuCerto(resultado: ResultadoDaChamada<*>, rotulo: String): Boolean {
+                if (resultado is ResultadoDaChamada.Sucesso) return true
+                val falha = resultado as ResultadoDaChamada.Falha
+                when {
+                    falha.codigoHttp == 409 -> return true
+                    falha.codigoHttp == null -> interrompidoPor = falha.motivo
+                    else -> falhas += "$rotulo: ${falha.motivo}"
+                }
+                return false
+            }
+
+            fun sugestoesAgora(): SugestoesDeCapitulo? = (_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
+
+            // 1) os casamentos automáticos
+            for (e in sugestoesAgora()?.elementos.orEmpty().filter { !it.descartada && situacaoDoElemento(it) == SituacaoDoElemento.CASADA_AUTOMATICAMENTE }) {
+                if (interrompidoPor != null) break
+                if (deuCerto(elementos.ajustarCasamento(e.id, e.elemento_id), e.nome)) casamentos++
+            }
+            reler()
+            esquecerFichas()
+
+            // 2) o estado de quem ainda não tem (inclusive quem acabou de ter o casamento confirmado)
+            for (e in sugestoesAgora()?.elementos.orEmpty().filter { !it.descartada && situacaoDoElemento(it) == SituacaoDoElemento.CASADA_SEM_ESTADO }) {
+                if (interrompidoPor != null) break
+                val elementoId = e.elemento_id ?: continue
+                if (deuCerto(elementos.registrarEstado(elementoId, e.id), e.nome)) estados++
+            }
+            if (interrompidoPor == null) reler()
+
+            // 3) as cenas pendentes
+            if (interrompidoPor == null) {
+                for (c in cenasDoFiltro(sugestoesAgora()?.cenas.orEmpty(), FiltroDoPainel.PENDENTES)) {
+                    if (interrompidoPor != null) break
+                    if (deuCerto(sugestoes.confirmarCena(capituloId, c.id), c.titulo)) cenas++
+                }
+                reler()
+            }
+
+            val novosRestantes = sugestoesAgora()?.elementos.orEmpty()
+                .count { !it.descartada && situacaoDoElemento(it) == SituacaoDoElemento.NOVA }
+            _estado.update {
+                it.copy(
+                    executandoLote = false,
+                    resultadoDoLote = descreverResultadoDoLote(casamentos, estados, cenas, falhas, interrompidoPor, novosRestantes),
+                )
+            }
+        }
     }
 
     // ------------------------------------------------------------------ //

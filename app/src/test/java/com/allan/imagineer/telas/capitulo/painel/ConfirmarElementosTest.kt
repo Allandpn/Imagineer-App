@@ -68,16 +68,19 @@ internal class ElementosFalso : RepositorioDeElementos {
         return criacao
     }
 
+    /** Uma resposta própria para uma sugestão (o que o "Confirmar todos" precisa para testar falhas isoladas). */
+    val respostasPorSugestao = mutableMapOf<Int, ResultadoDaChamada<Unit>>()
+
     override suspend fun registrarEstado(elementoId: Int, sugestaoId: Int): ResultadoDaChamada<Unit> {
         chamadas += "registrarEstado($elementoId,$sugestaoId)"
         trava?.await()
-        return resposta
+        return respostasPorSugestao[sugestaoId] ?: resposta
     }
 
     override suspend fun ajustarCasamento(sugestaoId: Int, elementoId: Int?): ResultadoDaChamada<Unit> {
         chamadas += "ajustarCasamento($sugestaoId,$elementoId)"
         trava?.await()
-        return resposta
+        return respostasPorSugestao[sugestaoId] ?: resposta
     }
 
     override suspend fun descartar(sugestaoId: Int, descartada: Boolean): ResultadoDaChamada<Unit> {

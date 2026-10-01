@@ -87,8 +87,12 @@ internal class SugestoesFalso(
     }
     var travaDaAnalise: CompletableDeferred<Unit>? = null
 
+    /** Leituras para as próximas chamadas a `ler`, uma por chamada: simula o que muda no servidor entre os passos. */
+    val proximasLeituras = ArrayDeque<SugestoesDeCapitulo>()
+
     override suspend fun ler(capituloId: Int): ResultadoDaChamada<SugestoesDeCapitulo> {
         leituras++
+        proximasLeituras.removeFirstOrNull()?.let { leitura = ResultadoDaChamada.Sucesso(it) }
         return leitura
     }
 

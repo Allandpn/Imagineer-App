@@ -380,3 +380,81 @@ const val AVISO_CENA_CONFIRMADA = "Cena confirmada."
 
 /** O aviso quando o servidor diz que a cena já estava confirmada, por exemplo em outro aparelho (C5, 409). */
 const val AVISO_CENA_JA_CONFIRMADA = "Esta cena já estava confirmada."
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// Confirmar todos (pedido do Allan, 01/10/2026)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/**
+ * O que "Confirmar todos" vai fazer, para o diálogo de confirmação dizer **antes** (L2).
+ *
+ * @property casamentos elementos casados automaticamente, que ninguém conferiu: o lote os **confirma**.
+ * @property estados elementos casados e revisados que **ainda não têm estado** até este capítulo: o lote **registra** o
+ * estado (um rascunho). Os que acabam de ter o casamento confirmado também podem precisar de estado; esses o lote só
+ * descobre depois do primeiro passo, então a conta aqui é um **mínimo**.
+ * @property cenas cenas pendentes: o lote **tenta confirmar** cada uma (o servidor recusa as que ainda falta algo).
+ * @property novos elementos **novos**: o lote **não toca neles**, porque criar ou vincular exige uma escolha.
+ */
+data class ResumoDoLote(val casamentos: Int, val estados: Int, val cenas: Int, val novos: Int) {
+    /** Há algo que o lote consiga confirmar? (Só elementos novos não bastam: eles ficam para a pessoa.) */
+    val temAlgoParaConfirmar: Boolean get() = casamentos + estados + cenas > 0
+}
+
+/** Conta o que "Confirmar todos" faria com as sugestões de agora. Descartadas ficam de fora (L7). */
+fun resumoParaConfirmarTodos(sugestoes: SugestoesDeCapitulo): ResumoDoLote {
+    val vivos = sugestoes.elementos.filter { !it.descartada }
+    fun quantos(situacao: SituacaoDoElemento) = vivos.count { situacaoDoElemento(it) == situacao }
+    return ResumoDoLote(
+        casamentos = quantos(SituacaoDoElemento.CASADA_AUTOMATICAMENTE),
+        estados = quantos(SituacaoDoElemento.CASADA_SEM_ESTADO),
+        cenas = cenasDoFiltro(sugestoes.cenas, FiltroDoPainel.PENDENTES).size,
+        novos = quantos(SituacaoDoElemento.NOVA),
+    )
+}
+
+/** O texto do diálogo de confirmação (L2): diz o que vai acontecer **e o que não vai**. */
+fun descreverLoteParaConfirmar(resumo: ResumoDoLote): String {
+    val partes = mutableListOf<String>()
+    if (resumo.casamentos > 0) {
+        partes += "confirmar o casamento de ${resumo.casamentos} ${if (resumo.casamentos == 1) "elemento casado" else "elementos casados"} automaticamente (que você ainda não conferiu)"
+    }
+    if (resumo.estados > 0) partes += "registrar o estado de ${resumo.estados} ${if (resumo.estados == 1) "elemento" else "elementos"} que ainda não ${if (resumo.estados == 1) "tem" else "têm"} (um rascunho, que a IA refaz ao gerar o prompt)"
+    if (resumo.cenas > 0) partes += "tentar confirmar ${resumo.cenas} ${if (resumo.cenas == 1) "cena" else "cenas"}"
+    val faz = "Isto vai " + partes.joinToString("; ") + "."
+    val naoFaz = buildString {
+        append(" Não gasta IA e não descarta nada.")
+        if (resumo.novos > 0) {
+            append(" ${resumo.novos} ${if (resumo.novos == 1) "elemento novo fica" else "elementos novos ficam"} para você: criar ou vincular exige uma escolha.")
+        }
+    }
+    return faz + naoFaz
+}
+
+/**
+ * O resumo do que o lote fez (L5), em uma ou duas frases. [falhas] são as chamadas que o servidor recusou (ficaram
+ * pendentes); [interrompidoPor] é o motivo, se a conexão caiu e o lote parou no meio (L4); [novosRestantes] são os
+ * elementos novos que seguem esperando a pessoa.
+ */
+fun descreverResultadoDoLote(
+    casamentos: Int,
+    estados: Int,
+    cenas: Int,
+    falhas: List<String>,
+    interrompidoPor: String?,
+    novosRestantes: Int,
+): String {
+    val feitos = buildList {
+        if (casamentos > 0) add("$casamentos ${if (casamentos == 1) "casamento" else "casamentos"}")
+        if (estados > 0) add("$estados ${if (estados == 1) "estado" else "estados"}")
+        if (cenas > 0) add("$cenas ${if (cenas == 1) "cena" else "cenas"}")
+    }
+    val primeira = if (feitos.isEmpty()) "Nada foi confirmado." else "Confirmado: ${feitos.joinToString(", ")}."
+    val pendencias = buildList {
+        if (novosRestantes > 0) add("$novosRestantes ${if (novosRestantes == 1) "elemento novo espera" else "elementos novos esperam"} sua decisão")
+        if (falhas.isNotEmpty()) add("${falhas.size} ${if (falhas.size == 1) "item ficou" else "itens ficaram"} pendente${if (falhas.size == 1) "" else "s"}: ${falhas.first()}")
+    }
+    // O motivo do servidor já pode terminar em ponto: tira antes de pôr o nosso, para não sair "..".
+    val segunda = if (pendencias.isEmpty()) "" else " " + pendencias.joinToString("; ").replaceFirstChar { it.uppercase() }.trimEnd('.') + "."
+    val parou = interrompidoPor?.let { " Parou no meio: $it" }.orEmpty()
+    return primeira + segunda + parou
+}
