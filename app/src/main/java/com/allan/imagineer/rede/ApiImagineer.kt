@@ -186,6 +186,21 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): FrameCriado
 
+    /** `GET /frames/{id}/prompts` — o que já foi gerado para o frame; só leitura, nunca gasta IA (item 6.6). */
+    @GET("frames/{id}/prompts")
+    suspend fun prompts(@Path("id") frameId: Int): List<PromptDeFrame>
+
+    /**
+     * `POST /frames/{id}/prompts` — **gera** (e cobra) um prompt com a IA (item 6.6): lê o capítulo e monta o texto.
+     * Pode levar mais de um minuto, então usa o mesmo tempo de espera longo da análise (P10).
+     */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("frames/{id}/prompts")
+    suspend fun gerarPrompt(
+        @Path("id") frameId: Int,
+        @Body corpo: JsonObject,
+    ): PromptDeFrame
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo

@@ -7,7 +7,9 @@ import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.PromptsSemServidor
 import com.allan.imagineer.rede.RepositorioDeElementos
+import com.allan.imagineer.rede.RepositorioDePrompts
 import com.allan.imagineer.rede.RepositorioDeSugestoes
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.SugestoesDeCapitulo
@@ -127,6 +129,14 @@ data class EstadoDoPainel(
     val executandoLote: Boolean = false,
     /** O resumo do último lote (L5); some quando a pessoa o dispensa ou começa outro. */
     val resultadoDoLote: String? = null,
+    /** Os prompts de cada frame, por id do frame (G2). Só existe a entrada de quem já foi aberto. */
+    val prompts: Map<Int, PromptsDoFrame> = emptyMap(),
+    /** Frames com uma geração de prompt em andamento (G4): um por vez. */
+    val gerandoPrompt: Set<Int> = emptySet(),
+    /** O recado de cada frame sobre o prompt: o erro da geração, ou o aviso do que acabou de acontecer (G5, G7). */
+    val mensagensDePrompt: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** O diálogo "Gerar o prompt gasta IA" está aberto para este frame (G3). */
+    val confirmandoPrompt: Int? = null,
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -169,6 +179,8 @@ class PainelDeIaViewModel(
         sugestoes,
         CoroutineScope(SupervisorJob() + Dispatchers.Main),
     ),
+    /** Os prompts de um frame (10b, segunda fatia). O padrão não tem servidor, para os testes que não os usam. */
+    private val prompts: RepositorioDePrompts = PromptsSemServidor,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoDoPainel())
@@ -279,6 +291,76 @@ class PainelDeIaViewModel(
     /** Fecha o modal. */
     fun fecharModal() {
         _estado.update { it.copy(modais = it.modais.filterNot { m -> m is ModalAberto.DeElemento }) }
+    }
+
+    // ------------------------------------------------------------------ //
+    // Gerar o prompt e copiar (incremento 10b, segunda fatia, G1 a G10)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * Lê os prompts já gerados do frame (G2) — **só o `GET`, nunca gasta IA**. Lê **uma vez**: o que já foi lido (ou
+     * está sendo lido) não se pede de novo; um erro de leitura se refaz por [recarregarPrompts].
+     */
+    fun carregarPrompts(frameId: Int) {
+        // Qualquer entrada (lendo, pronta ou com erro) segura a leitura: o erro só se refaz por [recarregarPrompts].
+        if (_estado.value.prompts[frameId] != null) return
+        lerPrompts(frameId)
+    }
+
+    /** "Tentar de novo" depois de um erro de leitura. */
+    fun recarregarPrompts(frameId: Int) {
+        if (_estado.value.prompts[frameId] is PromptsDoFrame.Erro) lerPrompts(frameId)
+    }
+
+    private fun lerPrompts(frameId: Int) {
+        _estado.update { it.copy(prompts = it.prompts + (frameId to PromptsDoFrame.Lendo)) }
+        viewModelScope.launch {
+            val novo = when (val resultado = prompts.listar(frameId)) {
+                // Do mais novo para o mais antigo (G2): o servidor entrega do mais antigo ao mais recente.
+                is ResultadoDaChamada.Sucesso -> PromptsDoFrame.Pronto(resultado.dado.reversed())
+                is ResultadoDaChamada.Falha -> PromptsDoFrame.Erro(resultado.motivo)
+            }
+            _estado.update { it.copy(prompts = it.prompts + (frameId to novo)) }
+        }
+    }
+
+    /** "Gerar prompt": **pede confirmação** antes de gastar IA (G3). Ignora se já há uma geração rodando para o frame. */
+    fun pedirGerarPrompt(frameId: Int) {
+        if (frameId in _estado.value.gerandoPrompt) return
+        _estado.update { it.copy(confirmandoPrompt = frameId, mensagensDePrompt = it.mensagensDePrompt - frameId) }
+    }
+
+    fun cancelarGerarPrompt() {
+        _estado.update { it.copy(confirmandoPrompt = null) }
+    }
+
+    /**
+     * O "sim" do diálogo (G4): gera o prompt, com o [ajuste] opcional (em branco = sem comentário). **Sem repetição
+     * automática** e **uma geração por frame de cada vez**. Sucesso: o prompt novo vai para o topo da lista (G5).
+     * Falha: a mensagem do servidor no modal, e a lista de antes continua (G7).
+     */
+    fun gerarPrompt(frameId: Int, ajuste: String) {
+        if (_estado.value.confirmandoPrompt != frameId || frameId in _estado.value.gerandoPrompt) return
+        _estado.update {
+            it.copy(confirmandoPrompt = null, gerandoPrompt = it.gerandoPrompt + frameId, mensagensDePrompt = it.mensagensDePrompt - frameId)
+        }
+        val comentario = ajuste.trim().ifBlank { null }
+        viewModelScope.launch {
+            val resultado = prompts.gerar(frameId, comentario)
+            _estado.update { atual ->
+                val daLista = (atual.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista.orEmpty()
+                when (resultado) {
+                    is ResultadoDaChamada.Sucesso -> atual.copy(
+                        gerandoPrompt = atual.gerandoPrompt - frameId,
+                        prompts = atual.prompts + (frameId to PromptsDoFrame.Pronto(listOf(resultado.dado) + daLista)),
+                    )
+                    is ResultadoDaChamada.Falha -> atual.copy(
+                        gerandoPrompt = atual.gerandoPrompt - frameId,
+                        mensagensDePrompt = atual.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                    )
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ //

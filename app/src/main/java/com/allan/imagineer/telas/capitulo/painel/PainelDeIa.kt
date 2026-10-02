@@ -43,6 +43,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.key
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.allan.imagineer.rede.PromptDeFrame
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -88,6 +92,12 @@ class AcoesDoPainel(
     val aoConfirmarDesfazer: () -> Unit,
     val aoConfirmarDescarte: () -> Unit,
     val aoFecharModal: () -> Unit,
+    // Incremento 10b, segunda fatia: gerar o prompt e copiar (G1 a G10).
+    val aoCarregarPrompts: (frameId: Int) -> Unit,
+    val aoRecarregarPrompts: (frameId: Int) -> Unit,
+    val aoPedirGerarPrompt: (frameId: Int) -> Unit,
+    val aoCancelarGerarPrompt: () -> Unit,
+    val aoGerarPrompt: (frameId: Int, ajuste: String) -> Unit,
     // Confirmar todos (pedido do Allan, 01/10/2026).
     val aoPedirConfirmarTodos: () -> Unit,
     val aoConfirmarTodos: () -> Unit,
@@ -134,6 +144,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
         DialogoDeReanalise(estado, acoes)
     }
     estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
+    estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -810,6 +821,63 @@ internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Aco
     }
 }
 
+/**
+ * Os prompts de uma cena confirmada (G1 a G7): a lista do mais novo para o mais antigo, cada um com **Copiar**, e o botão
+ * de gerar (que pede confirmação, porque gasta IA). Ler a lista não custa (G2).
+ */
+@Composable
+private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
+    val area = LocalClipboardManager.current
+    val gerando = frameId in estado.gerandoPrompt
+    val conteudo = estado.prompts[frameId]
+    val jaTem = (conteudo as? PromptsDoFrame.Pronto)?.lista?.isNotEmpty() == true
+
+    Text("Prompts", style = MaterialTheme.typography.titleSmall)
+    when (conteudo) {
+        null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        is PromptsDoFrame.Erro -> {
+            Text(conteudo.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            OutlinedButton(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
+        }
+        is PromptsDoFrame.Pronto -> {
+            if (conteudo.lista.isEmpty()) {
+                Text("Nenhum prompt gerado ainda.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            conteudo.lista.forEach { prompt -> CartaoDePrompt(prompt, aoCopiar = { area.setText(AnnotatedString(prompt.texto)) }) }
+        }
+    }
+
+    estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
+    if (gerando) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text("Gerando… pode levar mais de um minuto.", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
+        Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
+    }
+}
+
+/** Um prompt gerado: o texto (selecionável) e **Copiar**, que confirma na hora (G6). */
+@Composable
+private fun CartaoDePrompt(prompt: PromptDeFrame, aoCopiar: () -> Unit) {
+    var copiado by remember(prompt.id) { mutableStateOf(false) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
+            descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
+                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar") }
+                if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            }
+        }
+    }
+}
+
 @Composable
 private fun EtiquetaDaCena(texto: String, filtro: FiltroDoPainel) {
     val cor: Color = when (filtro) {
@@ -924,6 +992,9 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
     if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
+    // G1: o bloco de prompts só existe para a cena que já virou frame.
+    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, estado, acoes) }
+
     val acoesDaCena = acoesDaCena(cena)
     if (acoesDaCena.isNotEmpty()) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -987,6 +1058,33 @@ private fun AnaliseEmAndamento(estado: EstadoDoPainel) {
             Text("Analisando… pode levar até um minuto.", style = MaterialTheme.typography.bodyMedium)
         }
     }
+}
+
+/** "Gerar prompt" (G3): diz que **gasta IA** e oferece o campo opcional de ajuste. */
+@Composable
+private fun DialogoGerarPrompt(frameId: Int, acoes: AcoesDoPainel) {
+    var ajuste by rememberSaveable(frameId) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = acoes.aoCancelarGerarPrompt,
+        title = { Text("Gerar o prompt?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(TEXTO_DO_DIALOGO_DE_PROMPT)
+                OutlinedTextField(
+                    value = ajuste,
+                    onValueChange = { ajuste = it.take(LIMITE_DO_AJUSTE_DO_PROMPT) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Ajuste (opcional)") },
+                    placeholder = { Text("Ex.: ela deve estar de costas, com o manto azul") },
+                    supportingText = { Text("${ajuste.length}/$LIMITE_DO_AJUSTE_DO_PROMPT") },
+                    minLines = 2,
+                    maxLines = 5,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { acoes.aoGerarPrompt(frameId, ajuste) }) { Text("Gerar") } },
+        dismissButton = { TextButton(onClick = acoes.aoCancelarGerarPrompt) { Text("Cancelar") } },
+    )
 }
 
 /** "Confirmar todos" (L2): diz o que vai acontecer **e o que não vai**, antes de agir. */

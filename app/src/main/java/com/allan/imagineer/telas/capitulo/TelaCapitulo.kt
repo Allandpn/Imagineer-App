@@ -106,6 +106,7 @@ private fun painelViewModel(capituloId: Int): PainelDeIaViewModel {
                     aplicacao.repositorioDeSugestoes,
                     aplicacao.repositorioDeElementos,
                     aplicacao.servicoDeAnalises,
+                    aplicacao.repositorioDePrompts,
                 )
             }
         },
@@ -240,6 +241,11 @@ private fun LeitorPaginado(
         aoRecarregarLista = painel::recarregarLista,
         aoRestaurar = painel::restaurar,
         aoEscolherFiltro = painel::escolherFiltro,
+        aoCarregarPrompts = painel::carregarPrompts,
+        aoRecarregarPrompts = painel::recarregarPrompts,
+        aoPedirGerarPrompt = painel::pedirGerarPrompt,
+        aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
+        aoGerarPrompt = painel::gerarPrompt,
         aoPedirConfirmarTodos = painel::pedirConfirmarTodos,
         aoConfirmarTodos = painel::confirmarTodos,
         aoCancelarConfirmarTodos = painel::cancelarConfirmarTodos,

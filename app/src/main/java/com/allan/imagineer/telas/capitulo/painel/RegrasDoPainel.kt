@@ -5,6 +5,7 @@ import com.allan.imagineer.rede.DetalheDoElemento
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
 import com.allan.imagineer.rede.ParticipanteSugerido
+import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.SugestoesDeCapitulo
 import com.allan.imagineer.telas.elementos.rotuloDoCapitulo
 import com.allan.imagineer.telas.elementos.semAcentos
@@ -458,3 +459,37 @@ fun descreverResultadoDoLote(
     val parou = interrompidoPor?.let { " Parou no meio: $it" }.orEmpty()
     return primeira + segunda + parou
 }
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// Gerar o prompt e copiar (incremento 10b, segunda fatia: G1 a G10)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** O limite do "ajuste" do prompt (G3): o servidor recusa acima disso. */
+const val LIMITE_DO_AJUSTE_DO_PROMPT = 2000
+
+/** O rótulo do botão (G3): "Gerar prompt" na primeira vez, "Gerar outro prompt" depois. */
+fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "Gerar outro prompt" else "Gerar prompt"
+
+/** O que o diálogo de confirmação diz (G3): que **gasta IA**, e o que o campo "Ajuste" faz. */
+const val TEXTO_DO_DIALOGO_DE_PROMPT =
+    "Gerar o prompt gasta IA: ela relê o capítulo e monta o texto para você colar na ferramenta de imagem. " +
+        "Se quiser corrigir algo (ou refinar um prompt anterior), escreva no campo abaixo; senão, deixe em branco."
+
+/**
+ * O aviso das imagens-âncora (G5): o fluxo é manual, então a API não as anexa; só avisa que existem. `null` se não há.
+ */
+fun descreverReferenciasVisuais(quantas: Int): String? = when {
+    quantas <= 0 -> null
+    quantas == 1 -> "Anexe também a imagem de referência deste elemento, para manter a aparência."
+    else -> "Anexe também as $quantas imagens de referência dos elementos, para manter a aparência."
+}
+
+/** O que o app sabe dos prompts de um frame (G2). */
+sealed interface PromptsDoFrame {
+    data object Lendo : PromptsDoFrame
+    data class Pronto(val lista: List<PromptDeFrame>) : PromptsDoFrame
+    data class Erro(val motivo: String) : PromptsDoFrame
+}
+
+/** O aviso de que o prompt foi copiado (G6). */
+const val AVISO_PROMPT_COPIADO = "Copiado."

@@ -22,6 +22,8 @@ import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDeElementosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.RepositorioDeArtefatos
+import com.allan.imagineer.rede.RepositorioDePrompts
+import com.allan.imagineer.rede.RepositorioDePromptsPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeArtefatosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDePerfis
 import com.allan.imagineer.rede.RepositorioDePerfisPeloRetrofit
@@ -76,6 +78,10 @@ class ImagineerApp : Application() {
 
     /** As análises de IA, no escopo do app: sobrevivem a quem sai da tela e geram o aviso final (D1). */
     val servicoDeAnalises: ServicoDeAnalises by lazy { ServicoDeAnalises(repositorioDeSugestoes, escopoDeFundo) }
+
+    val repositorioDePrompts: RepositorioDePrompts by lazy {
+        RepositorioDePromptsPeloRetrofit(provedorDeApi)
+    }
 
     val repositorioDeArtefatos: RepositorioDeArtefatos by lazy {
         RepositorioDeArtefatosPeloRetrofit(provedorDeApi)
