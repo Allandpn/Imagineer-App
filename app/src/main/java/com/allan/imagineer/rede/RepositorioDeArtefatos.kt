@@ -29,6 +29,10 @@ data class Artefato(
     /** `SUGERIDO`, `CONFIRMADO`, `PROMPT_PRONTO` ou `ILUSTRADO`. */
     val situacao: String,
     val imagem_id: Int? = null,
+    /** O formato da imagem real, para escolher o quadro no texto (I1): `RETRATO` ou `PAISAGEM`; nulo sem dimensões (I7). */
+    val imagem_orientacao: String? = null,
+    val imagem_largura: Int? = null,
+    val imagem_altura: Int? = null,
 )
 
 /**

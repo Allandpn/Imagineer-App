@@ -62,7 +62,7 @@ import com.allan.imagineer.rede.enderecoDaImagem
 
 /** O endereço do servidor configurado, para montar as URLs das imagens (J7). `null` enquanto não se sabe. */
 @Composable
-private fun urlDoServidorEmUso(): String? {
+internal fun urlDoServidorEmUso(): String? {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val url by aplicacao.armazenamento.urlDoServidor.collectAsState(initial = null)
     return url
@@ -261,7 +261,13 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
  * ações (U): **Compartilhar**, **Salvar na galeria** e **Excluir**. O botão de fechar e o de voltar do Android fecham.
  */
 @Composable
-private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: () -> Unit, aoFechar: () -> Unit) {
+internal fun ImagemEmTelaCheia(
+    imagem: ImagemDoPrompt,
+    url: String,
+    aoExcluir: (() -> Unit)?,
+    aoFechar: () -> Unit,
+    mostrarOrigem: Boolean = true,
+) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
     val contexto = LocalContext.current
@@ -324,8 +330,8 @@ private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: ()
             IconButton(onClick = aoFechar, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
             }
-            // Z8: quem gerou a imagem.
-            Text(
+            // Z8: quem gerou a imagem (no capítulo não se sabe, só o id: sem rótulo).
+            if (mostrarOrigem) Text(
                 descreverOrigemDaImagem(imagem),
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
@@ -361,7 +367,8 @@ private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: ()
                     },
                     enabled = !baixando,
                 ) { Text("Salvar na galeria", color = Color.White) }
-                TextButton(onClick = aoExcluir) { Text("Excluir", color = Color(0xFFFF8A80)) }
+                // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
+                if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Excluir", color = Color(0xFFFF8A80)) }
             }
             if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }

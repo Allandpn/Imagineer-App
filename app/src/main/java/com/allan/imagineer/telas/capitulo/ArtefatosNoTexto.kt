@@ -70,3 +70,19 @@ fun descreverArtefato(artefato: Artefato): String {
     }
     return "${artefato.rotulo}, $situacao"
 }
+
+/** Os dois quadros da imagem no texto (item 7.5b, I1). */
+enum class QuadroDaImagem { RETRATO, PAISAGEM }
+
+/**
+ * O quadro pelo formato da **imagem real** (I1): `RETRATO` só se o servidor diz que a altura passa da largura; o resto, a
+ * quadrada e a de dimensões desconhecidas (I7), é `PAISAGEM`. O layout do texto não depende do formato que se pediu à ferramenta.
+ */
+fun quadroDaImagem(orientacao: String?): QuadroDaImagem = if (orientacao == "RETRATO") QuadroDaImagem.RETRATO else QuadroDaImagem.PAISAGEM
+
+/**
+ * Os artefatos de um parágrafo que ganham **imagem no texto** (I6): só os `ILUSTRADO` que têm imagem, uma vez cada imagem
+ * (dois artefatos do mesmo frame mostram a mesma).
+ */
+fun imagensDoParagrafo(artefatos: List<Artefato>): List<Artefato> =
+    artefatos.filter { it.situacao == "ILUSTRADO" && it.imagem_id != null }.distinctBy { it.imagem_id }

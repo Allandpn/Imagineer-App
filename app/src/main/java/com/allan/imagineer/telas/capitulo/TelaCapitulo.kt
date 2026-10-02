@@ -72,6 +72,10 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
+import com.allan.imagineer.rede.ImagemDoPrompt
+import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.telas.capitulo.painel.ImagemEmTelaCheia
+import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
 import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ModaisDoPainel
@@ -481,6 +485,9 @@ private fun LeitorDeTexto(
     // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
     val trechos = remember(capitulo.id) { dividirEmParagrafosComInicio(capitulo.texto) }
     val distribuidos = remember(artefatos, trechos) { distribuirArtefatos(artefatos, trechos) }
+    // I1 a I6: a imagem ampliada (tela cheia, tamanho normal) e o endereço do servidor para montar as URLs.
+    val urlBase = urlDoServidorEmUso()
+    var ampliada by remember { mutableStateOf<Artefato?>(null) }
 
     // Escuta a rolagem da lista para o botão de IA (P3). O sinal do deslocamento do Compose é o
     // contrário do que a regra espera (dedo para cima = y negativo = rolando para baixo), por
@@ -534,22 +541,54 @@ private fun LeitorDeTexto(
                 }
 
                 itemsIndexed(trechos) { indice, trecho ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        // A calha dos ícones tem sempre a mesma largura, para o texto não dançar de um
-                        // parágrafo para o outro; os ícones do parágrafo ficam empilhados nela.
-                        Column(modifier = Modifier.width(32.dp)) {
-                            distribuidos.porParagrafo[indice].orEmpty().forEach { IconeDoArtefato(it, aoTocarArtefato) }
+                    val doParagrafo = distribuidos.porParagrafo[indice].orEmpty()
+                    val comImagem = if (urlBase != null) imagensDoParagrafo(doParagrafo) else emptyList()
+                    val (retratos, paisagens) = comImagem.partition { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // I3: a paisagem ocupa a largura da área de leitura, ANTES do parágrafo; o texto segue embaixo.
+                        if (urlBase != null) paisagens.forEach { imagem ->
+                            QuadroDaImagemNoTexto(imagem, urlBase, Modifier.fillMaxWidth()) { ampliada = imagem }
                         }
-                        Text(
-                            text = trecho.texto,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                // Espaçamento de linha ampliado: leitura longa cansa menos.
-                                lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.6,
-                            ),
-                        )
+                        Row(verticalAlignment = Alignment.Top) {
+                            // A calha dos ícones tem sempre a mesma largura, para o texto não dançar de um
+                            // parágrafo para o outro; os ícones do parágrafo ficam empilhados nela.
+                            Column(modifier = Modifier.width(32.dp)) {
+                                doParagrafo.forEach { IconeDoArtefato(it, aoTocarArtefato) }
+                            }
+                            Text(
+                                text = trecho.texto,
+                                modifier = Modifier.weight(3f),
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    // Espaçamento de linha ampliado: leitura longa cansa menos.
+                                    lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.6,
+                                ),
+                            )
+                            // I2: com um retrato, a região vira duas colunas: o texto à esquerda e o quadro 2:3 à direita
+                            // (40% da largura que sobra ao lado dos ícones); depois dele, o texto volta a uma coluna só.
+                            if (retratos.isNotEmpty() && urlBase != null) {
+                                Column(modifier = Modifier.weight(2f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    retratos.forEach { imagem ->
+                                        QuadroDaImagemNoTexto(imagem, urlBase, Modifier.fillMaxWidth()) { ampliada = imagem }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+    }
+    // I4: tocar na imagem a abre no tamanho normal (o arquivo `original`), com zoom por pinça; voltar fecha.
+    ampliada?.let { artefato ->
+        val imagemId = artefato.imagem_id
+        if (urlBase != null && imagemId != null) {
+            ImagemEmTelaCheia(
+                imagem = ImagemDoPrompt(id = imagemId),
+                url = enderecoDaImagem(urlBase, imagemId, "original"),
+                aoExcluir = null,
+                aoFechar = { ampliada = null },
+                mostrarOrigem = false,
+            )
         }
     }
 }

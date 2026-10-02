@@ -473,3 +473,63 @@ class ModalDaSugestaoTest {
         assertTrue(vm.estado.value.dialogo is DialogoDeElemento.Vinculando)
     }
 }
+
+/** A imagem no texto: o quadro e quais artefatos ganham imagem (item 7.5b, I1, I6, I7). */
+class ImagemNoTextoTest {
+
+    private fun ilustrado(rotulo: String, imagemId: Int?, orientacao: String?, situacao: String = "ILUSTRADO") = Artefato(
+        tipo = "ELEMENTO", tipo_do_elemento = "PERSONAGEM", rotulo = rotulo, posicao_no_texto = 0, situacao = situacao,
+        imagem_id = imagemId, imagem_orientacao = orientacao,
+    )
+
+    @Test
+    fun `I1 o quadro vem da imagem real, e so a mais alta que larga e retrato`() {
+        assertEquals(QuadroDaImagem.RETRATO, quadroDaImagem("RETRATO"))
+        assertEquals(QuadroDaImagem.PAISAGEM, quadroDaImagem("PAISAGEM"))
+    }
+
+    @Test
+    fun `I7 imagem sem dimensoes e tratada como paisagem`() {
+        assertEquals(QuadroDaImagem.PAISAGEM, quadroDaImagem(null))
+        assertEquals(QuadroDaImagem.PAISAGEM, quadroDaImagem(""))
+    }
+
+    @Test
+    fun `I6 so os ilustrados com imagem ganham imagem no texto`() {
+        val lista = listOf(
+            ilustrado("A", 10, "RETRATO"),
+            ilustrado("B", null, null, situacao = "PROMPT_PRONTO"),
+            ilustrado("C", 11, "PAISAGEM", situacao = "CONFIRMADO"), // tem imagem_id mas não está ilustrado: não entra
+            ilustrado("D", null, null), // ilustrado sem imagem (apagada): não entra
+        )
+
+        assertEquals(listOf("A"), imagensDoParagrafo(lista).map { it.rotulo })
+    }
+
+    @Test
+    fun `I6 duas sugestoes do mesmo frame mostram a imagem uma vez so`() {
+        val lista = listOf(ilustrado("A", 10, "RETRATO"), ilustrado("A de novo", 10, "RETRATO"), ilustrado("B", 12, "PAISAGEM"))
+
+        assertEquals(listOf(10, 12), imagensDoParagrafo(lista).map { it.imagem_id })
+    }
+
+    @Test
+    fun `o artefato do servidor traz o formato e as dimensoes da imagem`() {
+        val json = """{"tipo":"ELEMENTO","tipo_do_elemento":"PERSONAGEM","rotulo":"Auri","posicao_no_texto":120,"situacao":"ILUSTRADO","imagem_id":9,"imagem_largura":1024,"imagem_altura":1536,"imagem_orientacao":"RETRATO"}"""
+
+        val artefato = jsonDoImagineer.decodeFromString(Artefato.serializer(), json)
+
+        assertEquals("RETRATO", artefato.imagem_orientacao)
+        assertEquals(1024, artefato.imagem_largura)
+        assertEquals(1536, artefato.imagem_altura)
+    }
+
+    @Test
+    fun `artefato de servidor antigo, sem os campos novos, continua lendo`() {
+        val json = """{"tipo":"CENA","rotulo":"A chegada","situacao":"SUGERIDO"}"""
+
+        val artefato = jsonDoImagineer.decodeFromString(Artefato.serializer(), json)
+
+        assertNull(artefato.imagem_orientacao)
+    }
+}
