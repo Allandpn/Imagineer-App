@@ -143,6 +143,16 @@ data class EstadoDoPainel(
      * "Prompt gerado." quando o número **sobe** (G13).
      */
     val promptsGerados: Map<Int, Int> = emptyMap(),
+    /** Os retratos criados **nesta sessão**: sugestão de elemento -> frame (N4). O app os usa antes de reler os artefatos. */
+    val retratosCriados: Map<Int, Int> = emptyMap(),
+    /** Elementos com um retrato sendo criado (N5): um por vez. */
+    val retratosOcupados: Set<Int> = emptySet(),
+    /** O recado de cada elemento sobre o retrato: o erro da criação (N5). */
+    val mensagensDeRetrato: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** Sobe a cada frame criado: a tela relê os artefatos quando muda, para o ícone no texto acompanhar (N4). */
+    val versaoDosFrames: Int = 0,
+    /** Como cada frame se chama nos avisos ("A partida", "Retrato de Jon"); guardado ao pedir o prompt (N6). */
+    val rotulosDeFrame: Map<Int, String> = emptyMap(),
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -300,6 +310,40 @@ class PainelDeIaViewModel(
     }
 
     // ------------------------------------------------------------------ //
+    // Novo retrato (incremento 10b, terceira fatia, N1 a N8)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * "Novo retrato" (N2): cria o frame `PERSONAGEM` do [elemento] com o **estado que vale neste capítulo**. Só para
+     * elemento confirmado (N1); **uma criação por elemento de cada vez, sem repetição automática** (N5); **não gasta IA**.
+     * Sucesso: o app guarda o frame novo (N4) e a tela relê os artefatos. Falha: a mensagem do servidor no modal.
+     */
+    fun criarRetrato(elemento: ElementoSugerido) {
+        val estadoId = elemento.estado_vigente?.id ?: return
+        if (!podeTerRetrato(elemento) || elemento.id in _estado.value.retratosOcupados) return
+        _estado.update {
+            it.copy(retratosOcupados = it.retratosOcupados + elemento.id, mensagensDeRetrato = it.mensagensDeRetrato - elemento.id)
+        }
+        viewModelScope.launch {
+            val resultado = sugestoes.criarRetrato(capituloId, estadoId)
+            _estado.update { atual ->
+                when (resultado) {
+                    is ResultadoDaChamada.Sucesso -> atual.copy(
+                        retratosOcupados = atual.retratosOcupados - elemento.id,
+                        retratosCriados = atual.retratosCriados + (elemento.id to resultado.dado.id),
+                        rotulosDeFrame = atual.rotulosDeFrame + (resultado.dado.id to rotuloDoRetrato(elemento)),
+                        versaoDosFrames = atual.versaoDosFrames + 1,
+                    )
+                    is ResultadoDaChamada.Falha -> atual.copy(
+                        retratosOcupados = atual.retratosOcupados - elemento.id,
+                        mensagensDeRetrato = atual.mensagensDeRetrato + (elemento.id to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                    )
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ //
     // Gerar o prompt e copiar (incremento 10b, segunda fatia, G1 a G10)
     // ------------------------------------------------------------------ //
 
@@ -336,9 +380,15 @@ class PainelDeIaViewModel(
     }
 
     /** "Gerar prompt": **pede confirmação** antes de gastar IA (G3). Ignora se já há uma geração rodando para o frame. */
-    fun pedirGerarPrompt(frameId: Int) {
+    fun pedirGerarPrompt(frameId: Int, rotulo: String? = null) {
         if (frameId in _estado.value.gerandoPrompt) return
-        _estado.update { it.copy(confirmandoPrompt = frameId, mensagensDePrompt = it.mensagensDePrompt - frameId) }
+        _estado.update {
+            it.copy(
+                confirmandoPrompt = frameId,
+                mensagensDePrompt = it.mensagensDePrompt - frameId,
+                rotulosDeFrame = if (rotulo != null) it.rotulosDeFrame + (frameId to rotulo) else it.rotulosDeFrame,
+            )
+        }
     }
 
     fun cancelarGerarPrompt() {
@@ -358,7 +408,8 @@ class PainelDeIaViewModel(
         val comentario = ajuste.trim().ifBlank { null }
         // O trabalho roda no serviço do app (G8, revisto): sair do capítulo não o cancela, e ao terminar sai o aviso.
         val cena = (_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.cenas?.firstOrNull { it.frame_id == frameId }
-        aguardarPrompt(frameId, servico.iniciarPrompt(frameId, capituloId, livroId, rotuloDoCapitulo, cena?.titulo ?: "cena", comentario))
+        val rotulo = _estado.value.rotulosDeFrame[frameId] ?: cena?.titulo ?: "cena"
+        aguardarPrompt(frameId, servico.iniciarPrompt(frameId, capituloId, livroId, rotuloDoCapitulo, rotulo, comentario))
     }
 
     /** Espera o resultado de uma geração (a nossa, ou a que já estava rodando) e o aplica à lista (G5, G7). */

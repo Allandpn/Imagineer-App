@@ -75,6 +75,17 @@ internal class SugestoesFalso(
     var resultadoDaConfirmacaoDeCena: ResultadoDaChamada<FrameCriado> = ResultadoDaChamada.Sucesso(FrameCriado(id = 70, titulo = "Cena"))
     var travaDaConfirmacaoDeCena: CompletableDeferred<Unit>? = null
 
+    /** Os estados dos quais o painel pediu um retrato, na ordem (N2). */
+    val retratosPedidos = mutableListOf<Int>()
+    var resultadoDoRetrato: ResultadoDaChamada<FrameCriado> = ResultadoDaChamada.Sucesso(FrameCriado(id = 80, titulo = "Retrato de Jon"))
+    var travaDoRetrato: CompletableDeferred<Unit>? = null
+
+    override suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado> {
+        retratosPedidos += estadoId
+        travaDoRetrato?.await()
+        return resultadoDoRetrato
+    }
+
     override suspend fun descartarCena(sugestaoCenaId: Int, descartada: Boolean): ResultadoDaChamada<Unit> {
         descartesDeCena += sugestaoCenaId to descartada
         return resultadoDoDescarteDeCena

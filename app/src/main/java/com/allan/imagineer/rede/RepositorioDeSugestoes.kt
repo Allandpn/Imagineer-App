@@ -1,6 +1,8 @@
 package com.allan.imagineer.rede
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -37,6 +39,12 @@ interface RepositorioDeSugestoes {
      * o código HTTP: **422** = falta confirmar um elemento da cena; **409** = a cena já estava confirmada.
      */
     suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado>
+
+    /**
+     * `POST /capitulos/{id}/frames` com `tipo=PERSONAGEM`: cria o **retrato** de um elemento a partir do estado que vale
+     * neste capítulo (N2). Não gasta IA.
+     */
+    suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado>
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
@@ -65,6 +73,16 @@ class RepositorioDeSugestoesPeloRetrofit(
         val api = provedor.obter() ?: return provedor.semServidor()
         val corpo: JsonObject = buildJsonObject { put("descartada", descartada) }
         return chamarApi { api.ajustarCena(sugestaoCenaId, corpo); Unit }
+    }
+
+    override suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        // O título ("Retrato de <nome>") o servidor gera sozinho para um frame PERSONAGEM (item 6.4).
+        val corpo: JsonObject = buildJsonObject {
+            put("tipo", "PERSONAGEM")
+            put("estados_ids", buildJsonArray { add(JsonPrimitive(estadoId)) })
+        }
+        return chamarApi { api.criarRetrato(capituloId, corpo) }
     }
 
     override suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado> {

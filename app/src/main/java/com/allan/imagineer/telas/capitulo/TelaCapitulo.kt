@@ -74,6 +74,7 @@ import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ModaisDoPainel
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
+import com.allan.imagineer.telas.capitulo.painel.retratosPorSugestao
 import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
 import com.allan.imagineer.telas.capitulo.painel.usarAside
 import com.allan.imagineer.telas.livro.descreverTamanho
@@ -184,6 +185,10 @@ private fun LeitorPaginado(
     val painel = painelViewModel(idDaTela)
     val estadoDoPainel by painel.estado.collectAsState()
 
+    // N4: qual elemento já tem retrato vem do artefato dele; e, ao criar um frame, os ícones se relêem.
+    val artefatosDaTela by vmDaTela.artefatos.collectAsState()
+    LaunchedEffect(estadoDoPainel.versaoDosFrames) { if (estadoDoPainel.versaoDosFrames > 0) vmDaTela.carregarArtefatos() }
+
     // P3: só a direção da rolagem decide se o botão de IA aparece. Trocar de página o faz reaparecer.
     val visibilidade = remember { VisibilidadeDoBotao() }
     var botaoVisivel by remember { mutableStateOf(true) }
@@ -244,7 +249,8 @@ private fun LeitorPaginado(
         aoCarregarPrompts = painel::carregarPrompts,
         aoModalDoPromptVisivel = painel::definirModalDoFrameVisivel,
         aoRecarregarPrompts = painel::recarregarPrompts,
-        aoPedirGerarPrompt = painel::pedirGerarPrompt,
+        aoPedirGerarPrompt = { frameId, rotulo -> painel.pedirGerarPrompt(frameId, rotulo) },
+        aoCriarRetrato = painel::criarRetrato,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
         aoGerarPrompt = painel::gerarPrompt,
         aoPedirConfirmarTodos = painel::pedirConfirmarTodos,
@@ -369,7 +375,7 @@ private fun LeitorPaginado(
     // Efeito colateral aceito: ao voltar da ficha o modal aparece só depois da animação (~0,3 s), e não junto dela.
     val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     if (estadoDoCiclo == Lifecycle.State.RESUMED) {
-        ModaisDoPainel(estadoDoPainel, acoesDoPainel)
+        ModaisDoPainel(estadoDoPainel, acoesDoPainel, retratosPorSugestao(artefatosDaTela))
         DialogosDoPainel(estadoDoPainel, acoesDoPainel)
     }
 }

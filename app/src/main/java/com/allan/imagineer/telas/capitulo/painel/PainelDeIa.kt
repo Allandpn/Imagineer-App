@@ -102,7 +102,8 @@ class AcoesDoPainel(
     val aoCarregarPrompts: (frameId: Int) -> Unit,
     val aoModalDoPromptVisivel: (frameId: Int?) -> Unit,
     val aoRecarregarPrompts: (frameId: Int) -> Unit,
-    val aoPedirGerarPrompt: (frameId: Int) -> Unit,
+    val aoPedirGerarPrompt: (frameId: Int, rotulo: String) -> Unit,
+    val aoCriarRetrato: (ElementoSugerido) -> Unit,
     val aoCancelarGerarPrompt: () -> Unit,
     val aoGerarPrompt: (frameId: Int, ajuste: String) -> Unit,
     // Confirmar todos (pedido do Allan, 01/10/2026).
@@ -166,11 +167,11 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
  * cima. Fechar o de cima o tira da pilha e **revela o de baixo**, que se atualiza sozinho com o que se decidiu.
  */
 @Composable
-fun ModaisDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+fun ModaisDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>) {
     estado.modais.forEach { modal ->
         key(modal) {
             when (modal) {
-                is ModalAberto.DeElemento -> ModalDaSugestao(estado, acoes, modal.sugestaoId)
+                is ModalAberto.DeElemento -> ModalDaSugestao(estado, acoes, modal.sugestaoId, retratos)
                 is ModalAberto.DeCena -> ModalDaCena(estado, acoes, modal.cenaId)
             }
         }
@@ -184,7 +185,7 @@ fun ModaisDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
+fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retratos: Map<Int, Int> = emptyMap()) {
     val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
     val elemento = sugestoes?.elementos?.firstOrNull { it.id == id }
 
@@ -211,16 +212,44 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 elemento.descartada -> CartaoDeElementoDescartado(elemento, estado, acoes)
-                else -> CartaoDeElemento(
-                    elemento = elemento,
-                    cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
-                    aberto = true,
-                    aoAlternar = {},
-                    estado = estado,
-                    acoes = acoes,
-                )
+                else -> {
+                    CartaoDeElemento(
+                        elemento = elemento,
+                        cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
+                        aberto = true,
+                        aoAlternar = {},
+                        estado = estado,
+                        acoes = acoes,
+                    )
+                    // N1: só o elemento confirmado tem retrato. O frame vem do artefato (N4) ou do que acabou de ser criado.
+                    if (podeTerRetrato(elemento)) {
+                        BlocoDoRetrato(elemento, retratos[elemento.id] ?: estado.retratosCriados[elemento.id], estado, acoes)
+                    }
+                }
             }
         }
+    }
+}
+
+/**
+ * O retrato do elemento (N2 e N3): sem retrato, o botão **Novo retrato** (não gasta IA); com retrato, **a mesma seção de
+ * prompts da cena**, sem oferecer um segundo retrato.
+ */
+@Composable
+private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val ocupado = elemento.id in estado.retratosOcupados
+    Text("Retrato", style = MaterialTheme.typography.titleSmall)
+    if (frameId == null) {
+        Text(
+            "Ainda não há retrato deste elemento neste capítulo.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        estado.mensagensDeRetrato[elemento.id]?.let { RecadoDaCena(it) }
+        if (ocupado) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        Button(onClick = { acoes.aoCriarRetrato(elemento) }, enabled = !ocupado) { Text("Novo retrato", maxLines = 1, softWrap = false) }
+    } else {
+        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes)
     }
 }
 
@@ -833,7 +862,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Aco
  * de gerar (que pede confirmação, porque gasta IA). Ler a lista não custa (G2).
  */
 @Composable
-private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+private fun BlocoDePrompts(frameId: Int, rotulo: String, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
     // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
     DisposableEffect(frameId) {
@@ -874,7 +903,7 @@ private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoP
             Text("Gerando… pode levar mais de um minuto.", style = MaterialTheme.typography.bodySmall)
         }
     }
-    OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
+    OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
         Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
     }
     AvisoDePromptGerado(estado.promptsGerados[frameId] ?: 0)
@@ -1058,7 +1087,7 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
     // G1: o bloco de prompts só existe para a cena que já virou frame.
-    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, estado, acoes) }
+    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes) }
 
     val acoesDaCena = acoesDaCena(cena)
     if (acoesDaCena.isNotEmpty()) {

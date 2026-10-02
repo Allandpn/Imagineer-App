@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.DetalheDoElemento
 import com.allan.imagineer.rede.ElementoDoLivro
@@ -506,3 +507,26 @@ const val DURACAO_DO_AVISO_DE_PROMPT_EM_MS = 2500L
  */
 const val AVISO_GERAR_IMAGEM_EM_BREVE =
     "Em breve: gerar a imagem aqui no app. Por enquanto, copie ou compartilhe o prompt e importe a imagem depois."
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// Novo retrato (incremento 10b, terceira fatia: N1 a N8)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/**
+ * Esta sugestão pode ter retrato? (N1) Só o elemento **confirmado** — casado, revisado e com um estado que vale neste
+ * capítulo — e não descartado. É o estado dele que o retrato usa.
+ */
+fun podeTerRetrato(elemento: ElementoSugerido): Boolean =
+    !elemento.descartada && situacaoDoElemento(elemento) == SituacaoDoElemento.CONFIRMADA && elemento.estado_vigente != null
+
+/** O rótulo do retrato nos avisos e nos prompts (N6): "Retrato de Jon". */
+fun rotuloDoRetrato(elemento: ElementoSugerido): String = "Retrato de ${elemento.elemento_casado?.nome ?: elemento.nome}"
+
+/**
+ * Qual frame é o retrato de cada sugestão de elemento neste capítulo (N4): o `frame_id` do **artefato** do elemento. Só
+ * entram os artefatos de elemento que já têm retrato.
+ */
+fun retratosPorSugestao(artefatos: List<Artefato>): Map<Int, Int> =
+    artefatos
+        .filter { it.tipo == "ELEMENTO" && it.sugestao_id != null && it.frame_id != null }
+        .associate { it.sugestao_id!! to it.frame_id!! }

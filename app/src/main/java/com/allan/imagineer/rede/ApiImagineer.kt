@@ -201,6 +201,16 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): PromptDeFrame
 
+    /**
+     * `POST /capitulos/{id}/frames` **do tipo PERSONAGEM** (o "retrato" de um elemento, item 6.4): um frame solo, com
+     * **um** estado em `estados_ids`. Não gasta IA.
+     */
+    @POST("capitulos/{id}/frames")
+    suspend fun criarRetrato(
+        @Path("id") capituloId: Int,
+        @Body corpo: JsonObject,
+    ): FrameCriado
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo
