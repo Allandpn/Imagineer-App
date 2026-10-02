@@ -508,6 +508,12 @@ const val DURACAO_DO_AVISO_DE_PROMPT_EM_MS = 2500L
 /** O texto da barra de progresso enquanto o servidor gera a imagem (K2). */
 const val AVISO_GERANDO_IMAGEM = "Gerando a imagem… pode levar mais de um minuto."
 
+/** O aviso depois de salvar a imagem na galeria (U2). */
+const val AVISO_SALVA_NA_GALERIA = "Salva na galeria."
+
+/** O aviso quando o Android não deixou salvar a imagem na galeria (U2). */
+const val AVISO_NAO_SALVOU_NA_GALERIA = "Não consegui salvar na galeria."
+
 /** O aviso quando a imagem saiu do prompt como estava (K3). */
 const val AVISO_IMAGEM_GERADA = "Imagem gerada."
 

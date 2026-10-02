@@ -177,4 +177,55 @@ class ImportarImagemPelaRedeTest {
 
         assertEquals(listOf("GERADA", "IMPORTADA"), imagens.map { it.origem })
     }
+
+    @Test
+    fun `U4 baixar a imagem grava o arquivo inteiro e devolve o tipo que o servidor informou`() = runTest {
+        val bytes = ByteArray(50_000) { (it % 251).toByte() }
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "image/webp").setBody(okio.Buffer().write(bytes)))
+        val destino = java.io.File.createTempFile("imagem", ".baixando")
+
+        val resultado = repositorio().baixarImagem(21, destino)
+
+        assertEquals("image/webp", (resultado as ResultadoDaChamada.Sucesso).dado)
+        assertTrue(bytes.contentEquals(destino.readBytes()))
+        assertEquals("/imagens/21/arquivo?tamanho=original", servidor.takeRequest().path)
+        destino.delete()
+    }
+
+    @Test
+    fun `U4 baixar imagem que nao existe e falha, e nao deixa arquivo`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(404).setHeader("Content-Type", "application/json").setBody("""{"detail":"Imagem 21 não encontrada."}"""))
+        val destino = java.io.File.createTempFile("imagem", ".baixando").also { it.delete() }
+
+        val falha = repositorio().baixarImagem(21, destino) as ResultadoDaChamada.Falha
+
+        assertEquals(404, falha.codigoHttp)
+        assertTrue(!destino.exists())
+    }
+
+    @Test
+    fun `U3 remover manda DELETE e aceita 204`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(204))
+
+        val resultado = repositorio().removerImagem(21)
+
+        assertTrue(resultado is ResultadoDaChamada.Sucesso)
+        val pedido = servidor.takeRequest()
+        assertEquals("DELETE", pedido.method)
+        assertEquals("/imagens/21", pedido.path)
+    }
+
+    @Test
+    fun `U3 imagem que ja nao existe conta como apagada`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(404).setHeader("Content-Type", "application/json").setBody("""{"detail":"Imagem 21 não encontrada."}"""))
+
+        assertTrue(repositorio().removerImagem(21) is ResultadoDaChamada.Sucesso)
+    }
+
+    @Test
+    fun `U3 outro erro do servidor e falha`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(500))
+
+        assertTrue(repositorio().removerImagem(21) is ResultadoDaChamada.Falha)
+    }
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Os arquivos que o FileProvider pode entregar a outros apps ao compartilhar (item 7.5b, U1): só a pasta de imagens do cache. -->
+<paths>
+    <cache-path name="imagens" path="imagens/" />
+</paths>

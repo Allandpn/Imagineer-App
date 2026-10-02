@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +47,10 @@ import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.PromptDeFrame
+import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.extensaoDoTipo
+import kotlinx.coroutines.launch
+import android.widget.Toast
 import com.allan.imagineer.rede.enderecoDaImagem
 
 /** O endereço do servidor configurado, para montar as URLs das imagens (J7). `null` enquanto não se sabe. */
@@ -59,7 +66,7 @@ private fun urlDoServidorEmUso(): String? {
  * miniaturas, da mais nova para a mais antiga. As importadas **não** aparecem aqui: ficam na seção própria, no fim.
  */
 @Composable
-internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
+internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     if (prompt.id in estado.gerandoImagem) {
         // K2: o servidor não informa o andamento, então a barra é indeterminada.
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -68,7 +75,7 @@ internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
         }
     }
     estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) }
-    Miniaturas(prompt.imagens.filter { it.origem == "GERADA" }, "Imagem gerada")
+    Miniaturas(prompt.frame_id, prompt.imagens.filter { it.origem == "GERADA" }, "Imagem gerada", acoes)
 }
 
 /**
@@ -98,7 +105,7 @@ internal fun SecaoDeImagensImportadas(frameId: Int, lista: List<PromptDeFrame>, 
     if (importadas.isEmpty() && !importando) {
         Text("Nenhuma imagem importada.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    Miniaturas(importadas, "Imagem importada")
+    Miniaturas(frameId, importadas, "Imagem importada", acoes)
     // J2: um botão só por frame; a imagem vai para o prompt mais recente.
     OutlinedButton(
         onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) },
@@ -117,12 +124,15 @@ private fun RecadoDeImagem(mensagem: MensagemDoElemento) {
     )
 }
 
-/** As miniaturas de [imagens] (J4): tocar numa abre a imagem em tela cheia, no tamanho normal. */
+/**
+ * As miniaturas de [imagens] (J4): tocar numa abre a imagem em tela cheia, no tamanho normal. A tela cheia só existe
+ * enquanto a imagem está na lista: ao **excluir** (U3), ela some da lista e a tela cheia fecha sozinha.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Miniaturas(imagens: List<ImagemDoPrompt>, descricao: String) {
+private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: String, acoes: AcoesDoPainel) {
     val urlBase = urlDoServidorEmUso()
-    var aberta by remember { mutableStateOf<ImagemDoPrompt?>(null) }
+    var abertaId by remember { mutableStateOf<Int?>(null) }
     if (urlBase != null && imagens.isNotEmpty()) {
         // Do mais novo para o mais antigo (J4).
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -135,24 +145,55 @@ private fun Miniaturas(imagens: List<ImagemDoPrompt>, descricao: String) {
                         .size(96.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black)
-                        .clickable { aberta = imagem },
+                        .clickable { abertaId = imagem.id },
                 )
             }
         }
     }
-    aberta?.let { imagem ->
-        if (urlBase != null) ImagemEmTelaCheia(enderecoDaImagem(urlBase, imagem.id, "original")) { aberta = null }
+    imagens.firstOrNull { it.id == abertaId }?.let { imagem ->
+        if (urlBase != null) {
+            ImagemEmTelaCheia(
+                imagem = imagem,
+                url = enderecoDaImagem(urlBase, imagem.id, "original"),
+                aoExcluir = { acoes.aoPedirExcluirImagem(frameId, imagem.prompt_id, imagem.id, imagem.origem) },
+                aoFechar = { abertaId = null },
+            )
+        }
     }
 }
 
 /**
- * A imagem em **tela cheia**, no tamanho normal (J4), sobre fundo preto, com **zoom por pinça** e arrastar. O botão de
- * fechar e o botão de voltar do Android fecham.
+ * A imagem em **tela cheia**, no tamanho normal (J4), sobre fundo preto, com **zoom por pinça** e arrastar. Embaixo, as
+ * ações (U): **Compartilhar**, **Salvar na galeria** e **Excluir**. O botão de fechar e o de voltar do Android fecham.
  */
 @Composable
-private fun ImagemEmTelaCheia(url: String, aoFechar: () -> Unit) {
+private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: () -> Unit, aoFechar: () -> Unit) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
+    val contexto = LocalContext.current
+    val aplicacao = contexto.applicationContext as ImagineerApp
+    val escopo = rememberCoroutineScope()
+    var baixando by remember { mutableStateOf(false) }
+
+    /** Baixa o original para o cache (U4) e entrega o arquivo já com a extensão certa à [acao]; erro vira um aviso. */
+    fun baixarE(acao: (arquivo: java.io.File, tipo: String) -> Unit) {
+        if (baixando) return
+        baixando = true
+        escopo.launch {
+            val temporario = java.io.File(contexto.cacheDir, "imagens/imagem_${imagem.id}.baixando")
+            when (val resultado = aplicacao.repositorioDePrompts.baixarImagem(imagem.id, temporario)) {
+                is ResultadoDaChamada.Falha -> Toast.makeText(contexto, resultado.motivo, Toast.LENGTH_LONG).show()
+                is ResultadoDaChamada.Sucesso -> {
+                    val arquivo = java.io.File(temporario.parentFile, "imagem_${imagem.id}.${extensaoDoTipo(resultado.dado)}")
+                    arquivo.delete()
+                    temporario.renameTo(arquivo)
+                    acao(arquivo, resultado.dado)
+                }
+            }
+            baixando = false
+        }
+    }
+
     Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             AsyncImage(
@@ -178,6 +219,26 @@ private fun ImagemEmTelaCheia(url: String, aoFechar: () -> Unit) {
             IconButton(onClick = aoFechar, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
             }
+            Row(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { baixarE { arquivo, tipo -> compartilharImagem(contexto, arquivo, tipo) } }, enabled = !baixando) {
+                    Text("Compartilhar", color = Color.White)
+                }
+                TextButton(
+                    onClick = {
+                        baixarE { arquivo, tipo ->
+                            val salvou = salvarNaGaleria(contexto, arquivo, tipo)
+                            Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = !baixando,
+                ) { Text("Salvar na galeria", color = Color.White) }
+                TextButton(onClick = aoExcluir) { Text("Excluir", color = Color(0xFFFF8A80)) }
+            }
+            if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
     }
 }

@@ -53,6 +53,17 @@ internal class PromptsFalso : RepositorioDePrompts {
     var resultadoDaImportacao: ResultadoDaChamada<ImagemDoPrompt> = ResultadoDaChamada.Sucesso(ImagemDoPrompt(id = 500, prompt_id = 1))
     var travaDaImportacao: CompletableDeferred<Unit>? = null
 
+    val imagensRemovidas = mutableListOf<Int>()
+    var resultadoDaRemocao: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun removerImagem(imagemId: Int): ResultadoDaChamada<Unit> {
+        imagensRemovidas += imagemId
+        return resultadoDaRemocao
+    }
+
+    override suspend fun baixarImagem(imagemId: Int, destino: java.io.File): ResultadoDaChamada<String> =
+        ResultadoDaChamada.Falha("não usado nestes testes")
+
     val geracoesDeImagem = mutableListOf<Pair<Int, String?>>() // prompt e texto editado de cada geração de imagem
     var resultadoDaGeracaoDeImagem: ResultadoDaChamada<ResultadoDaGeracao> =
         ResultadoDaChamada.Sucesso(ResultadoDaGeracao("GERADA", false, PromptDeFrame(id = 1, frame_id = 70, texto = "p1"), ImagemDoPrompt(id = 700)))

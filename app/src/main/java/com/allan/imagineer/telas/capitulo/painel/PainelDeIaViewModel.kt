@@ -165,6 +165,8 @@ data class EstadoDoPainel(
     val alvoDaImportacao: AlvoDaImportacao? = null,
     /** O recado de cada prompt sobre a **importação**: a recusa, a falha ou "Imagem importada." (J2, J3). Separado do da geração (K3). */
     val mensagensDeImportacao: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** O diálogo "Excluir esta imagem?" está aberto para esta imagem (U3); `null` = sem diálogo. */
+    val excluindoImagem: ImagemParaExcluir? = null,
     /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
     val edicaoDePrompt: EdicaoDePrompt? = null,
     /** Prompts com uma imagem sendo **gerada** pelo servidor (K2): um pedido por prompt. */
@@ -208,6 +210,9 @@ const val ERRO_NOME_VAZIO = "Dê um nome ao elemento."
  * deu e o frame a que pertence (para a lista ser relida depois da nova tentativa).
  */
 data class AlvoDaImportacao(val frameId: Int, val promptId: Int)
+
+/** A imagem que a pessoa quer excluir (U3): o frame e o prompt a que pertence, o id e a origem (para o recado ir ao lugar certo). */
+data class ImagemParaExcluir(val frameId: Int, val promptId: Int, val imagemId: Int, val origem: String)
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
 data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
@@ -560,6 +565,61 @@ class PainelDeIaViewModel(
             // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
             if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
         }
+    }
+
+    /** **Excluir** na tela cheia da imagem (U3): pede confirmação, porque apaga para sempre. */
+    fun pedirExcluirImagem(frameId: Int, promptId: Int, imagemId: Int, origem: String) {
+        _estado.update { it.copy(excluindoImagem = ImagemParaExcluir(frameId, promptId, imagemId, origem)) }
+    }
+
+    fun cancelarExclusaoDeImagem() {
+        _estado.update { it.copy(excluindoImagem = null) }
+    }
+
+    /**
+     * Confirmou: apaga no servidor. Se deu certo, a imagem **some da lista** (e a tela cheia, que só abre para imagens da
+     * lista, fecha), os artefatos são relidos (o ícone pode deixar de ser `ILUSTRADO`) e um recado diz o que houve. Se
+     * falhou, a mensagem do servidor aparece e nada some.
+     */
+    fun confirmarExclusaoDeImagem() {
+        val alvo = _estado.value.excluindoImagem ?: return
+        _estado.update { it.copy(excluindoImagem = null) }
+        viewModelScope.launch {
+            val resultado = prompts.removerImagem(alvo.imagemId)
+            _estado.update { atual ->
+                val recado = when (resultado) {
+                    is ResultadoDaChamada.Sucesso -> MensagemDoElemento("Imagem excluída.", ehErro = false)
+                    is ResultadoDaChamada.Falha -> MensagemDoElemento(resultado.motivo, ehErro = true)
+                }
+                val comRecado = if (alvo.origem == "GERADA") {
+                    atual.copy(mensagensDeImagem = atual.mensagensDeImagem + (alvo.promptId to recado))
+                } else {
+                    atual.copy(mensagensDeImportacao = atual.mensagensDeImportacao + (alvo.promptId to recado))
+                }
+                if (resultado is ResultadoDaChamada.Sucesso) {
+                    comRecado.copy(
+                        prompts = comRecado.prompts + (alvo.frameId to semAImagem(comRecado.prompts[alvo.frameId], alvo.imagemId)),
+                        versaoDosFrames = comRecado.versaoDosFrames + 1,
+                    )
+                } else {
+                    comRecado
+                }
+            }
+        }
+    }
+
+    /** A lista de prompts do frame sem a imagem apagada, com a contagem de cada prompt em dia. */
+    private fun semAImagem(atual: PromptsDoFrame?, imagemId: Int): PromptsDoFrame {
+        val lista = (atual as? PromptsDoFrame.Pronto)?.lista ?: return atual ?: PromptsDoFrame.Lendo
+        return PromptsDoFrame.Pronto(
+            lista.map { prompt ->
+                if (prompt.imagens.none { it.id == imagemId }) {
+                    prompt
+                } else {
+                    prompt.copy(imagens = prompt.imagens.filter { it.id != imagemId }, total_de_imagens = (prompt.total_de_imagens - 1).coerceAtLeast(0))
+                }
+            },
+        )
     }
 
     /** **Editar** num prompt (R1): abre o diálogo com o texto dele. */

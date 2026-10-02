@@ -2,12 +2,16 @@ package com.allan.imagineer.rede
 
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.dados.LeitorDeArquivos
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import java.io.File
+import java.io.IOException
 
 // Os nomes dos campos são os do JSON do backend (item 6.6).
 
@@ -90,6 +94,15 @@ interface RepositorioDePrompts {
      */
     suspend fun gerarImagem(promptId: Int, textoEditado: String? = null): ResultadoDaChamada<ResultadoDaGeracao>
 
+    /**
+     * `GET /imagens/{id}/arquivo`: baixa a imagem **original** para [destino] (U1, U2) e devolve o tipo MIME que o servidor
+     * informou (`image/webp`...). Grava aos poucos, sem pôr o arquivo inteiro na memória.
+     */
+    suspend fun baixarImagem(imagemId: Int, destino: File): ResultadoDaChamada<String>
+
+    /** `DELETE /imagens/{id}`: apaga a imagem para sempre, inclusive o arquivo no servidor (U3). Imagem que já não existe conta como apagada. */
+    suspend fun removerImagem(imagemId: Int): ResultadoDaChamada<Unit>
+
     /** `GET /prompts/{id}`: o prompt **com as suas imagens** (J5). Nunca gasta IA. */
     suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame>
 
@@ -125,6 +138,30 @@ class RepositorioDePromptsPeloRetrofit(
     override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.prompt(promptId) }
+    }
+
+    override suspend fun baixarImagem(imagemId: Int, destino: File): ResultadoDaChamada<String> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return when (val resposta = chamarApi { api.baixarImagem(imagemId) }) {
+            is ResultadoDaChamada.Falha -> resposta
+            is ResultadoDaChamada.Sucesso -> resposta.dado.use { corpo ->
+                try {
+                    withContext(Dispatchers.IO) {
+                        destino.parentFile?.mkdirs()
+                        corpo.byteStream().use { entrada -> destino.outputStream().use { saida -> entrada.copyTo(saida) } }
+                    }
+                    ResultadoDaChamada.Sucesso(corpo.contentType()?.let { "${it.type}/${it.subtype}" } ?: "image/png")
+                } catch (erro: IOException) {
+                    destino.delete() // um arquivo pela metade não serve para compartilhar nem salvar
+                    ResultadoDaChamada.Falha("Não consegui baixar a imagem.")
+                }
+            }
+        }
+    }
+
+    override suspend fun removerImagem(imagemId: Int): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return interpretarRemocao(chamarApi { api.removerImagem(imagemId) })
     }
 
     override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> {
@@ -164,6 +201,12 @@ object PromptsSemServidor : RepositorioDePrompts {
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> =
+        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+
+    override suspend fun baixarImagem(imagemId: Int, destino: File): ResultadoDaChamada<String> =
+        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+
+    override suspend fun removerImagem(imagemId: Int): ResultadoDaChamada<Unit> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun importarImagem(
@@ -225,6 +268,14 @@ fun motivoParaNaoImportar(arquivo: ArquivoEscolhido): String? = when {
     extensaoDaImagem(arquivo) == null -> "Escolha uma imagem PNG, JPG, WEBP ou GIF."
     (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES -> "A imagem passa de 25 MB, o limite do servidor."
     else -> null
+}
+
+/** A extensão do arquivo para um tipo MIME de imagem (U1, U2); `png` se não reconhece. */
+fun extensaoDoTipo(tipo: String): String = when (tipo.lowercase()) {
+    "image/jpeg", "image/jpg" -> "jpg"
+    "image/webp" -> "webp"
+    "image/gif" -> "gif"
+    else -> "png"
 }
 
 /** O endereço de uma imagem no servidor (item 6.9): `miniatura`, `leitura` ou `original` (J4, J7). */

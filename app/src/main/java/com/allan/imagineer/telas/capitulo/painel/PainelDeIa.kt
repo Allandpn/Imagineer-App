@@ -124,6 +124,10 @@ class AcoesDoPainel(
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
     val aoFecharEdicaoDePrompt: () -> Unit,
+    // Excluir a imagem (U3).
+    val aoPedirExcluirImagem: (frameId: Int, promptId: Int, imagemId: Int, origem: String) -> Unit,
+    val aoConfirmarExclusaoDeImagem: () -> Unit,
+    val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
 )
 
@@ -166,6 +170,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, acoes) }
+    estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -1005,7 +1010,7 @@ private fun CartaoDePrompt(
                 // R1: editar o texto antes de gerar; T4: a importação é única, no fim da lista (não por prompt).
                 OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
             }
-            ImagensDoPrompt(prompt, estado)
+            ImagensDoPrompt(prompt, estado, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
         }
     }
@@ -1031,6 +1036,18 @@ private fun EtiquetasDoPrompt(prompt: PromptDeFrame) {
     prompt.motivo_da_recusa?.takeIf { prompt.situacao_da_geracao == "RECUSADO" }?.let {
         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
     }
+}
+
+/** U3: excluir apaga a imagem **para sempre** (inclusive o arquivo no servidor), então pede confirmação. */
+@Composable
+private fun DialogoExcluirImagem(acoes: AcoesDoPainel) {
+    AlertDialog(
+        onDismissRequest = acoes.aoCancelarExclusaoDeImagem,
+        title = { Text("Excluir esta imagem?") },
+        text = { Text("A imagem será apagada para sempre, inclusive do servidor. O prompt continua.") },
+        confirmButton = { TextButton(onClick = acoes.aoConfirmarExclusaoDeImagem) { Text("Excluir") } },
+        dismissButton = { TextButton(onClick = acoes.aoCancelarExclusaoDeImagem) { Text("Cancelar") } },
+    )
 }
 
 /**

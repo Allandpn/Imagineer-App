@@ -11,6 +11,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.Header
 import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -20,6 +21,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Streaming
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
@@ -213,6 +215,15 @@ interface ApiImagineer {
         @Path("id") promptId: Int,
         @Body corpo: JsonObject,
     ): ResultadoDaGeracao
+
+    /** `GET /imagens/{id}/arquivo` — os bytes da imagem no tamanho pedido (item 6.9). `@Streaming`: o original pode ter vários MB. */
+    @Streaming
+    @GET("imagens/{id}/arquivo")
+    suspend fun baixarImagem(@Path("id") imagemId: Int, @Query("tamanho") tamanho: String = "original"): ResponseBody
+
+    /** `DELETE /imagens/{id}` — remove a imagem do catálogo e o arquivo do disco (204; item 6.6). */
+    @DELETE("imagens/{id}")
+    suspend fun removerImagem(@Path("id") imagemId: Int)
 
     /** `GET /prompts/{id}` — o prompt com as imagens que saíram dele (item 6.6). Só leitura. */
     @GET("prompts/{id}")
