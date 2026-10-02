@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -57,6 +58,10 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -505,7 +510,45 @@ private fun LeitorDeTexto(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    // A largura do texto (I2, I3): a coluna de leitura tem no máximo 600 dp, menos o respiro dos lados.
+    val medidor = rememberTextMeasurer()
+    val densidade = LocalDensity.current
+    val estiloDoParagrafo = MaterialTheme.typography.bodyLarge.let {
+        // Espaçamento de linha ampliado: leitura longa cansa menos.
+        it.copy(lineHeight = it.fontSize * 1.6)
+    }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        val larguraDoTexto = minOf(maxWidth, LARGURA_MAXIMA_DA_LEITURA) - 32.dp
+        val larguraDoQuadro = larguraDoTexto / 2 // I2 (revisto): metade da área de leitura
+        val larguraEstreita = larguraDoTexto - larguraDoQuadro - ESPACO_AO_LADO_DO_QUADRO
+        val artefatosDo: (Int) -> List<Artefato> = { distribuidos.porParagrafo[it].orEmpty() }
+        // I10: o app mede o texto na largura estreita para saber até onde ele cabe ao lado do retrato.
+        val blocos = remember(trechos, distribuidos, urlBase, larguraDoTexto, densidade, estiloDoParagrafo) {
+            val alturaDoRetrato = with(densidade) { (larguraDoQuadro * 3 / 2).toPx() }
+            val espaco = with(densidade) { 12.dp.toPx() }
+            val larguraEstreitaPx = with(densidade) { larguraEstreita.roundToPx() }
+            montarBlocos(
+                quantidade = trechos.size,
+                // Sem o endereço do servidor não há imagem para desenhar: todo parágrafo é comum.
+                artefatosDo = { if (urlBase == null) emptyList() else artefatosDo(it) },
+                alturaDoRetrato = alturaDoRetrato,
+                espaco = espaco,
+                linhas = { indice ->
+                    val montado = textoComIcones(trechos[indice].texto, artefatosDo(indice).size)
+                    val medido = medidor.measure(
+                        text = montado.anotado,
+                        style = estiloDoParagrafo,
+                        placeholders = montado.marcadores,
+                        constraints = Constraints(maxWidth = larguraEstreitaPx),
+                    )
+                    List(medido.lineCount) {
+                        // O corte é no texto do parágrafo, sem os caracteres dos ícones do começo.
+                        LinhaMedida(medido.getLineBottom(it), (medido.getLineEnd(it) - montado.prefixo).coerceAtLeast(0))
+                    }
+                },
+            )
+        }
+
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
         // (cada um é um item da lista), mas dentro de um funciona.
         SelectionContainer(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().nestedScroll(ouvinte)) {
@@ -540,40 +583,17 @@ private fun LeitorDeTexto(
                     }
                 }
 
-                itemsIndexed(trechos) { indice, trecho ->
-                    val doParagrafo = distribuidos.porParagrafo[indice].orEmpty()
-                    val comImagem = if (urlBase != null) imagensDoParagrafo(doParagrafo) else emptyList()
-                    val (retratos, paisagens) = comImagem.partition { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        // I3: a paisagem ocupa a largura da área de leitura, ANTES do parágrafo; o texto segue embaixo.
-                        if (urlBase != null) paisagens.forEach { imagem ->
-                            QuadroDaImagemNoTexto(imagem, urlBase, Modifier.fillMaxWidth()) { ampliada = imagem }
-                        }
-                        Row(verticalAlignment = Alignment.Top) {
-                            // A calha dos ícones tem sempre a mesma largura, para o texto não dançar de um
-                            // parágrafo para o outro; os ícones do parágrafo ficam empilhados nela.
-                            Column(modifier = Modifier.width(32.dp)) {
-                                doParagrafo.forEach { IconeDoArtefato(it, aoTocarArtefato) }
-                            }
-                            Text(
-                                text = trecho.texto,
-                                modifier = Modifier.weight(3f),
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    // Espaçamento de linha ampliado: leitura longa cansa menos.
-                                    lineHeight = MaterialTheme.typography.bodyLarge.fontSize * 1.6,
-                                ),
-                            )
-                            // I2: com um retrato, a região vira duas colunas: o texto à esquerda e o quadro 2:3 à direita
-                            // (40% da largura que sobra ao lado dos ícones); depois dele, o texto volta a uma coluna só.
-                            if (retratos.isNotEmpty() && urlBase != null) {
-                                Column(modifier = Modifier.weight(2f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    retratos.forEach { imagem ->
-                                        QuadroDaImagemNoTexto(imagem, urlBase, Modifier.fillMaxWidth()) { ampliada = imagem }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                items(blocos) { bloco ->
+                    BlocoDoTextoNaTela(
+                        bloco = bloco,
+                        textoDe = { trechos[it].texto },
+                        artefatosDo = artefatosDo,
+                        urlBase = urlBase,
+                        larguraDoQuadro = larguraDoQuadro,
+                        estilo = estiloDoParagrafo,
+                        aoTocarArtefato = aoTocarArtefato,
+                        aoAmpliar = { ampliada = it },
+                    )
                 }
             }
         }
@@ -592,6 +612,9 @@ private fun LeitorDeTexto(
         }
     }
 }
+
+/** A coluna de leitura nunca passa de 600 dp, mesmo num tablet largo. */
+private val LARGURA_MAXIMA_DA_LEITURA = 600.dp
 
 @Composable
 private fun CabecalhoDoCapitulo(capitulo: CapituloDetalhe) {

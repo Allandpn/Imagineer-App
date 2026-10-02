@@ -57,6 +57,9 @@ fun iconeDoArtefato(artefato: Artefato): ImageVector {
 
 /** A cor da situação: do apagado (sugerido) ao destaque (ilustrado), para ver onde se parou. */
 @Composable
+internal fun corDoArtefatoNaLinha(artefato: Artefato): Color = corDoArtefato(artefato)
+
+@Composable
 private fun corDoArtefato(artefato: Artefato): Color = when (artefato.situacao) {
     "SUGERIDO" -> MaterialTheme.colorScheme.onSurfaceVariant
     "PROMPT_PRONTO" -> MaterialTheme.colorScheme.tertiary
