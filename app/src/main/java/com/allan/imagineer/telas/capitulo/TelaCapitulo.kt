@@ -57,6 +57,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -232,6 +235,13 @@ private fun LeitorPaginado(
         ?.let { tituloDoCapitulo(it.titulo, it.ordem) }
         ?: "Capítulo"
 
+    // J2: o seletor de imagens mora **aqui**, e não no botão dentro do modal: o modal some enquanto o seletor do Android
+    // está aberto, e com ele o resultado da escolha. O alvo (frame e prompt) fica no ViewModel do painel.
+    val aplicacaoDoSeletor = LocalContext.current.applicationContext as ImagineerApp
+    val seletorDeImagem = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        painel.imagemEscolhida(uri?.let { aplicacaoDoSeletor.leitorDeArquivos.descrever(it.toString()) }, cancelou = uri == null)
+    }
+
     val acoesDoPainel = AcoesDoPainel(
         aoAnalisar = painel::analisar,
         aoPedirReanalise = painel::pedirReanalise,
@@ -252,6 +262,10 @@ private fun LeitorPaginado(
         aoPedirGerarPrompt = { frameId, rotulo -> painel.pedirGerarPrompt(frameId, rotulo) },
         aoCriarRetrato = painel::criarRetrato,
         aoImportarImagem = painel::importarImagem,
+        aoEscolherImagem = { frameId, promptId ->
+            painel.escolherImagemPara(frameId, promptId)
+            seletorDeImagem.launch("image/*")
+        },
         aoGerarImagem = painel::gerarImagem,
         aoFecharRecusaDeImagem = painel::fecharRecusaDeImagem,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,

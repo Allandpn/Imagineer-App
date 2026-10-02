@@ -140,9 +140,10 @@ class RepositorioDePromptsPeloRetrofit(
         val api = provedor.obter() ?: return provedor.semServidor()
         // Abre antes do pedido: permissão perdida ou arquivo movido não pode virar "falha de rede".
         val entrada = leitor.abrir(arquivo.uri) ?: return ResultadoDaChamada.Falha("Não consegui abrir o arquivo escolhido.")
-        val corpo = CorpoComProgresso(entrada, tipoDaImagem(arquivo.nome).toMediaType(), arquivo.tamanho, aoProgredir)
+        val nome = nomeParaEnviar(arquivo)
+        val corpo = CorpoComProgresso(entrada, tipoDaImagem(nome).toMediaType(), arquivo.tamanho, aoProgredir)
         return try {
-            chamarApi { api.importarImagem(promptId, MultipartBody.Part.createFormData("arquivo", arquivo.nome, corpo)) }
+            chamarApi { api.importarImagem(promptId, MultipartBody.Part.createFormData("arquivo", nome, corpo)) }
         } finally {
             entrada.close()
         }
@@ -185,18 +186,42 @@ private val TIPOS_DE_IMAGEM = mapOf(
     "gif" to "image/gif",
 )
 
+/** A extensão que o servidor aceita para cada tipo MIME (usada quando o nome do arquivo não tem extensão). */
+private val EXTENSOES_POR_TIPO = mapOf(
+    "image/png" to "png",
+    "image/jpeg" to "jpg",
+    "image/jpg" to "jpg",
+    "image/webp" to "webp",
+    "image/gif" to "gif",
+)
+
 /** O tipo do arquivo pela extensão; o servidor também decide pela extensão, então é ela que importa (J2). */
 fun tipoDaImagem(nome: String): String = TIPOS_DE_IMAGEM[nome.substringAfterLast('.', "").lowercase()] ?: "application/octet-stream"
+
+/**
+ * A extensão do arquivo escolhido, ou `null` se não dá para saber (J2): a do **nome**, se o servidor a aceita; senão a do
+ * **tipo MIME** que o seletor informou (um nome como `image-3f2a` sem extensão não é motivo para recusar uma foto).
+ */
+fun extensaoDaImagem(arquivo: ArquivoEscolhido): String? {
+    val doNome = arquivo.nome.substringAfterLast('.', "").lowercase()
+    if (doNome in TIPOS_DE_IMAGEM) return doNome
+    return arquivo.tipo?.lowercase()?.let { EXTENSOES_POR_TIPO[it] }
+}
+
+/** O nome que vai ao servidor: o original se já tem extensão aceita; senão o nome com a extensão achada pelo tipo (J2). */
+fun nomeParaEnviar(arquivo: ArquivoEscolhido): String {
+    val extensao = extensaoDaImagem(arquivo) ?: return arquivo.nome
+    val temExtensaoAceita = arquivo.nome.substringAfterLast('.', "").lowercase() in TIPOS_DE_IMAGEM
+    return if (temExtensaoAceita) arquivo.nome else "${arquivo.nome}.$extensao"
+}
 
 /**
  * Confere, **antes de enviar**, o que o servidor recusaria (J2): a extensão e o tamanho. Devolve o motivo, ou `null` se
  * pode enviar. Evita subir 30 MB para ouvir "não" no fim.
  */
 fun motivoParaNaoImportar(arquivo: ArquivoEscolhido): String? = when {
-    arquivo.nome.substringAfterLast('.', "").lowercase() !in TIPOS_DE_IMAGEM ->
-        "Escolha uma imagem PNG, JPG, WEBP ou GIF."
-    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES ->
-        "A imagem passa de 25 MB, o limite do servidor."
+    extensaoDaImagem(arquivo) == null -> "Escolha uma imagem PNG, JPG, WEBP ou GIF."
+    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES -> "A imagem passa de 25 MB, o limite do servidor."
     else -> null
 }
 

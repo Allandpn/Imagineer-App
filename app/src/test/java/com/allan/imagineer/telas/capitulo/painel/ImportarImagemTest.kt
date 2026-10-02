@@ -6,6 +6,8 @@ import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.rede.extensaoDaImagem
+import com.allan.imagineer.rede.nomeParaEnviar
 import com.allan.imagineer.rede.motivoParaNaoImportar
 import com.allan.imagineer.rede.tipoDaImagem
 import kotlinx.coroutines.CompletableDeferred
@@ -47,6 +49,28 @@ class RegrasDaImportacaoDeImagemTest {
         assertEquals("A imagem passa de 25 MB, o limite do servidor.", motivoParaNaoImportar(foto(tamanho = 25L * 1024 * 1024 + 1)))
         assertNull(motivoParaNaoImportar(foto(tamanho = 25L * 1024 * 1024)))
         assertNull("tamanho desconhecido: o servidor confere", motivoParaNaoImportar(foto(tamanho = null)))
+    }
+
+    @Test
+    fun `J2 nome sem extensao vale pelo tipo MIME que o seletor informou`() {
+        // Alguns seletores entregam nomes como "image-3f2a": a foto é válida, o nome é que não ajuda.
+        assertNull(motivoParaNaoImportar(ArquivoEscolhido("content://x/1", "image-3f2a", 1000, tipo = "image/jpeg")))
+        assertNull(motivoParaNaoImportar(ArquivoEscolhido("content://x/1", "1000012345", 1000, tipo = "image/PNG")))
+        assertEquals("jpg", extensaoDaImagem(ArquivoEscolhido("content://x/1", "image-3f2a", 1000, tipo = "image/jpeg")))
+    }
+
+    @Test
+    fun `J2 sem extensao e sem tipo de imagem continua recusando`() {
+        assertEquals("Escolha uma imagem PNG, JPG, WEBP ou GIF.", motivoParaNaoImportar(ArquivoEscolhido("content://x/1", "arquivo", 1000, tipo = null)))
+        assertEquals("Escolha uma imagem PNG, JPG, WEBP ou GIF.", motivoParaNaoImportar(ArquivoEscolhido("content://x/1", "doc", 1000, tipo = "application/pdf")))
+        assertEquals("Escolha uma imagem PNG, JPG, WEBP ou GIF.", motivoParaNaoImportar(ArquivoEscolhido("content://x/1", "foto.heic", 1000, tipo = "image/heic")))
+    }
+
+    @Test
+    fun `J2 o nome enviado ganha a extensao do tipo quando o original nao tem`() {
+        assertEquals("image-3f2a.jpg", nomeParaEnviar(ArquivoEscolhido("content://x/1", "image-3f2a", 1000, tipo = "image/jpeg")))
+        assertEquals("retrato.png", nomeParaEnviar(ArquivoEscolhido("content://x/1", "retrato.png", 1000, tipo = "image/png")))
+        assertEquals("foto.JPG", nomeParaEnviar(ArquivoEscolhido("content://x/1", "foto.JPG", 1000)))
     }
 
     @Test
@@ -198,5 +222,44 @@ class ImportarImagemNoPainelTest {
         val lista = (vm.estado.value.prompts.getValue(70) as PromptsDoFrame.Pronto).lista
         assertEquals(listOf(2), lista.map { it.id })
         assertTrue(lista.single().imagens.isEmpty())
+    }
+
+    @Test
+    fun `J2 o seletor devolve o arquivo ao prompt que pediu, mesmo com o modal ja fechado`() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+
+        vm.escolherImagemPara(70, 3)
+        assertEquals(AlvoDaImportacao(70, 3), vm.estado.value.alvoDaImportacao)
+        vm.imagemEscolhida(foto(), cancelou = false)
+        advanceUntilIdle()
+
+        assertEquals(3, prompts.importacoes.single().first)
+        assertNull(vm.estado.value.alvoDaImportacao) // o alvo vale para uma escolha só
+    }
+
+    @Test
+    fun `J2 cancelar o seletor nao importa nada nem mostra erro`() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+        vm.escolherImagemPara(70, 3)
+
+        vm.imagemEscolhida(null, cancelou = true)
+        advanceUntilIdle()
+
+        assertTrue(prompts.importacoes.isEmpty())
+        assertTrue(vm.estado.value.mensagensDeImagem.isEmpty())
+        assertNull(vm.estado.value.alvoDaImportacao)
+    }
+
+    @Test
+    fun `J2 resultado do seletor sem alvo e ignorado`() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+
+        vm.imagemEscolhida(foto(), cancelou = false)
+        advanceUntilIdle()
+
+        assertTrue(prompts.importacoes.isEmpty())
     }
 }

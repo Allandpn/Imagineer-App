@@ -1,8 +1,5 @@
 package com.allan.imagineer.telas.capitulo.painel
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,17 +55,16 @@ private fun urlDoServidorEmUso(): String? {
 }
 
 /**
- * **Importar imagem** (J1 e J2): abre o seletor de arquivos do Android, só de imagens, e entrega o escolhido ao
- * ViewModel, que confere e envia. Fica desabilitado enquanto este prompt já tem um envio em andamento (J3).
+ * **Importar imagem** (J1 e J2): pede à tela do capítulo para abrir o seletor de arquivos do Android, só de imagens. O
+ * seletor **não mora aqui**: este botão fica dentro do modal, e o modal sai da tela enquanto o seletor está aberto, levando
+ * junto o resultado da escolha. Fica desabilitado enquanto este prompt já tem um envio ou uma geração em andamento.
  */
 @Composable
 internal fun BotaoImportarImagem(frameId: Int, promptId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
-    val seletor = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        // Cancelar o seletor devolve null: não é erro, é só desistir.
-        if (uri != null) acoes.aoImportarImagem(frameId, promptId, aplicacao.leitorDeArquivos.descrever(uri.toString()))
-    }
-    OutlinedButton(onClick = { seletor.launch("image/*") }, enabled = promptId !in estado.importandoImagem && promptId !in estado.gerandoImagem) {
+    OutlinedButton(
+        onClick = { acoes.aoEscolherImagem(frameId, promptId) },
+        enabled = promptId !in estado.importandoImagem && promptId !in estado.gerandoImagem,
+    ) {
         Text("Importar imagem", maxLines = 1, softWrap = false)
     }
 }

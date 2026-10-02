@@ -120,6 +120,7 @@ class AcoesDoPainel(
     val aoImportarImagem: (frameId: Int, promptId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit,
     // Incremento 12, terceira fatia: gerar a imagem (K1 a K10).
     val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?) -> Unit,
+    val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
 )
 

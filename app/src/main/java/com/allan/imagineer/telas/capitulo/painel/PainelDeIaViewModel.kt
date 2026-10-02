@@ -157,6 +157,12 @@ data class EstadoDoPainel(
     val importandoImagem: Map<Int, Float?> = emptyMap(),
     /** O recado de cada prompt sobre a importação: o motivo da recusa ou da falha, ou "Imagem importada." (J2, J3). */
     val mensagensDeImagem: Map<Int, MensagemDoElemento> = emptyMap(),
+    /**
+     * Para onde vai a imagem que o seletor do Android vai devolver (J2): o frame e o prompt. Fica **aqui**, e não no botão,
+     * porque o seletor tira o app da frente e o modal some enquanto ele está aberto; quando a escolha volta, quem a recebe
+     * é a tela do capítulo, que consulta este alvo.
+     */
+    val alvoDaImportacao: AlvoDaImportacao? = null,
     /** Prompts com uma imagem sendo **gerada** pelo servidor (K2): um pedido por prompt. */
     val gerandoImagem: Set<Int> = emptySet(),
     /** O provedor recusou de novo e a pessoa pode editar o prompt para tentar outra vez (K4); `null` = sem diálogo. */
@@ -197,6 +203,8 @@ const val ERRO_NOME_VAZIO = "Dê um nome ao elemento."
  * O que o diálogo da recusa precisa (K4): o prompt que o servidor enviou por último (agora editável), o motivo que o provedor
  * deu e o frame a que pertence (para a lista ser relida depois da nova tentativa).
  */
+data class AlvoDaImportacao(val frameId: Int, val promptId: Int)
+
 data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String)
 
 class PainelDeIaViewModel(
@@ -408,6 +416,22 @@ class PainelDeIaViewModel(
                 is ResultadoDaChamada.Falha -> prompt
             }
         }
+    }
+
+    /** O botão **Importar imagem** foi tocado: guarda para onde a imagem vai antes de abrir o seletor (J2). */
+    fun escolherImagemPara(frameId: Int, promptId: Int) {
+        _estado.update { it.copy(alvoDaImportacao = AlvoDaImportacao(frameId, promptId)) }
+    }
+
+    /**
+     * O seletor devolveu (ou não) um arquivo. [arquivo] `null` com [cancelou] `true` é só desistir (nada a dizer); `null` sem
+     * cancelar é um arquivo que o app não conseguiu descrever.
+     */
+    fun imagemEscolhida(arquivo: ArquivoEscolhido?, cancelou: Boolean) {
+        val alvo = _estado.value.alvoDaImportacao ?: return
+        _estado.update { it.copy(alvoDaImportacao = null) }
+        if (cancelou) return
+        importarImagem(alvo.frameId, alvo.promptId, arquivo)
     }
 
     /**
