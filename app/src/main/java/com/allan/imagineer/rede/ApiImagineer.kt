@@ -206,10 +206,10 @@ interface ApiImagineer {
     /**
      * `POST /prompts/{id}/gerar-imagem` — **gera** (e cobra, cerca de US$ 0,01) a imagem pelo servidor (item 6.6): envia o
      * prompt; se o provedor recusar o conteúdo, o servidor suaviza e tenta de novo; recusando de novo, devolve `RECUSADA`.
-     * Pode levar mais de um minuto, então usa o mesmo tempo de espera longo da geração de prompt. O corpo leva `texto`
+     * Pode levar vários minutos (um modelo em fila ainda é cobrado se o app desistir antes): espera até 660 s. O corpo leva `texto`
      * só quando a pessoa editou o prompt à mão (chamada direta, sem suavização).
      */
-    @Headers("X-Timeout-Leitura: 180")
+    @Headers("X-Timeout-Leitura: 660")
     @POST("prompts/{id}/gerar-imagem")
     suspend fun gerarImagem(
         @Path("id") promptId: Int,
