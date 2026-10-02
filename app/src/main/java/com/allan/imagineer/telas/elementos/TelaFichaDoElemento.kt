@@ -133,7 +133,7 @@ fun TelaFichaDoElemento(
                             Button(onClick = viewModel::tentarDeNovo) { Text("Tentar de novo") }
                         }
                     }
-                    is CargaDaFicha.Pronta -> ConteudoDaFicha(carga.detalhe, capituloId, viewModel)
+                    is CargaDaFicha.Pronta -> ConteudoDaFicha(carga.detalhe, capituloId, viewModel, estado.galeria, estado.recadoDaGaleria)
                 }
             }
         }
@@ -145,7 +145,13 @@ fun TelaFichaDoElemento(
 }
 
 @Composable
-private fun ConteudoDaFicha(detalhe: DetalheDoElemento, capituloId: Int?, viewModel: FichaDoElementoViewModel) {
+private fun ConteudoDaFicha(
+    detalhe: DetalheDoElemento,
+    capituloId: Int?,
+    viewModel: FichaDoElementoViewModel,
+    galeria: CargaDaGaleria,
+    recadoDaGaleria: String?,
+) {
     val estados = estadosEmOrdem(detalhe)
     val acrescimos = acrescimosDeIdentidade(detalhe)
     LazyColumn(
@@ -162,6 +168,11 @@ private fun ConteudoDaFicha(detalhe: DetalheDoElemento, capituloId: Int?, viewMo
                 )
                 Text(detalhe.nome, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
             }
+        }
+
+        // --- Imagens do elemento (FI5): logo no alto, porque é o que a pessoa quer ver primeiro ---------
+        item {
+            SecaoDeImagensDaFicha(galeria, recadoDaGaleria, viewModel::tentarDeNovoAGaleria, viewModel::definirReferenciaPrincipal)
         }
 
         // --- Quem é: a identidade inicial mais o que cada capítulo acrescentou ---------------
@@ -248,6 +259,9 @@ private fun ConteudoDaFicha(detalhe: DetalheDoElemento, capituloId: Int?, viewMo
                 }
             }
         }
+
+        // --- Cenas em que aparece (FI5) ------------------------------------------------------------
+        item { SecaoDeCenasDaFicha(galeria, viewModel::tentarDeNovoAGaleria) }
     }
 }
 

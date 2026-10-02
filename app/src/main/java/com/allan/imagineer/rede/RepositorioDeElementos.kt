@@ -21,6 +21,48 @@ data class ElementoDoLivro(
     val total_de_estados: Int = 0,
     /** O estado mais recente do elemento no livro, para a linha da lista (E20). */
     val estado_vigente: EstadoDoElemento? = null,
+    /** A imagem que ilustra o elemento na lista (FI4): a âncora ou a mais recente do retrato; nulo sem imagem. */
+    val imagem_de_capa_id: Int? = null,
+)
+
+/** Uma imagem de um retrato do elemento, na ficha dele (FI2). [ancora] = a referência principal. */
+@Serializable
+@Suppress("PropertyName")
+data class ImagemDoElemento(
+    val id: Int,
+    val prompt_id: Int = 0,
+    val frame_id: Int = 0,
+    val capitulo_id: Int = 0,
+    val titulo_do_capitulo: String? = null,
+    val ordem_do_capitulo: Int? = null,
+    val orientacao: String? = null,
+    val modelo: String? = null,
+    val origem: String = "IMPORTADA",
+    val sem_filtro_de_seguranca: Boolean = false,
+    val ancora: Boolean = false,
+)
+
+/** Uma cena em que o elemento participa, na ficha dele (FI3); [imagem_id] nulo = ainda sem imagem. */
+@Serializable
+@Suppress("PropertyName")
+data class CenaDoElemento(
+    val frame_id: Int,
+    val titulo: String,
+    val descricao: String? = null,
+    val capitulo_id: Int = 0,
+    val titulo_do_capitulo: String? = null,
+    val ordem_do_capitulo: Int? = null,
+    val participantes: List<String> = emptyList(),
+    val total_de_imagens: Int = 0,
+    val imagem_id: Int? = null,
+    val imagem_orientacao: String? = null,
+)
+
+/** O que a ficha mostra além dos textos: as imagens do elemento e as cenas em que ele aparece (FI1). */
+@Serializable
+data class GaleriaDoElemento(
+    val imagens: List<ImagemDoElemento> = emptyList(),
+    val cenas: List<CenaDoElemento> = emptyList(),
 )
 
 /** O que o app lê do elemento recém-criado; o resto da resposta é ignorado. */
@@ -92,6 +134,9 @@ interface RepositorioDeElementos {
     /** `GET /elementos/{id}`: a identidade e o histórico, para o usuário conferir (E13, E14). */
     suspend fun detalhar(elementoId: Int): ResultadoDaChamada<DetalheDoElemento>
 
+    /** `GET /elementos/{id}/galeria`: as imagens dos retratos dele e as cenas em que aparece (FI1). Nunca gasta IA. */
+    suspend fun galeria(elementoId: Int): ResultadoDaChamada<GaleriaDoElemento>
+
     /** Cadastra o elemento **e** o estado do capítulo da sugestão, ligando-a (E2). */
     suspend fun criar(
         livroId: Int,
@@ -119,6 +164,7 @@ interface RepositorioDeElementos {
         tipo: String? = null,
         nome: String? = null,
         identidade: String? = null,
+        ancoraPadraoId: Int? = null,
     ): ResultadoDaChamada<Unit>
 
     /** `POST /elementos/{id}/estados`: um estado novo **neste** capítulo (E14). */
@@ -162,6 +208,11 @@ class RepositorioDeElementosPeloRetrofit(
     override suspend fun detalhar(elementoId: Int): ResultadoDaChamada<DetalheDoElemento> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.elemento(elementoId) }
+    }
+
+    override suspend fun galeria(elementoId: Int): ResultadoDaChamada<GaleriaDoElemento> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.galeriaDoElemento(elementoId) }
     }
 
     override suspend fun criar(
@@ -209,12 +260,15 @@ class RepositorioDeElementosPeloRetrofit(
         tipo: String?,
         nome: String?,
         identidade: String?,
+        ancoraPadraoId: Int?,
     ): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         val corpo = buildJsonObject {
             tipo?.let { put("tipo", it) }
             nome?.let { put("nome", it) }
             identidade?.let { put("descricao", it) }
+            // FI6: a referência principal do elemento (item 4.5).
+            ancoraPadraoId?.let { put("imagem_ancora_padrao_id", it) }
         }
         return chamarApi { api.ajustarElemento(elementoId, corpo); Unit }
     }

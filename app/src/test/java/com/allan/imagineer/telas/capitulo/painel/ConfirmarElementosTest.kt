@@ -89,13 +89,31 @@ internal class ElementosFalso : RepositorioDeElementos {
         return resposta
     }
 
+    /** A galeria que a ficha lê (FI1) e quantas vezes foi lida; **não** entra em [chamadas], para os testes antigos não mudarem. */
+    var galeriaDoElemento: ResultadoDaChamada<com.allan.imagineer.rede.GaleriaDoElemento> =
+        ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.GaleriaDoElemento())
+    var leiturasDaGaleria = 0
+
+    /** As âncoras padrão pedidas por `ajustarElemento` (FI6). */
+    val ancorasPedidas = mutableListOf<Int>()
+
+    override suspend fun galeria(elementoId: Int): ResultadoDaChamada<com.allan.imagineer.rede.GaleriaDoElemento> {
+        leiturasDaGaleria++
+        return galeriaDoElemento
+    }
+
     override suspend fun ajustarElemento(
         elementoId: Int,
         tipo: String?,
         nome: String?,
         identidade: String?,
+        ancoraPadraoId: Int?,
     ): ResultadoDaChamada<Unit> {
-        chamadas += "ajustarElemento($elementoId,$tipo,$nome,$identidade)"
+        if (ancoraPadraoId != null) {
+            ancorasPedidas += ancoraPadraoId
+        } else {
+            chamadas += "ajustarElemento($elementoId,$tipo,$nome,$identidade)"
+        }
         return respostaAoAjustarElemento
     }
 

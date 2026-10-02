@@ -264,6 +264,10 @@ interface ApiImagineer {
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo
 
+    /** `GET /elementos/{id}/galeria` — as imagens dos retratos do elemento e as cenas em que ele aparece (FI1). Só leitura. */
+    @GET("elementos/{id}/galeria")
+    suspend fun galeriaDoElemento(@Path("id") elementoId: Int): GaleriaDoElemento
+
     /** `GET /elementos/{id}` — o elemento com os estados e o histórico de identidade (item 3.4f). */
     @GET("elementos/{id}")
     suspend fun elemento(@Path("id") elementoId: Int): DetalheDoElemento

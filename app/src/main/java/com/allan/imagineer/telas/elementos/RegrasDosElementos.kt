@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.elementos
 
+import com.allan.imagineer.rede.ImagemDoElemento
+import com.allan.imagineer.rede.CenaDoElemento
 import com.allan.imagineer.rede.DetalheDoElemento
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.EstadoDoElemento
@@ -66,3 +68,29 @@ fun filtrarCapitulos(capitulos: List<com.allan.imagineer.rede.CapituloResumo>, b
 /** O elemento já tem um estado neste capítulo? Decide se a ficha oferece "Adicionar estado" (E21). */
 fun temEstadoNoCapitulo(detalhe: DetalheDoElemento, capituloId: Int): Boolean =
     detalhe.estados.any { it.capitulo_id == capituloId }
+
+// ---------------------------------------------------------------------------------------------
+// As imagens e as cenas na ficha (FI1 a FI9)
+// ---------------------------------------------------------------------------------------------
+
+/** A legenda de uma imagem da ficha (FI5): o capítulo de onde veio e, se for a principal, o selo. */
+fun legendaDaImagemDoElemento(imagem: ImagemDoElemento): String =
+    rotuloDoCapitulo(imagem.titulo_do_capitulo, imagem.ordem_do_capitulo) + if (imagem.ancora) " · referência principal" else ""
+
+/** "Com Prato, Manto" (FI5), ou `null` quando a cena só tem este elemento. */
+fun linhaDeParticipantes(cena: CenaDoElemento): String? =
+    cena.participantes.takeIf { it.isNotEmpty() }?.let { "Com ${it.joinToString(", ")}" }
+
+/** O que a cena tem de imagem: "ainda sem imagem", "1 imagem" ou "N imagens" (FI3, FI5). */
+fun situacaoDaImagemDaCena(cena: CenaDoElemento): String = when {
+    cena.imagem_id == null -> "ainda sem imagem"
+    cena.total_de_imagens <= 1 -> "1 imagem"
+    else -> "${cena.total_de_imagens} imagens"
+}
+
+/** O capítulo e a situação da imagem de uma cena, numa linha (FI5). */
+fun resumoDaCena(cena: CenaDoElemento): String =
+    rotuloDoCapitulo(cena.titulo_do_capitulo, cena.ordem_do_capitulo) + " · " + situacaoDaImagemDaCena(cena)
+
+/** Esta imagem da ficha pode virar a referência principal (FI6)? Só se ainda não é. */
+fun podeSerReferenciaPrincipal(imagem: ImagemDoElemento): Boolean = !imagem.ancora

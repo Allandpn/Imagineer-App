@@ -286,6 +286,8 @@ internal fun ImagemEmTelaCheia(
     aoExcluir: (() -> Unit)?,
     aoFechar: () -> Unit,
     mostrarOrigem: Boolean = true,
+    /** Uma ação a mais na barra de baixo (a ficha põe "Usar como referência principal", FI6): rótulo e o que fazer. */
+    acaoExtra: Pair<String, () -> Unit>? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -386,6 +388,7 @@ internal fun ImagemEmTelaCheia(
                     },
                     enabled = !baixando,
                 ) { Text("Salvar na galeria", color = Color.White) }
+                acaoExtra?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
                 if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Excluir", color = Color(0xFFFF8A80)) }
             }

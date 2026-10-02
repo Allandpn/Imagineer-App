@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.rede.CapituloResumo
 import com.allan.imagineer.rede.DetalheDoElemento
+import com.allan.imagineer.rede.GaleriaDoElemento
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDeLivros
@@ -71,6 +72,13 @@ class ListaDeElementosViewModel(
 // A ficha de um elemento (item 7.8, E21)
 // ---------------------------------------------------------------------------------------------
 
+/** A galeria da ficha (FI1): lida **à parte** do resto, para uma falha dela nunca esconder a ficha. */
+sealed interface CargaDaGaleria {
+    data object Carregando : CargaDaGaleria
+    data class Pronta(val galeria: GaleriaDoElemento) : CargaDaGaleria
+    data class Erro(val motivo: String) : CargaDaGaleria
+}
+
 sealed interface CargaDaFicha {
     data object Carregando : CargaDaFicha
     data class Pronta(val detalhe: DetalheDoElemento) : CargaDaFicha
@@ -125,6 +133,10 @@ data class EstadoDaFicha(
     val candidatos: CargaDaLista = CargaDaLista.Carregando,
     /** Os capítulos do livro, para escolher onde acrescentar (E39, E40). */
     val capitulos: CargaDosCapitulos = CargaDosCapitulos.Carregando,
+    /** As imagens e as cenas do elemento (FI1). */
+    val galeria: CargaDaGaleria = CargaDaGaleria.Carregando,
+    /** O recado de uma falha ao definir a referência principal (FI6); nulo = nenhum. */
+    val recadoDaGaleria: String? = null,
 )
 
 sealed interface CargaDosCapitulos {
@@ -175,6 +187,39 @@ class FichaDoElementoViewModel(
                 _estado.update { it.copy(carga = CargaDaFicha.Pronta(resultado.dado)) }
             is ResultadoDaChamada.Falha ->
                 if (mostrarErro) _estado.update { it.copy(carga = CargaDaFicha.Erro(resultado.motivo)) }
+        }
+        // FI7: a galeria é relida junto com a ficha (ao abrir e depois de cada edição).
+        lerGaleria()
+    }
+
+    /** Lê as imagens e as cenas do elemento. Uma falha só aparece **na seção**, nunca derruba a ficha (FI5). */
+    private suspend fun lerGaleria() {
+        when (val resultado = elementos.galeria(elementoId)) {
+            is ResultadoDaChamada.Sucesso -> _estado.update { it.copy(galeria = CargaDaGaleria.Pronta(resultado.dado)) }
+            is ResultadoDaChamada.Falha -> _estado.update {
+                // Se já havia uma galeria lida, ela fica: uma releitura que falha não a apaga.
+                if (it.galeria is CargaDaGaleria.Pronta) it else it.copy(galeria = CargaDaGaleria.Erro(resultado.motivo))
+            }
+        }
+    }
+
+    /** Tenta ler de novo a galeria, depois de uma falha (FI5). */
+    fun tentarDeNovoAGaleria() {
+        _estado.update { it.copy(galeria = CargaDaGaleria.Carregando) }
+        viewModelScope.launch { lerGaleria() }
+    }
+
+    /**
+     * **Usar como referência principal** (FI6): grava a imagem como a âncora padrão do elemento (`PATCH`) e relê a galeria, para o
+     * selo mudar de imagem. A recusa do servidor aparece como recado da galeria.
+     */
+    fun definirReferenciaPrincipal(imagemId: Int) {
+        _estado.update { it.copy(recadoDaGaleria = null) }
+        viewModelScope.launch {
+            when (val resultado = elementos.ajustarElemento(elementoId, ancoraPadraoId = imagemId)) {
+                is ResultadoDaChamada.Sucesso -> lerGaleria()
+                is ResultadoDaChamada.Falha -> _estado.update { it.copy(recadoDaGaleria = resultado.motivo) }
+            }
         }
     }
 

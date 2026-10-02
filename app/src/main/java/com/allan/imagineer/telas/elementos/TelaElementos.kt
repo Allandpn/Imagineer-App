@@ -1,5 +1,15 @@
 package com.allan.imagineer.telas.elementos
 
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
+import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
+import com.allan.imagineer.rede.enderecoDaImagem
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -156,8 +166,20 @@ private fun ConteudoDaLista(
 /** Nome, tipo, quantos estados e um trecho do estado mais recente (E20). */
 @Composable
 private fun LinhaDoElemento(elemento: ElementoDoLivro, aoTocar: () -> Unit) {
+    val urlBase = urlDoServidorEmUso()
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar)) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        // FI4: a capa do elemento (a âncora ou a imagem mais recente do retrato), quando há.
+        val capa = elemento.imagem_de_capa_id
+        if (capa != null && urlBase != null) {
+            AsyncImage(
+                model = enderecoDaImagem(urlBase, capa, "miniatura"),
+                contentDescription = "Imagem de ${elemento.nome}",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black),
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(elemento.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
                 "${rotuloDoTipo(elemento.tipo)} · " + when (elemento.total_de_estados) {
@@ -172,5 +194,6 @@ private fun LinhaDoElemento(elemento: ElementoDoLivro, aoTocar: () -> Unit) {
                 Text(it.descricao, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
+      }
     }
 }
