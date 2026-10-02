@@ -84,13 +84,24 @@ internal class PromptsFalso : RepositorioDePrompts {
     }
 
     val pedidosSemFiltro = mutableListOf<Int>() // os prompts pedidos com o filtro desligado (F12)
+    val referenciasPedidas = mutableListOf<List<Int>>() // as referências de cada geração de imagem (W3)
+    var candidatas: ResultadoDaChamada<com.allan.imagineer.rede.ReferenciasCandidatas> =
+        ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.ReferenciasCandidatas())
+    val frameDasCandidatas = mutableListOf<Int>()
+
+    override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<com.allan.imagineer.rede.ReferenciasCandidatas> {
+        frameDasCandidatas += frameId
+        return candidatas
+    }
 
     override suspend fun gerarImagem(
         promptId: Int,
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
+        referencias: List<Int>,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
+        referenciasPedidas += referencias
         if (semFiltro) pedidosSemFiltro += promptId
         geracoesDeImagem += promptId to textoEditado
         modelosPedidos += modelo

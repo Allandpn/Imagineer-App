@@ -41,6 +41,8 @@ data class PromptDeFrame(
     val modelo_imagem: String? = null,
     /** A última tentativa foi com o filtro de segurança do modelo desligado, a pedido da pessoa (F16). */
     val sem_filtro_de_seguranca: Boolean = false,
+    /** Os ids das imagens enviadas como referência na última tentativa (W7); vazia = nenhuma. */
+    val imagens_de_referencia: List<Int> = emptyList(),
 )
 
 /**
@@ -86,7 +88,39 @@ data class ReferenciaVisual(val id: Int)
  * Os modelos de imagem que o usuário pode escolher (Z2): o [padrao] do servidor e a [lista] mantida na configuração. O
  * padrão sempre aparece na escolha, mesmo fora da lista (veja `modelosParaEscolher`).
  */
-data class ModelosDeImagem(val padrao: String, val lista: List<String>, val semFiltro: List<String> = emptyList())
+data class ModelosDeImagem(
+    val padrao: String,
+    val lista: List<String>,
+    val semFiltro: List<String> = emptyList(),
+    /** Os modelos que aceitam imagens de referência (W1). */
+    val comReferencia: List<String> = emptyList(),
+)
+
+/** Uma imagem de um elemento da cena que pode ir como referência (W2); [ancora] = a referência principal dele. */
+@Serializable
+@Suppress("PropertyName")
+data class ImagemCandidata(
+    val id: Int,
+    val prompt_id: Int = 0,
+    val orientacao: String? = null,
+    val modelo: String? = null,
+    val origem: String = "IMPORTADA",
+    val ancora: Boolean = false,
+)
+
+/** Um elemento da cena e as imagens dele (W2). Lista vazia = ainda sem imagem. */
+@Serializable
+@Suppress("PropertyName")
+data class ElementoComImagens(
+    val elemento_id: Int,
+    val nome: String,
+    val tipo: String = "",
+    val imagens: List<ImagemCandidata> = emptyList(),
+)
+
+/** O que o modal de referências mostra (W2, W9). */
+@Serializable
+data class ReferenciasCandidatas(val elementos: List<ElementoComImagens> = emptyList())
 
 /**
  * O que o modal da cena precisa dos prompts de um frame (item 6.6). Interface, para o ViewModel ser testado com uma
@@ -111,7 +145,11 @@ interface RepositorioDePrompts {
         textoEditado: String? = null,
         modelo: String? = null,
         semFiltro: Boolean = false,
+        referencias: List<Int> = emptyList(),
     ): ResultadoDaChamada<ResultadoDaGeracao>
+
+    /** `GET /frames/{id}/referencias-candidatas`: as imagens dos elementos da cena que podem ir como referência (W2). Nunca gasta IA. */
+    suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas>
 
     /** `GET /configuracao`: o modelo de imagem padrão e a lista de modelos que se pode escolher (Z2, Z6). Nunca gasta IA. */
     suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem>
@@ -191,6 +229,7 @@ class RepositorioDePromptsPeloRetrofit(
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
+        referencias: List<Int>,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
         val api = provedor.obter() ?: return provedor.semServidor()
         // Só o que a pessoa decidiu: sem texto o servidor segue o fluxo normal (original e, se recusar, suaviza); sem
@@ -200,15 +239,28 @@ class RepositorioDePromptsPeloRetrofit(
             if (modelo != null) put("modelo", modelo)
             // F12: só por pedido explícito da pessoa, no diálogo próprio; nunca vai por padrão.
             if (semFiltro) put("sem_filtro_de_seguranca", true)
+            // W3: só as imagens que a pessoa escolheu no modal; sem escolha o campo nem vai.
+            if (referencias.isNotEmpty()) put("imagens_de_referencia", kotlinx.serialization.json.JsonArray(referencias.map { kotlinx.serialization.json.JsonPrimitive(it) }))
         }
         return chamarApi { api.gerarImagem(promptId, corpo) }
+    }
+
+    override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.referenciasCandidatas(frameId) }
     }
 
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return when (val resposta = chamarApi { api.configuracao() }) {
             is ResultadoDaChamada.Sucesso ->
-                ResultadoDaChamada.Sucesso(ModelosDeImagem(resposta.dado.modelo_imagem.orEmpty(), resposta.dado.modelos_de_imagem, resposta.dado.modelos_sem_filtro))
+                ResultadoDaChamada.Sucesso(ModelosDeImagem(
+                    resposta.dado.modelo_imagem.orEmpty(),
+                    resposta.dado.modelos_de_imagem,
+                    resposta.dado.modelos_sem_filtro,
+                    resposta.dado.modelos_com_referencia.keys.toList(),
+                ),
+            )
             is ResultadoDaChamada.Falha -> resposta
         }
     }
@@ -247,7 +299,11 @@ object PromptsSemServidor : RepositorioDePrompts {
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
+        referencias: List<Int>,
     ): ResultadoDaChamada<ResultadoDaGeracao> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+
+    override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas> =
+        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")

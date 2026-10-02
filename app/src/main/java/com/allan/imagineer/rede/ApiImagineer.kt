@@ -188,6 +188,10 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): FrameCriado
 
+    /** `GET /frames/{id}/referencias-candidatas` — as imagens dos elementos da cena que podem ir como referência (W2). Nunca gasta IA. */
+    @GET("frames/{id}/referencias-candidatas")
+    suspend fun referenciasCandidatas(@Path("id") frameId: Int): ReferenciasCandidatas
+
     /** `GET /frames/{id}/prompts` — o que já foi gerado para o frame; só leitura, nunca gasta IA (item 6.6). */
     @GET("frames/{id}/prompts")
     suspend fun prompts(@Path("id") frameId: Int): List<PromptDeFrame>
@@ -314,6 +318,8 @@ data class ConfiguracaoAtual(
     val modelos_de_imagem: List<String> = emptyList(),
     /** Os modelos em que se pode pedir para **desligar o filtro de segurança**, depois de uma recusa (F13). Vazia = nenhum. */
     val modelos_sem_filtro: List<String> = emptyList(),
+    /** Os modelos que aceitam **imagens de referência**, com o parâmetro de cada um (W1); o app só usa as chaves. Vazio = nenhum. */
+    val modelos_com_referencia: Map<String, String> = emptyMap(),
     val prioridade_ia: String,
 )
 

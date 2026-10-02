@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.ReferenciasCandidatas
 import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.Artefato
@@ -573,7 +574,38 @@ fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
     }
     // F16: a pessoa nunca fica em dúvida de como a imagem nasceu.
     if (prompt.sem_filtro_de_seguranca) add(ETIQUETA_SEM_FILTRO)
+    // W7: e com quantas imagens de referência.
+    if (prompt.imagens_de_referencia.isNotEmpty()) add(etiquetaDeReferencias(prompt.imagens_de_referencia.size))
 }
+
+/** "Com 1 referência" / "Com N referências" (W7). */
+fun etiquetaDeReferencias(quantidade: Int): String = if (quantidade == 1) "Com 1 referência" else "Com $quantidade referências"
+
+/** Quantas imagens de referência cabem num pedido (W3). */
+const val MAXIMO_DE_REFERENCIAS = 4
+
+/** Este modelo aceita imagens de referência (W1)? Sem modelo (o padrão do servidor) e sem a lista lida, não. */
+fun modeloAceitaReferencia(modelo: String?, modelos: ModelosDeImagem?): Boolean =
+    !modelo.isNullOrBlank() && modelos?.comReferencia.orEmpty().any { it.trim() == modelo.trim() }
+
+/** A linha "Referências: ..." junto do botão de gerar (W8, W10). */
+fun descreverReferencias(escolhidas: Int, modeloAceita: Boolean): String = when {
+    !modeloAceita && escolhidas > 0 -> "Referências: este modelo não usa referências"
+    escolhidas == 0 -> "Referências: nenhuma"
+    escolhidas == 1 -> "Referências: 1 imagem"
+    else -> "Referências: $escolhidas imagens"
+}
+
+/** Marca ou desmarca [imagemId] (W9): desmarcar sempre pode; marcar só até o [maximo]. */
+fun alternarMarcacao(marcadas: Set<Int>, imagemId: Int, maximo: Int = MAXIMO_DE_REFERENCIAS): Set<Int> = when {
+    imagemId in marcadas -> marcadas - imagemId
+    marcadas.size >= maximo -> marcadas
+    else -> marcadas + imagemId
+}
+
+/** As âncoras (as referências principais) dos elementos, já marcadas ao abrir o modal pela primeira vez (W9), até o máximo. */
+fun ancorasMarcadas(candidatas: ReferenciasCandidatas, maximo: Int = MAXIMO_DE_REFERENCIAS): Set<Int> =
+    candidatas.elementos.mapNotNull { elemento -> elemento.imagens.firstOrNull { it.ancora }?.id }.take(maximo).toSet()
 
 /** A etiqueta de uma tentativa feita com o filtro de segurança do modelo desligado (F16). */
 const val ETIQUETA_SEM_FILTRO = "Sem filtro"

@@ -86,6 +86,7 @@ internal fun SecaoDaImagemDoFrame(
     chave: String,
     rotulo: String,
     rotuloDoBotao: String,
+    ehCena: Boolean = false,
 ) {
     val etapa = estado.etapasDeImagem[chave]
     val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
@@ -122,6 +123,8 @@ internal fun SecaoDaImagemDoFrame(
     lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
     // Z6: qual modelo de imagem a próxima geração vai usar, com a troca.
     ModeloDeImagemEmUso(estado, acoes, ocupado)
+    // W8: só numa cena, e só se o modelo em uso aceita referências (ou há uma escolha guardada que ele deixaria de usar, W10).
+    if (ehCena) ReferenciasDaCena(frameId, estado, acoes, ocupado)
     maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
@@ -143,6 +146,22 @@ internal fun SecaoDaImagemDoFrame(
         }
     }
     Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * A linha **"Referências: ..."** da cena, com **Escolher** (W8, W10): quantas imagens vão junto na próxima geração. Só aparece se o
+ * modelo em uso aceita referências ou se há uma escolha guardada (então diz que o modelo atual não as usa).
+ */
+@Composable
+private fun ReferenciasDaCena(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel, ocupado: Boolean) {
+    val modelos = estado.modelosDeImagem
+    val aceita = modeloAceitaReferencia(modeloEmUso(estado.modeloEscolhido, modelos), modelos)
+    val escolhidas = estado.referenciasEscolhidas[frameId].orEmpty().size
+    if (!aceita && escolhidas == 0) return
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(descreverReferencias(escolhidas, aceita), style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
+        if (aceita) TextButton(onClick = { acoes.aoAbrirReferencias(frameId) }, enabled = !ocupado) { Text("Escolher", maxLines = 1, softWrap = false) }
+    }
 }
 
 /**

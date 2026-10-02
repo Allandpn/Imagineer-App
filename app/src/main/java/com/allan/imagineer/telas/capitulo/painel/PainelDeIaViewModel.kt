@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.dados.ArquivoEscolhido
+import com.allan.imagineer.rede.ReferenciasCandidatas
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
@@ -177,6 +178,10 @@ data class EstadoDoPainel(
     val modeloEscolhido: String? = null,
     /** O diálogo de escolher o modelo de imagem está aberto (Z6). */
     val escolhendoModelo: Boolean = false,
+    /** As imagens de referência que a pessoa escolheu **por frame** (W10); não vão ao servidor nem sobrevivem ao app. */
+    val referenciasEscolhidas: Map<Int, List<Int>> = emptyMap(),
+    /** O modal de escolher as referências de uma cena está aberto (W9); `null` = fechado. */
+    val escolhaDeReferencias: EscolhaDeReferencias? = null,
     /** O diálogo "Excluir esta imagem?" está aberto para esta imagem (U3); `null` = sem diálogo. */
     val excluindoImagem: ImagemParaExcluir? = null,
     /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
@@ -225,6 +230,15 @@ data class AlvoDaImportacao(val frameId: Int, val promptId: Int)
 
 /** A imagem que a pessoa quer excluir (U3): o frame e o prompt a que pertence, o id e a origem (para o recado ir ao lugar certo). */
 data class ImagemParaExcluir(val frameId: Int, val promptId: Int, val imagemId: Int, val origem: String)
+
+/** O modal de referências (W9): de que frame, o que o servidor devolveu e as imagens marcadas agora. */
+data class EscolhaDeReferencias(val frameId: Int, val candidatas: CandidatasDasReferencias, val marcadas: Set<Int>)
+
+sealed interface CandidatasDasReferencias {
+    data object Carregando : CandidatasDasReferencias
+    data class Prontas(val dados: ReferenciasCandidatas) : CandidatasDasReferencias
+    data class Erro(val motivo: String) : CandidatasDasReferencias
+}
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
 data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
@@ -619,6 +633,60 @@ class PainelDeIaViewModel(
         viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
     }
 
+    /**
+     * Abre o modal de **escolher as referências** da cena (W9): lê as imagens candidatas (nunca gasta IA). Na primeira vez as
+     * **âncoras** dos elementos já vêm marcadas; depois, vale a escolha que a pessoa tinha feito para este frame.
+     */
+    fun abrirEscolhaDeReferencias(frameId: Int) {
+        val anterior = _estado.value.referenciasEscolhidas[frameId]
+        _estado.update { it.copy(escolhaDeReferencias = EscolhaDeReferencias(frameId, CandidatasDasReferencias.Carregando, anterior.orEmpty().toSet())) }
+        viewModelScope.launch {
+            when (val resultado = prompts.referenciasCandidatas(frameId)) {
+                is ResultadoDaChamada.Sucesso -> _estado.update { agora ->
+                    val atual = agora.escolhaDeReferencias ?: return@update agora
+                    if (atual.frameId != frameId) return@update agora
+                    // Primeira vez (sem escolha anterior): as âncoras marcadas. Escolha anterior vazia de propósito também cai aqui.
+                    val marcadas = if (anterior == null) ancorasMarcadas(resultado.dado) else atual.marcadas
+                    agora.copy(escolhaDeReferencias = atual.copy(candidatas = CandidatasDasReferencias.Prontas(resultado.dado), marcadas = marcadas))
+                }
+                is ResultadoDaChamada.Falha -> _estado.update { agora ->
+                    val atual = agora.escolhaDeReferencias ?: return@update agora
+                    agora.copy(escolhaDeReferencias = atual.copy(candidatas = CandidatasDasReferencias.Erro(resultado.motivo)))
+                }
+            }
+        }
+    }
+
+    /** Marca ou desmarca uma imagem no modal (W9), até o máximo. */
+    fun alternarReferencia(imagemId: Int) {
+        _estado.update { agora ->
+            val atual = agora.escolhaDeReferencias ?: return@update agora
+            agora.copy(escolhaDeReferencias = atual.copy(marcadas = alternarMarcacao(atual.marcadas, imagemId)))
+        }
+    }
+
+    /** "Limpar" no modal: desmarca tudo (W9). */
+    fun limparReferencias() {
+        _estado.update { agora ->
+            val atual = agora.escolhaDeReferencias ?: return@update agora
+            agora.copy(escolhaDeReferencias = atual.copy(marcadas = emptySet()))
+        }
+    }
+
+    /** "Usar estas": guarda a escolha **deste frame** até trocar (W10) e fecha. Escolha vazia = sem referências. */
+    fun usarReferencias() {
+        _estado.update { agora ->
+            val atual = agora.escolhaDeReferencias ?: return@update agora
+            val escolhidas = atual.marcadas.toList()
+            val mapa = if (escolhidas.isEmpty()) agora.referenciasEscolhidas - atual.frameId else agora.referenciasEscolhidas + (atual.frameId to escolhidas)
+            agora.copy(referenciasEscolhidas = mapa, escolhaDeReferencias = null)
+        }
+    }
+
+    fun fecharEscolhaDeReferencias() {
+        _estado.update { it.copy(escolhaDeReferencias = null) }
+    }
+
     /** Lê a lista de modelos de imagem **uma vez** (Z6); uma falha de leitura só deixa a escolha de modelo escondida. */
     fun carregarModelosDeImagem() {
         if (_estado.value.modelosDeImagem != null || carregandoModelos) return
@@ -663,8 +731,17 @@ class PainelDeIaViewModel(
     /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
     private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) {
         // F19: escolher um modelo da lista **sem filtro** é pedir a geração sem o filtro; com qualquer outro, o pedido é o de sempre.
-        val resultado = if (modeloEstaSemFiltro(modelo, _estado.value.modelosDeImagem)) {
-            prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true)
+        val modelos = _estado.value.modelosDeImagem
+        // W10: as referências do frame só vão se o modelo em uso as aceita (senão ficam guardadas, desativadas).
+        val referencias = if (modeloAceitaReferencia(modelo ?: modeloEmUso(_estado.value.modeloEscolhido, modelos), modelos)) {
+            _estado.value.referenciasEscolhidas[frameId].orEmpty()
+        } else {
+            emptyList()
+        }
+        val resultado = if (modeloEstaSemFiltro(modelo, modelos)) {
+            prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true, referencias = referencias)
+        } else if (referencias.isNotEmpty()) {
+            prompts.gerarImagem(promptId, textoEditado, modelo, referencias = referencias)
         } else {
             prompts.gerarImagem(promptId, textoEditado, modelo)
         }

@@ -129,6 +129,12 @@ class AcoesDoPainel(
     val aoEscolherModelo: (String) -> Unit,
     val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
+    // Escolher as imagens de referência da cena (W8 a W10).
+    val aoAbrirReferencias: (frameId: Int) -> Unit,
+    val aoAlternarReferencia: (imagemId: Int) -> Unit,
+    val aoLimparReferencias: () -> Unit,
+    val aoUsarReferencias: () -> Unit,
+    val aoFecharReferencias: () -> Unit,
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
     val aoFecharEdicaoDePrompt: () -> Unit,
@@ -178,6 +184,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
+    estado.escolhaDeReferencias?.let { DialogoDeReferencias(it, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -283,7 +290,7 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
         Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato")
+        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false)
     }
 }
 
@@ -918,6 +925,7 @@ private fun BlocoDePrompts(
     acoes: AcoesDoPainel,
     chaveDoFluxo: String,
     rotuloDoBotao: String,
+    ehCena: Boolean,
 ) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
     // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
@@ -932,7 +940,7 @@ private fun BlocoDePrompts(
     var aberto by rememberSaveable(frameId) { mutableStateOf(false) }
 
     // Q1: a imagem em destaque, com o botão que faz o que falta.
-    SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao)
+    SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena)
 
     // Falhas do prompt (do fluxo ou do Novo prompt) ficam fora do recolhido: a pessoa precisa vê-las.
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
@@ -1320,7 +1328,7 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
     // G1: o bloco de prompts só existe para a cena que já virou frame.
-    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem") }
+    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true) }
 
     val acoesDaCena = acoesDaCena(cena)
     if (acoesDaCena.isNotEmpty()) {
