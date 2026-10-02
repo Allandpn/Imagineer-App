@@ -310,20 +310,18 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
+            // O título numa linha e os botões embaixo, numa FlowRow: com dois botões, a linha única espremia o texto
+            // do segundo ("Reanalisar" saía na vertical) em telas estreitas. Aqui os botões quebram de linha se faltar espaço.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sugestões da IA", style = MaterialTheme.typography.titleSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // L1: só tem sentido quando há algo a confirmar; o diálogo mostra a conta antes de agir.
                     Button(
                         onClick = acoes.aoPedirConfirmarTodos,
                         enabled = !estado.analisando && !estado.executandoLote && resumoParaConfirmarTodos(sugestoes).temAlgoParaConfirmar,
-                    ) { Text("Confirmar todos") }
+                    ) { Text("Confirmar todos", maxLines = 1, softWrap = false) }
                     OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
-                        Text("Reanalisar")
+                        Text("Reanalisar", maxLines = 1, softWrap = false)
                     }
                 }
             }
