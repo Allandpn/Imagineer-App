@@ -129,19 +129,15 @@ class AcoesDoPainel(
     val aoEscolherModelo: (String) -> Unit,
     val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
-    // Os elementos vinculados ao retrato (V8).
-    val aoAbrirVinculos: (elemento: ElementoSugerido, frameId: Int?) -> Unit,
-    val aoAlternarVinculo: (estadoId: Int) -> Unit,
-    val aoLimparVinculos: () -> Unit,
-    val aoUsarVinculos: (elemento: ElementoSugerido) -> Unit,
-    val aoFecharVinculos: () -> Unit,
-    val aoCarregarVinculos: (elementoId: Int, frameId: Int) -> Unit,
-    // Escolher as imagens de referência da cena (W8 a W10).
-    val aoAbrirReferencias: (frameId: Int) -> Unit,
-    val aoAlternarReferencia: (imagemId: Int) -> Unit,
-    val aoLimparReferencias: () -> Unit,
-    val aoUsarReferencias: () -> Unit,
-    val aoFecharReferencias: () -> Unit,
+    // O seletor de elementos e imagens, na cena e no retrato (EV1 a EV10).
+    val aoAbrirSeletorDaCena: (frameId: Int) -> Unit,
+    val aoAbrirSeletorDoRetrato: (elemento: ElementoSugerido, frameId: Int?) -> Unit,
+    val aoAlternarImagemDoSeletor: (imagemId: Int) -> Unit,
+    val aoAlternarElementoDoSeletor: (estadoId: Int) -> Unit,
+    val aoLimparSeletor: () -> Unit,
+    val aoUsarSeletor: () -> Unit,
+    val aoFecharSeletor: () -> Unit,
+    val aoCarregarVinculados: (frameId: Int) -> Unit,
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
     val aoFecharEdicaoDePrompt: () -> Unit,
@@ -191,8 +187,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
-    estado.escolhaDeReferencias?.let { DialogoDeReferencias(it, acoes) }
-    estado.escolhendoVinculos?.let { DialogoDeVinculos(it, estado, acoes) }
+    estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -280,8 +275,10 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
 private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val chave = chaveDoFluxoDoRetrato(elemento.id)
     Text("Retrato", style = MaterialTheme.typography.titleSmall)
-    // V8: a linha dos vinculados, só para quem aceita (não para personagem: é individual, V2).
-    if (aceitaVinculos(elemento)) VinculadosDoRetrato(elemento, frameId, estado, acoes)
+    // EV1, EV8: a linha dos elementos e imagens, só para quem aceita (não para personagem: é individual, V2).
+    if (aceitaVinculos(elemento)) {
+        LinhaDoSeletorDeElementos(frameId, ehCena = false, estado = estado, acoes = acoes, aoEscolher = { acoes.aoAbrirSeletorDoRetrato(elemento, frameId) })
+    }
     if (frameId == null) {
         val etapa = estado.etapasDeImagem[chave]
         val ocupado = etapa != null || elemento.id in estado.retratosOcupados

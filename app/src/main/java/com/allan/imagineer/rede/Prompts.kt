@@ -118,6 +118,29 @@ data class ElementoComImagens(
     val imagens: List<ImagemCandidata> = emptyList(),
 )
 
+/** Um elemento que o usuário pode colocar no frame (EV6), com as imagens dele e o que já é dele no frame. */
+@Serializable
+@Suppress("PropertyName")
+data class ElementoParaVincular(
+    val elemento_id: Int,
+    /** O estado a ligar ao frame. */
+    val estado_id: Int,
+    val nome: String,
+    val tipo: String = "",
+    /** Já participa da cena ou já está vinculado ao retrato. */
+    val no_frame: Boolean = false,
+    /** Está no frame e pode sair por este seletor: o participante que veio da sugestão da cena **não** pode (EV5). */
+    val removivel: Boolean = false,
+    val imagens: List<ImagemCandidata> = emptyList(),
+)
+
+/** O que o seletor de elementos e imagens mostra (EV2): os identificados pela IA e os outros que têm estado no capítulo. */
+@Serializable
+data class ElementosParaVincular(
+    val identificados: List<ElementoParaVincular> = emptyList(),
+    val outros: List<ElementoParaVincular> = emptyList(),
+)
+
 /** O que o modal de referências mostra (W2, W9). */
 @Serializable
 data class ReferenciasCandidatas(val elementos: List<ElementoComImagens> = emptyList())
@@ -147,6 +170,9 @@ interface RepositorioDePrompts {
         semFiltro: Boolean = false,
         referencias: List<Int> = emptyList(),
     ): ResultadoDaChamada<ResultadoDaGeracao>
+
+    /** `GET /frames/{id}/elementos-para-vincular`: os elementos e as imagens do seletor (EV6). Nunca gasta IA. */
+    suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular>
 
     /** `GET /frames/{id}/referencias-candidatas`: as imagens dos elementos da cena que podem ir como referência (W2). Nunca gasta IA. */
     suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas>
@@ -250,6 +276,11 @@ class RepositorioDePromptsPeloRetrofit(
         return chamarApi { api.referenciasCandidatas(frameId) }
     }
 
+    override suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.elementosParaVincular(frameId) }
+    }
+
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return when (val resposta = chamarApi { api.configuracao() }) {
@@ -303,6 +334,9 @@ object PromptsSemServidor : RepositorioDePrompts {
     ): ResultadoDaChamada<ResultadoDaGeracao> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas> =
+        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+
+    override suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> =

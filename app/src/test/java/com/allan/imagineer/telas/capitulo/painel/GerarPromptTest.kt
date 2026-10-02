@@ -89,6 +89,15 @@ internal class PromptsFalso : RepositorioDePrompts {
         ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.ReferenciasCandidatas())
     val frameDasCandidatas = mutableListOf<Int>()
 
+    var paraVincular: ResultadoDaChamada<com.allan.imagineer.rede.ElementosParaVincular> =
+        ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.ElementosParaVincular())
+    val frameDoSeletor = mutableListOf<Int>()
+
+    override suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<com.allan.imagineer.rede.ElementosParaVincular> {
+        frameDoSeletor += frameId
+        return paraVincular
+    }
+
     override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<com.allan.imagineer.rede.ReferenciasCandidatas> {
         frameDasCandidatas += frameId
         return candidatas

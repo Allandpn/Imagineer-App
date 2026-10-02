@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
-import com.allan.imagineer.rede.ReferenciasCandidatas
+import com.allan.imagineer.rede.ElementoParaVincular
+import com.allan.imagineer.rede.ElementosParaVincular
 import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.Artefato
@@ -588,13 +589,6 @@ const val MAXIMO_DE_REFERENCIAS = 4
 fun modeloAceitaReferencia(modelo: String?, modelos: ModelosDeImagem?): Boolean =
     !modelo.isNullOrBlank() && modelos?.comReferencia.orEmpty().any { it.trim() == modelo.trim() }
 
-/** A linha "Referências: ..." junto do botão de gerar (W8, W10). */
-fun descreverReferencias(escolhidas: Int, modeloAceita: Boolean): String = when {
-    !modeloAceita && escolhidas > 0 -> "Referências: este modelo não usa referências"
-    escolhidas == 0 -> "Referências: nenhuma"
-    escolhidas == 1 -> "Referências: 1 imagem"
-    else -> "Referências: $escolhidas imagens"
-}
 
 /** Marca ou desmarca [imagemId] (W9): desmarcar sempre pode; marcar só até o [maximo]. */
 fun alternarMarcacao(marcadas: Set<Int>, imagemId: Int, maximo: Int = MAXIMO_DE_REFERENCIAS): Set<Int> = when {
@@ -603,9 +597,6 @@ fun alternarMarcacao(marcadas: Set<Int>, imagemId: Int, maximo: Int = MAXIMO_DE_
     else -> marcadas + imagemId
 }
 
-/** As âncoras (as referências principais) dos elementos, já marcadas ao abrir o modal pela primeira vez (W9), até o máximo. */
-fun ancorasMarcadas(candidatas: ReferenciasCandidatas, maximo: Int = MAXIMO_DE_REFERENCIAS): Set<Int> =
-    candidatas.elementos.mapNotNull { elemento -> elemento.imagens.firstOrNull { it.ancora }?.id }.take(maximo).toSet()
 
 /** A etiqueta de uma tentativa feita com o filtro de segurança do modelo desligado (F16). */
 const val ETIQUETA_SEM_FILTRO = "Sem filtro"
@@ -662,22 +653,7 @@ const val TIPO_INDIVIDUAL = "PERSONAGEM"
 /** Este elemento aceita elementos vinculados no retrato (V2)? Todo tipo, menos o personagem. */
 fun aceitaVinculos(elemento: ElementoSugerido): Boolean = elemento.tipo != TIPO_INDIVIDUAL && podeTerRetrato(elemento)
 
-/**
- * Os elementos que se pode vincular ao retrato de [sujeito] (V8): os **outros** confirmados do capítulo, com estado, que **não** são
- * personagens (V2), sem repetir o mesmo elemento cadastrado.
- */
-fun candidatosAoVinculo(elementos: List<ElementoSugerido>, sujeito: ElementoSugerido): List<ElementoSugerido> =
-    elementos
-        .filter { it.id != sujeito.id && it.tipo != TIPO_INDIVIDUAL && podeTerRetrato(it) }
-        .filter { (it.elemento_id ?: -1) != (sujeito.elemento_id ?: -2) }
-        .distinctBy { it.elemento_id ?: -it.id }
 
-/** A linha "Vinculados: ..." junto do retrato (V8). */
-fun descreverVinculados(nomes: List<String>): String =
-    if (nomes.isEmpty()) "Vinculados: nenhum" else "Vinculados: ${nomes.joinToString(", ")}"
-
-/** O aviso de que mudar os vínculos não refaz o prompt que já existe (V7). */
-const val AVISO_VINCULOS_MUDARAM = "Os vínculos mudaram: gere um Novo prompt para valerem."
 
 /** O rótulo do retrato nos avisos e nos prompts (N6): "Retrato de Jon". */
 fun rotuloDoRetrato(elemento: ElementoSugerido): String = "Retrato de ${elemento.elemento_casado?.nome ?: elemento.nome}"
@@ -690,3 +666,84 @@ fun retratosPorSugestao(artefatos: List<Artefato>): Map<Int, Int> =
     artefatos
         .filter { it.tipo == "ELEMENTO" && it.sugestao_id != null && it.frame_id != null }
         .associate { it.sugestao_id!! to it.frame_id!! }
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// O seletor de elementos e imagens (EV1 a EV10)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** O aviso de que mudar os elementos não refaz o prompt que já existe (V7, EV10). */
+const val AVISO_ELEMENTOS_MUDARAM = "Os elementos mudaram: gere um Novo prompt para valerem."
+
+/**
+ * O que está marcado no seletor: os **estados** dos elementos (quem entra no frame) e os **ids das imagens** (o que vai como
+ * referência). Marcar uma imagem marca também o elemento dela (EV4).
+ */
+data class SelecaoNoSeletor(val elementos: Set<Int> = emptySet(), val imagens: Set<Int> = emptySet())
+
+/** Todos os elementos do seletor, das duas seções (EV2). */
+fun todosOsElementos(dados: ElementosParaVincular): List<ElementoParaVincular> = dados.identificados + dados.outros
+
+/** O participante da cena que veio da sugestão: está no frame e **não** sai por este seletor (EV5). */
+fun elementoFixo(elemento: ElementoParaVincular): Boolean = elemento.no_frame && !elemento.removivel
+
+/**
+ * A seleção ao abrir o seletor (EV4, EV10): os elementos que **já estão no frame** e as imagens que a pessoa tinha escolhido para
+ * ele, **só as que ainda existem**. As âncoras não vêm marcadas sozinhas: nada entra sem a pessoa escolher.
+ */
+fun selecaoInicial(dados: ElementosParaVincular, imagensEscolhidas: List<Int>): SelecaoNoSeletor {
+    val existentes = todosOsElementos(dados).flatMap { it.imagens }.map { it.id }.toSet()
+    return SelecaoNoSeletor(
+        elementos = todosOsElementos(dados).filter { it.no_frame }.map { it.estado_id }.toSet(),
+        imagens = imagensEscolhidas.filter { it in existentes }.toSet(),
+    )
+}
+
+/** Quantos elementos a pessoa pode ter **acrescentado**: num retrato, o limite é de [MAXIMO_DE_VINCULADOS] (V3); na cena não há. */
+private fun cabeMaisUmElemento(dados: ElementosParaVincular, selecao: SelecaoNoSeletor, ehCena: Boolean): Boolean =
+    ehCena || todosOsElementos(dados).count { it.estado_id in selecao.elementos && !elementoFixo(it) } < MAXIMO_DE_VINCULADOS
+
+/**
+ * Tocar numa **imagem** (EV4): desmarca se estava marcada; senão marca (até [MAXIMO_DE_REFERENCIAS]) **e coloca o elemento dela**
+ * (se ainda cabe). Desmarcar a imagem **não** tira o elemento: isso é a caixa do nome.
+ */
+fun alternarImagemNoSeletor(dados: ElementosParaVincular, selecao: SelecaoNoSeletor, imagemId: Int, ehCena: Boolean): SelecaoNoSeletor {
+    if (imagemId in selecao.imagens) return selecao.copy(imagens = selecao.imagens - imagemId)
+    if (selecao.imagens.size >= MAXIMO_DE_REFERENCIAS) return selecao
+    val dono = todosOsElementos(dados).firstOrNull { e -> e.imagens.any { it.id == imagemId } } ?: return selecao
+    if (dono.estado_id !in selecao.elementos && !cabeMaisUmElemento(dados, selecao, ehCena)) return selecao
+    return SelecaoNoSeletor(selecao.elementos + dono.estado_id, selecao.imagens + imagemId)
+}
+
+/**
+ * Tocar na **caixa do nome** (EV4): desmarcar **tira o elemento e as imagens dele**; marcar o coloca (se cabe). O participante
+ * que veio da sugestão da cena não muda (EV5).
+ */
+fun alternarElementoNoSeletor(dados: ElementosParaVincular, selecao: SelecaoNoSeletor, estadoId: Int, ehCena: Boolean): SelecaoNoSeletor {
+    val elemento = todosOsElementos(dados).firstOrNull { it.estado_id == estadoId } ?: return selecao
+    if (elementoFixo(elemento)) return selecao
+    if (estadoId in selecao.elementos) {
+        return SelecaoNoSeletor(selecao.elementos - estadoId, selecao.imagens - elemento.imagens.map { it.id }.toSet())
+    }
+    return if (cabeMaisUmElemento(dados, selecao, ehCena)) selecao.copy(elementos = selecao.elementos + estadoId) else selecao
+}
+
+/** "Limpar" (EV4): sem imagens e sem os elementos que se pode tirar; os participantes da sugestão ficam. */
+fun limparSeletor(dados: ElementosParaVincular): SelecaoNoSeletor =
+    SelecaoNoSeletor(elementos = todosOsElementos(dados).filter { elementoFixo(it) }.map { it.estado_id }.toSet())
+
+/** O que mudou nos **elementos** em relação ao que já estava no frame: só então o servidor é chamado (EV7) e o prompt fica velho (EV10). */
+fun elementosMudaram(dados: ElementosParaVincular, selecao: SelecaoNoSeletor): Boolean =
+    todosOsElementos(dados).filter { it.no_frame }.map { it.estado_id }.toSet() != selecao.elementos
+
+/** A linha "Elementos e imagens: ..." junto do botão de gerar (EV1, EV8, W10). */
+fun descreverSelecao(ehCena: Boolean, vinculados: List<String>, imagens: Int, modeloAceita: Boolean): String {
+    val partes = mutableListOf<String>()
+    if (!ehCena) partes += if (vinculados.isEmpty()) "vinculados: nenhum" else "vinculados: ${vinculados.joinToString(", ")}"
+    partes += when {
+        imagens == 0 -> "imagens: nenhuma"
+        !modeloAceita -> "$imagens ${if (imagens == 1) "imagem guardada" else "imagens guardadas"}, este modelo não as usa"
+        imagens == 1 -> "1 imagem"
+        else -> "$imagens imagens"
+    }
+    return "Elementos e imagens: " + partes.joinToString(" · ")
+}

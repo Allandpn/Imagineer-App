@@ -46,6 +46,9 @@ interface RepositorioDeSugestoes {
      */
     suspend fun criarRetrato(capituloId: Int, estadoId: Int, vinculadosIds: List<Int> = emptyList()): ResultadoDaChamada<FrameCriado>
 
+    /** `PUT /frames/{id}/estados`: **substitui** os participantes de um frame, a cena (EV7). Não gasta IA. */
+    suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit>
+
     /** `GET /frames/{id}`: os elementos vinculados ao sujeito do retrato (V4). Nunca gasta IA. */
     suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>>
 
@@ -91,6 +94,12 @@ class RepositorioDeSugestoesPeloRetrofit(
             if (vinculadosIds.isNotEmpty()) put("estados_vinculados_ids", buildJsonArray { vinculadosIds.forEach { add(JsonPrimitive(it)) } })
         }
         return chamarApi { api.criarRetrato(capituloId, corpo) }
+    }
+
+    override suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("estados_ids", buildJsonArray { estadosIds.forEach { add(JsonPrimitive(it)) } }) }
+        return chamarApi { api.definirEstados(frameId, corpo); Unit }
     }
 
     override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>> {

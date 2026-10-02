@@ -6,7 +6,7 @@ import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.VinculadoDoFrame
-import com.allan.imagineer.rede.ReferenciasCandidatas
+import com.allan.imagineer.rede.ElementosParaVincular
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
@@ -179,16 +179,14 @@ data class EstadoDoPainel(
     val modeloEscolhido: String? = null,
     /** O diálogo de escolher o modelo de imagem está aberto (Z6). */
     val escolhendoModelo: Boolean = false,
-    /** Os elementos **vinculados** ao retrato de cada elemento (V8), pelo id da sugestão do elemento; vale também antes de o frame existir. */
-    val vinculosDoRetrato: Map<Int, List<VinculadoDoFrame>> = emptyMap(),
-    /** O modal de escolher os vinculados de um retrato está aberto (V8); `null` = fechado. */
-    val escolhendoVinculos: EscolhaDeVinculos? = null,
-    /** Os retratos cujos vínculos mudaram e ainda não tiveram um prompt novo (V7), pelo id da sugestão do elemento. */
-    val vinculosPendentesDePrompt: Set<Int> = emptySet(),
-    /** As imagens de referência que a pessoa escolheu **por frame** (W10); não vão ao servidor nem sobrevivem ao app. */
+    /** As imagens de referência que a pessoa escolheu **por frame** (W10, EV7); não vão ao servidor nem sobrevivem ao app. */
     val referenciasEscolhidas: Map<Int, List<Int>> = emptyMap(),
-    /** O modal de escolher as referências de uma cena está aberto (W9); `null` = fechado. */
-    val escolhaDeReferencias: EscolhaDeReferencias? = null,
+    /** Os nomes dos elementos **vinculados** a cada retrato, por frame (EV8); lidos do servidor uma vez e atualizados ao usar o seletor. */
+    val vinculadosPorFrame: Map<Int, List<String>> = emptyMap(),
+    /** O seletor de elementos e imagens está aberto (EV1); `null` = fechado. */
+    val escolhaDeElementos: EscolhaDeElementos? = null,
+    /** Os frames cujos elementos mudaram, com **quantos prompts tinham** na hora (EV10): o aviso some quando nasce um prompt novo. */
+    val mudancasPendentesDePrompt: Map<Int, Int> = emptyMap(),
     /** O diálogo "Excluir esta imagem?" está aberto para esta imagem (U3); `null` = sem diálogo. */
     val excluindoImagem: ImagemParaExcluir? = null,
     /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
@@ -238,16 +236,20 @@ data class AlvoDaImportacao(val frameId: Int, val promptId: Int)
 /** A imagem que a pessoa quer excluir (U3): o frame e o prompt a que pertence, o id e a origem (para o recado ir ao lugar certo). */
 data class ImagemParaExcluir(val frameId: Int, val promptId: Int, val imagemId: Int, val origem: String)
 
-/** O modal de vinculados (V8): de qual elemento (id da sugestão), o frame do retrato se já existe, e os estados marcados agora. */
-data class EscolhaDeVinculos(val elementoId: Int, val frameId: Int?, val marcados: Set<Int>)
+/** O seletor de elementos e imagens (EV1): de que frame, o que o servidor devolveu, o que está marcado e se está gravando. */
+data class EscolhaDeElementos(
+    val frameId: Int,
+    val ehCena: Boolean,
+    val candidatos: CandidatosDoSeletor,
+    val selecao: SelecaoNoSeletor,
+    val salvando: Boolean = false,
+    val erro: String? = null,
+)
 
-/** O modal de referências (W9): de que frame, o que o servidor devolveu e as imagens marcadas agora. */
-data class EscolhaDeReferencias(val frameId: Int, val candidatas: CandidatasDasReferencias, val marcadas: Set<Int>)
-
-sealed interface CandidatasDasReferencias {
-    data object Carregando : CandidatasDasReferencias
-    data class Prontas(val dados: ReferenciasCandidatas) : CandidatasDasReferencias
-    data class Erro(val motivo: String) : CandidatasDasReferencias
+sealed interface CandidatosDoSeletor {
+    data object Carregando : CandidatosDoSeletor
+    data class Prontos(val dados: ElementosParaVincular) : CandidatosDoSeletor
+    data class Erro(val motivo: String) : CandidatosDoSeletor
 }
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
@@ -407,9 +409,7 @@ class PainelDeIaViewModel(
 
     /** Cria o frame do retrato e guarda o resultado (N4). Devolve o id do frame, ou `null` se falhou (a mensagem já foi posta). */
     private suspend fun concluirCriacaoDoRetrato(elemento: ElementoSugerido, estadoId: Int): Int? {
-        // V8: os vinculados escolhidos antes de o retrato existir vão junto da criação.
-        val vinculados = _estado.value.vinculosDoRetrato[elemento.id].orEmpty().map { it.estado_id }
-        val resultado = sugestoes.criarRetrato(capituloId, estadoId, vinculados)
+        val resultado = sugestoes.criarRetrato(capituloId, estadoId)
         _estado.update { atual ->
             when (resultado) {
                 is ResultadoDaChamada.Sucesso -> atual.copy(
@@ -645,142 +645,128 @@ class PainelDeIaViewModel(
         viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
     }
 
+    // ------------------------------------------------------------------ //
+    // O seletor de elementos e imagens (EV1 a EV10)
+    // ------------------------------------------------------------------ //
+
+    /** Abre o seletor de uma **cena** (EV1): lê os elementos e as imagens (nunca gasta IA). */
+    fun abrirSeletorDaCena(frameId: Int) {
+        abrirSeletor(frameId, ehCena = true)
+    }
+
     /**
-     * Abre o modal de **escolher os elementos vinculados** ao retrato (V8). [frameId] é o do retrato, se já existe. Só abre para
-     * um elemento que aceita vínculos (V2).
+     * Abre o seletor do **retrato** de um elemento (EV1, EV9). Só para quem aceita vínculos (personagem é individual, V2). Se o retrato
+     * ainda **não tem frame**, o frame é criado antes (não gasta IA), para haver o que consultar.
      */
-    fun abrirEscolhaDeVinculos(elemento: ElementoSugerido, frameId: Int?) {
+    fun abrirSeletorDoRetrato(elemento: ElementoSugerido, frameId: Int?) {
         if (!aceitaVinculos(elemento)) return
-        val atuais = _estado.value.vinculosDoRetrato[elemento.id].orEmpty().map { it.estado_id }.toSet()
-        _estado.update { it.copy(escolhendoVinculos = EscolhaDeVinculos(elemento.id, frameId, atuais)) }
-    }
-
-    /** Marca ou desmarca um vinculado no modal (V8), até o máximo. */
-    fun alternarVinculo(estadoId: Int) {
-        _estado.update { agora ->
-            val atual = agora.escolhendoVinculos ?: return@update agora
-            agora.copy(escolhendoVinculos = atual.copy(marcados = alternarMarcacao(atual.marcados, estadoId, MAXIMO_DE_VINCULADOS)))
-        }
-    }
-
-    fun limparVinculos() {
-        _estado.update { agora ->
-            val atual = agora.escolhendoVinculos ?: return@update agora
-            agora.copy(escolhendoVinculos = atual.copy(marcados = emptySet()))
-        }
-    }
-
-    fun fecharEscolhaDeVinculos() {
-        _estado.update { it.copy(escolhendoVinculos = null) }
-    }
-
-    /**
-     * "Usar estes": guarda a escolha deste elemento. Se o retrato **já existe**, manda ao servidor na hora (`PUT`); a recusa do
-     * servidor (a regra de personagem individual, por exemplo) aparece no recado do retrato e **nada muda**. Se ainda não
-     * existe, a escolha vai junto da criação do frame. Mudar os vínculos de um retrato que já existe pede um **Novo prompt** (V7).
-     */
-    fun usarVinculos(elemento: ElementoSugerido) {
-        val escolha = _estado.value.escolhendoVinculos ?: return
-        val candidatos = candidatosAoVinculo((_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.elementos.orEmpty(), elemento)
-        val escolhidos = candidatos
-            .filter { (it.estado_vigente?.id ?: -1) in escolha.marcados }
-            .map {
-                VinculadoDoFrame(
-                    estado_id = it.estado_vigente!!.id,
-                    elemento_id = it.elemento_id ?: 0,
-                    nome = it.elemento_casado?.nome ?: it.nome,
-                    tipo = it.tipo,
-                )
-            }
-        _estado.update { it.copy(escolhendoVinculos = null) }
-        val frameId = escolha.frameId
-        if (frameId == null) {
-            _estado.update { it.copy(vinculosDoRetrato = it.vinculosDoRetrato + (elemento.id to escolhidos)) }
+        if (frameId != null) {
+            abrirSeletor(frameId, ehCena = false)
             return
         }
+        val estadoId = reservarRetrato(elemento) ?: return
+        viewModelScope.launch { concluirCriacaoDoRetrato(elemento, estadoId)?.let { abrirSeletor(it, ehCena = false) } }
+    }
+
+    private fun abrirSeletor(frameId: Int, ehCena: Boolean) {
+        _estado.update { it.copy(escolhaDeElementos = EscolhaDeElementos(frameId, ehCena, CandidatosDoSeletor.Carregando, SelecaoNoSeletor())) }
         viewModelScope.launch {
-            when (val resultado = sugestoes.definirVinculos(frameId, escolhidos.map { it.estado_id })) {
-                is ResultadoDaChamada.Sucesso -> _estado.update {
-                    it.copy(
-                        vinculosDoRetrato = it.vinculosDoRetrato + (elemento.id to resultado.dado),
-                        vinculosPendentesDePrompt = it.vinculosPendentesDePrompt + elemento.id,
-                        mensagensDeRetrato = it.mensagensDeRetrato - elemento.id,
-                    )
+            when (val resultado = prompts.elementosParaVincular(frameId)) {
+                is ResultadoDaChamada.Sucesso -> _estado.update { agora ->
+                    val atual = agora.escolhaDeElementos?.takeIf { it.frameId == frameId } ?: return@update agora
+                    atual.copy(
+                        candidatos = CandidatosDoSeletor.Prontos(resultado.dado),
+                        selecao = selecaoInicial(resultado.dado, agora.referenciasEscolhidas[frameId].orEmpty()),
+                    ).let { agora.copy(escolhaDeElementos = it) }
                 }
-                is ResultadoDaChamada.Falha -> _estado.update {
-                    it.copy(mensagensDeRetrato = it.mensagensDeRetrato + (elemento.id to MensagemDoElemento(resultado.motivo, ehErro = true)))
+                is ResultadoDaChamada.Falha -> _estado.update { agora ->
+                    val atual = agora.escolhaDeElementos?.takeIf { it.frameId == frameId } ?: return@update agora
+                    agora.copy(escolhaDeElementos = atual.copy(candidatos = CandidatosDoSeletor.Erro(resultado.motivo)))
                 }
             }
         }
     }
 
-    /** Lê **uma vez** os vinculados de um retrato que já existe no servidor (V8), para a linha dizer a verdade depois de reabrir o app. */
-    fun carregarVinculosDoRetrato(elementoId: Int, frameId: Int) {
-        if (elementoId in _estado.value.vinculosDoRetrato || elementoId in vinculosJaLidos) return
-        vinculosJaLidos += elementoId
+    private fun mexerNaSelecao(mudar: (ElementosParaVincular, SelecaoNoSeletor, Boolean) -> SelecaoNoSeletor) {
+        _estado.update { agora ->
+            val atual = agora.escolhaDeElementos ?: return@update agora
+            val dados = (atual.candidatos as? CandidatosDoSeletor.Prontos)?.dados ?: return@update agora
+            agora.copy(escolhaDeElementos = atual.copy(selecao = mudar(dados, atual.selecao, atual.ehCena), erro = null))
+        }
+    }
+
+    /** Tocar numa imagem do carrossel (EV3, EV4): marca a imagem e o elemento dela, ou desmarca a imagem. */
+    fun alternarImagemDoSeletor(imagemId: Int) = mexerNaSelecao { dados, selecao, ehCena -> alternarImagemNoSeletor(dados, selecao, imagemId, ehCena) }
+
+    /** A caixa do nome (EV4): marcar coloca o elemento; desmarcar tira o elemento e as imagens dele. */
+    fun alternarElementoDoSeletor(estadoId: Int) = mexerNaSelecao { dados, selecao, ehCena -> alternarElementoNoSeletor(dados, selecao, estadoId, ehCena) }
+
+    /** "Limpar": sem imagens e sem os elementos acrescentados (EV4). */
+    fun limparSeletor() = mexerNaSelecao { dados, _, _ -> limparSeletor(dados) }
+
+    fun fecharSeletor() {
+        _estado.update { if (it.escolhaDeElementos?.salvando == true) it else it.copy(escolhaDeElementos = null) }
+    }
+
+    /**
+     * "Usar estes" (EV7): se os **elementos** mudaram, grava no servidor (o retrato: `PUT .../vinculos`; a cena: `PUT .../estados`
+     * com o conjunto inteiro); as **imagens** ficam guardadas aqui, **por frame**, e só vão ao gerar (W3). A recusa do servidor
+     * (a regra de personagem individual, por exemplo) aparece **no próprio seletor**, que fica aberto, e nada muda.
+     */
+    fun usarSeletor() {
+        val escolha = _estado.value.escolhaDeElementos ?: return
+        val dados = (escolha.candidatos as? CandidatosDoSeletor.Prontos)?.dados ?: return
+        if (escolha.salvando) return
+        val frameId = escolha.frameId
+        val imagens = escolha.selecao.imagens.toList()
+        val escolhidos = todosOsElementos(dados).filter { it.estado_id in escolha.selecao.elementos }
+
+        fun concluir(nomes: List<String>?, mudou: Boolean) = _estado.update { agora ->
+            val referencias = if (imagens.isEmpty()) agora.referenciasEscolhidas - frameId else agora.referenciasEscolhidas + (frameId to imagens)
+            val tinha = (agora.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size ?: 0
+            agora.copy(
+                escolhaDeElementos = null,
+                referenciasEscolhidas = referencias,
+                vinculadosPorFrame = if (nomes != null) agora.vinculadosPorFrame + (frameId to nomes) else agora.vinculadosPorFrame,
+                mudancasPendentesDePrompt = if (mudou) agora.mudancasPendentesDePrompt + (frameId to tinha) else agora.mudancasPendentesDePrompt,
+            )
+        }
+
+        if (!elementosMudaram(dados, escolha.selecao)) {
+            concluir(null, mudou = false)
+            return
+        }
+        _estado.update { it.copy(escolhaDeElementos = escolha.copy(salvando = true, erro = null)) }
+        viewModelScope.launch {
+            val estadosIds = escolhidos.map { it.estado_id }
+            val resultado = if (escolha.ehCena) sugestoes.definirEstados(frameId, estadosIds) else sugestoes.definirVinculos(frameId, estadosIds).let {
+                when (it) {
+                    is ResultadoDaChamada.Sucesso -> ResultadoDaChamada.Sucesso(Unit)
+                    is ResultadoDaChamada.Falha -> it
+                }
+            }
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> concluir(if (escolha.ehCena) null else escolhidos.map { it.nome }, mudou = true)
+                is ResultadoDaChamada.Falha -> _estado.update { agora ->
+                    agora.copy(escolhaDeElementos = agora.escolhaDeElementos?.copy(salvando = false, erro = resultado.motivo))
+                }
+            }
+        }
+    }
+
+    /** Lê **uma vez** os nomes dos vinculados de um retrato que já existe no servidor (EV8), para a linha dizer a verdade depois de reabrir o app. */
+    fun carregarVinculados(frameId: Int) {
+        if (frameId in _estado.value.vinculadosPorFrame || frameId in vinculadosJaLidos) return
+        vinculadosJaLidos += frameId
         viewModelScope.launch {
             val resultado = sugestoes.vinculosDoFrame(frameId)
             if (resultado is ResultadoDaChamada.Sucesso) {
-                _estado.update { if (elementoId in it.vinculosDoRetrato) it else it.copy(vinculosDoRetrato = it.vinculosDoRetrato + (elementoId to resultado.dado)) }
+                _estado.update { if (frameId in it.vinculadosPorFrame) it else it.copy(vinculadosPorFrame = it.vinculadosPorFrame + (frameId to resultado.dado.map { v -> v.nome })) }
             }
         }
     }
 
-    private val vinculosJaLidos = mutableSetOf<Int>()
-
-    /**
-     * Abre o modal de **escolher as referências** da cena (W9): lê as imagens candidatas (nunca gasta IA). Na primeira vez as
-     * **âncoras** dos elementos já vêm marcadas; depois, vale a escolha que a pessoa tinha feito para este frame.
-     */
-    fun abrirEscolhaDeReferencias(frameId: Int) {
-        val anterior = _estado.value.referenciasEscolhidas[frameId]
-        _estado.update { it.copy(escolhaDeReferencias = EscolhaDeReferencias(frameId, CandidatasDasReferencias.Carregando, anterior.orEmpty().toSet())) }
-        viewModelScope.launch {
-            when (val resultado = prompts.referenciasCandidatas(frameId)) {
-                is ResultadoDaChamada.Sucesso -> _estado.update { agora ->
-                    val atual = agora.escolhaDeReferencias ?: return@update agora
-                    if (atual.frameId != frameId) return@update agora
-                    // Primeira vez (sem escolha anterior): as âncoras marcadas. Escolha anterior vazia de propósito também cai aqui.
-                    val marcadas = if (anterior == null) ancorasMarcadas(resultado.dado) else atual.marcadas
-                    agora.copy(escolhaDeReferencias = atual.copy(candidatas = CandidatasDasReferencias.Prontas(resultado.dado), marcadas = marcadas))
-                }
-                is ResultadoDaChamada.Falha -> _estado.update { agora ->
-                    val atual = agora.escolhaDeReferencias ?: return@update agora
-                    agora.copy(escolhaDeReferencias = atual.copy(candidatas = CandidatasDasReferencias.Erro(resultado.motivo)))
-                }
-            }
-        }
-    }
-
-    /** Marca ou desmarca uma imagem no modal (W9), até o máximo. */
-    fun alternarReferencia(imagemId: Int) {
-        _estado.update { agora ->
-            val atual = agora.escolhaDeReferencias ?: return@update agora
-            agora.copy(escolhaDeReferencias = atual.copy(marcadas = alternarMarcacao(atual.marcadas, imagemId)))
-        }
-    }
-
-    /** "Limpar" no modal: desmarca tudo (W9). */
-    fun limparReferencias() {
-        _estado.update { agora ->
-            val atual = agora.escolhaDeReferencias ?: return@update agora
-            agora.copy(escolhaDeReferencias = atual.copy(marcadas = emptySet()))
-        }
-    }
-
-    /** "Usar estas": guarda a escolha **deste frame** até trocar (W10) e fecha. Escolha vazia = sem referências. */
-    fun usarReferencias() {
-        _estado.update { agora ->
-            val atual = agora.escolhaDeReferencias ?: return@update agora
-            val escolhidas = atual.marcadas.toList()
-            val mapa = if (escolhidas.isEmpty()) agora.referenciasEscolhidas - atual.frameId else agora.referenciasEscolhidas + (atual.frameId to escolhidas)
-            agora.copy(referenciasEscolhidas = mapa, escolhaDeReferencias = null)
-        }
-    }
-
-    fun fecharEscolhaDeReferencias() {
-        _estado.update { it.copy(escolhaDeReferencias = null) }
-    }
+    private val vinculadosJaLidos = mutableSetOf<Int>()
 
     /** Lê a lista de modelos de imagem **uma vez** (Z6); uma falha de leitura só deixa a escolha de modelo escondida. */
     fun carregarModelosDeImagem() {

@@ -96,6 +96,15 @@ internal class SugestoesFalso(
     val vinculosDefinidos = mutableListOf<Pair<Int, List<Int>>>()
     var resultadoDeDefinirVinculos: ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>>? = null
 
+    /** As substituições de participantes pedidas por `PUT .../estados` (EV7). */
+    val estadosDefinidos = mutableListOf<Pair<Int, List<Int>>>()
+    var resultadoDeDefinirEstados: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit> {
+        estadosDefinidos += frameId to estadosIds
+        return resultadoDeDefinirEstados
+    }
+
     override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>> {
         leiturasDeVinculos += frameId
         return vinculosNoServidor

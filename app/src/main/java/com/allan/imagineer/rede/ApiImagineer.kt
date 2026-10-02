@@ -189,6 +189,14 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): FrameCriado
 
+    /** `GET /frames/{id}/elementos-para-vincular` — os elementos e as imagens do seletor (EV6). Nunca gasta IA. */
+    @GET("frames/{id}/elementos-para-vincular")
+    suspend fun elementosParaVincular(@Path("id") frameId: Int): ElementosParaVincular
+
+    /** `PUT /frames/{id}/estados` — substitui os estados (os participantes) de um frame (item 6.4). Não gasta IA. */
+    @PUT("frames/{id}/estados")
+    suspend fun definirEstados(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
+
     /** `GET /frames/{id}/referencias-candidatas` — as imagens dos elementos da cena que podem ir como referência (W2). Nunca gasta IA. */
     @GET("frames/{id}/referencias-candidatas")
     suspend fun referenciasCandidatas(@Path("id") frameId: Int): ReferenciasCandidatas
