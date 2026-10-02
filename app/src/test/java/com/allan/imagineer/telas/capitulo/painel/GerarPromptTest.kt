@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.dados.ArquivoEscolhido
+import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.ReferenciaVisual
 import com.allan.imagineer.rede.RepositorioDePrompts
@@ -41,6 +43,29 @@ internal class PromptsFalso : RepositorioDePrompts {
         geracoes += frameId to comentario
         travaDaGeracao?.await()
         return geracao
+    }
+
+    /** O detalhe de cada prompt (com as imagens), por id; o que não foi combinado falha. */
+    val detalhes = mutableMapOf<Int, PromptDeFrame>()
+    val detalhesPedidos = mutableListOf<Int>()
+    val importacoes = mutableListOf<Pair<Int, ArquivoEscolhido>>()
+    var resultadoDaImportacao: ResultadoDaChamada<ImagemDoPrompt> = ResultadoDaChamada.Sucesso(ImagemDoPrompt(id = 500, prompt_id = 1))
+    var travaDaImportacao: CompletableDeferred<Unit>? = null
+
+    override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> {
+        detalhesPedidos += promptId
+        return detalhes[promptId]?.let { ResultadoDaChamada.Sucesso(it) } ?: ResultadoDaChamada.Falha("sem detalhe")
+    }
+
+    override suspend fun importarImagem(
+        promptId: Int,
+        arquivo: ArquivoEscolhido,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<ImagemDoPrompt> {
+        importacoes += promptId to arquivo
+        aoProgredir(50, 100)
+        travaDaImportacao?.await()
+        return resultadoDaImportacao
     }
 }
 

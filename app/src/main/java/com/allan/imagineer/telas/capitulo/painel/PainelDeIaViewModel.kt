@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
+import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
 import com.allan.imagineer.rede.PromptDeFrame
+import com.allan.imagineer.rede.motivoParaNaoImportar
 import com.allan.imagineer.rede.PromptsSemServidor
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDePrompts
@@ -151,6 +153,10 @@ data class EstadoDoPainel(
     val mensagensDeRetrato: Map<Int, MensagemDoElemento> = emptyMap(),
     /** Sobe a cada frame criado: a tela relê os artefatos quando muda, para o ícone no texto acompanhar (N4). */
     val versaoDosFrames: Int = 0,
+    /** Prompts com uma imagem sendo enviada (J3): um envio por prompt. O valor é a fração enviada, ou `null` se o total é desconhecido. */
+    val importandoImagem: Map<Int, Float?> = emptyMap(),
+    /** O recado de cada prompt sobre a importação: o motivo da recusa ou da falha, ou "Imagem importada." (J2, J3). */
+    val mensagensDeImagem: Map<Int, MensagemDoElemento> = emptyMap(),
     /** Como cada frame se chama nos avisos ("A partida", "Retrato de Jon"); guardado ao pedir o prompt (N6). */
     val rotulosDeFrame: Map<Int, String> = emptyMap(),
 ) {
@@ -372,11 +378,84 @@ class PainelDeIaViewModel(
         viewModelScope.launch {
             val novo = when (val resultado = prompts.listar(frameId)) {
                 // Do mais novo para o mais antigo (G2): o servidor entrega do mais antigo ao mais recente.
-                is ResultadoDaChamada.Sucesso -> PromptsDoFrame.Pronto(resultado.dado.reversed())
+                is ResultadoDaChamada.Sucesso -> PromptsDoFrame.Pronto(comAsImagens(resultado.dado).reversed())
                 is ResultadoDaChamada.Falha -> PromptsDoFrame.Erro(resultado.motivo)
             }
             _estado.update { it.copy(prompts = it.prompts + (frameId to novo)) }
         }
+    }
+
+    /**
+     * A listagem do frame só diz **quantas** imagens cada prompt tem; as imagens vêm em `GET /prompts/{id}` (J5). Busca-se
+     * só dos prompts que têm, e uma falha ali não derruba a lista: o prompt aparece sem as miniaturas.
+     */
+    private suspend fun comAsImagens(lista: List<PromptDeFrame>): List<PromptDeFrame> = lista.map { prompt ->
+        if (prompt.total_de_imagens == 0) {
+            prompt
+        } else {
+            when (val detalhe = prompts.detalhar(prompt.id)) {
+                is ResultadoDaChamada.Sucesso -> prompt.copy(imagens = detalhe.dado.imagens)
+                is ResultadoDaChamada.Falha -> prompt
+            }
+        }
+    }
+
+    /**
+     * Importar a imagem escolhida para um prompt (J1 a J6). [arquivo] é `null` quando o app não conseguiu descrever o
+     * arquivo. Confere extensão e tamanho **antes** de enviar (J2); um envio por prompt, sem repetição automática (J3).
+     */
+    fun importarImagem(frameId: Int, promptId: Int, arquivo: ArquivoEscolhido?) {
+        if (promptId in _estado.value.importandoImagem) return
+        val recusa = if (arquivo == null) "Não consegui abrir o arquivo escolhido." else motivoParaNaoImportar(arquivo)
+        if (arquivo == null || recusa != null) {
+            avisarSobreImagem(promptId, recusa!!, ehErro = true)
+            return
+        }
+        _estado.update {
+            it.copy(importandoImagem = it.importandoImagem + (promptId to null), mensagensDeImagem = it.mensagensDeImagem - promptId)
+        }
+        viewModelScope.launch {
+            val resultado = prompts.importarImagem(promptId, arquivo) { enviados, total ->
+                val fracao = if (total != null && total > 0) (enviados.toFloat() / total).coerceIn(0f, 1f) else null
+                _estado.update { atual ->
+                    if (promptId in atual.importandoImagem) atual.copy(importandoImagem = atual.importandoImagem + (promptId to fracao)) else atual
+                }
+            }
+            _estado.update { atual ->
+                val semEnvio = atual.importandoImagem - promptId
+                when (resultado) {
+                    is ResultadoDaChamada.Sucesso -> atual.copy(
+                        importandoImagem = semEnvio,
+                        prompts = atual.prompts + (frameId to comAImagemNova(atual.prompts[frameId], promptId, resultado.dado)),
+                        mensagensDeImagem = atual.mensagensDeImagem + (promptId to MensagemDoElemento("Imagem importada.", ehErro = false)),
+                        // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
+                        versaoDosFrames = atual.versaoDosFrames + 1,
+                    )
+                    is ResultadoDaChamada.Falha -> atual.copy(
+                        importandoImagem = semEnvio,
+                        mensagensDeImagem = atual.mensagensDeImagem + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun avisarSobreImagem(promptId: Int, texto: String, ehErro: Boolean) {
+        _estado.update { it.copy(mensagensDeImagem = it.mensagensDeImagem + (promptId to MensagemDoElemento(texto, ehErro))) }
+    }
+
+    /** Põe a imagem recém-importada **na frente** (a mais nova primeiro, J4) do prompt dela, sem duplicar. */
+    private fun comAImagemNova(atual: PromptsDoFrame?, promptId: Int, imagem: com.allan.imagineer.rede.ImagemDoPrompt): PromptsDoFrame {
+        val lista = (atual as? PromptsDoFrame.Pronto)?.lista ?: return atual ?: PromptsDoFrame.Lendo
+        return PromptsDoFrame.Pronto(
+            lista.map { prompt ->
+                if (prompt.id != promptId || prompt.imagens.any { it.id == imagem.id }) {
+                    prompt
+                } else {
+                    prompt.copy(imagens = listOf(imagem) + prompt.imagens, total_de_imagens = prompt.total_de_imagens + 1)
+                }
+            },
+        )
     }
 
     /** "Gerar prompt": **pede confirmação** antes de gastar IA (G3). Ignora se já há uma geração rodando para o frame. */

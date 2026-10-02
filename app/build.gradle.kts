@@ -56,6 +56,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.retrofit)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -116,6 +116,8 @@ class AcoesDoPainel(
     val aoFecharModalDaCena: () -> Unit,
     val aoExecutarCena: (AcaoDaCena, CenaSugerida) -> Unit,
     val aoRevisarParticipante: (sugestaoElementoId: Int) -> Unit,
+    // Incremento 12, primeira fatia: importar a imagem (J1 a J10).
+    val aoImportarImagem: (frameId: Int, promptId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit,
 )
 
 /**
@@ -902,6 +904,9 @@ private fun BlocoDePrompts(frameId: Int, rotulo: String, estado: EstadoDoPainel,
             conteudo.lista.forEach { prompt ->
                 CartaoDePrompt(
                     prompt,
+                    frameId = frameId,
+                    estado = estado,
+                    acoes = acoes,
                     aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
                     aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
                 )
@@ -961,7 +966,14 @@ private fun compartilharTexto(contexto: Context, texto: String) {
 
 /** Um prompt gerado: o texto (selecionável) e **Copiar**, que confirma na hora (G6). */
 @Composable
-private fun CartaoDePrompt(prompt: PromptDeFrame, aoCopiar: () -> Unit, aoCompartilhar: () -> Unit) {
+private fun CartaoDePrompt(
+    prompt: PromptDeFrame,
+    frameId: Int,
+    estado: EstadoDoPainel,
+    acoes: AcoesDoPainel,
+    aoCopiar: () -> Unit,
+    aoCompartilhar: () -> Unit,
+) {
     var copiado by remember(prompt.id) { mutableStateOf(false) }
     var explicandoImagem by remember(prompt.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -975,7 +987,9 @@ private fun CartaoDePrompt(prompt: PromptDeFrame, aoCopiar: () -> Unit, aoCompar
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
                 // G12: o lugar do "Gerar imagem" já existe, para o dia em que o app gerar a imagem. Por ora só explica.
                 OutlinedButton(onClick = { explicandoImagem = !explicandoImagem }) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
+                BotaoImportarImagem(frameId, prompt.id, estado, acoes)
             }
+            ImagensDoPrompt(prompt, estado)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             if (explicandoImagem) {
                 Text(AVISO_GERAR_IMAGEM_EM_BREVE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

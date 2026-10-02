@@ -80,7 +80,7 @@ class ImagineerApp : Application() {
     val servicoDeAnalises: ServicoDeAnalises by lazy { ServicoDeAnalises(repositorioDeSugestoes, escopoDeFundo, repositorioDePrompts) }
 
     val repositorioDePrompts: RepositorioDePrompts by lazy {
-        RepositorioDePromptsPeloRetrofit(provedorDeApi)
+        RepositorioDePromptsPeloRetrofit(provedorDeApi, leitorDeArquivos)
     }
 
     val repositorioDeArtefatos: RepositorioDeArtefatos by lazy {

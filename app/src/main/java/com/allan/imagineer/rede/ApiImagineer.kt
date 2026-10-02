@@ -201,6 +201,18 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): PromptDeFrame
 
+    /** `GET /prompts/{id}` — o prompt com as imagens que saíram dele (item 6.6). Só leitura. */
+    @GET("prompts/{id}")
+    suspend fun prompt(@Path("id") promptId: Int): PromptDeFrame
+
+    /** `POST /prompts/{id}/imagens` — importa o arquivo de imagem gerado fora do app (item 6.6). Não gasta IA. */
+    @Multipart
+    @POST("prompts/{id}/imagens")
+    suspend fun importarImagem(
+        @Path("id") promptId: Int,
+        @Part arquivo: MultipartBody.Part,
+    ): ImagemDoPrompt
+
     /**
      * `POST /capitulos/{id}/frames` **do tipo PERSONAGEM** (o "retrato" de um elemento, item 6.4): um frame solo, com
      * **um** estado em `estados_ids`. Não gasta IA.
