@@ -1022,6 +1022,8 @@ private fun CartaoDePrompt(
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             }
+            // Z12: o modelo que este "Gerar imagem" vai usar, com a troca, à vista em todo cartão.
+            ModeloDeImagemEmUso(estado, acoes, ocupado = prompt.id in estado.gerandoImagem || prompt.id in estado.importandoImagem)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }

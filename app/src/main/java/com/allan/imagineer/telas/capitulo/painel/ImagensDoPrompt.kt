@@ -121,12 +121,7 @@ internal fun SecaoDaImagemDoFrame(
     }
     lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
     // Z6: qual modelo de imagem a próxima geração vai usar, com a troca.
-    modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem)?.let { emUso ->
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Modelo de imagem: $emUso", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
-            TextButton(onClick = acoes.aoAbrirEscolhaDeModelo, enabled = !ocupado) { Text("Trocar", maxLines = 1, softWrap = false) }
-        }
-    }
+    ModeloDeImagemEmUso(estado, acoes, ocupado)
     maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
@@ -148,6 +143,21 @@ internal fun SecaoDaImagemDoFrame(
         }
     }
     Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * "Modelo de imagem: X" com **Trocar** (Z6, Z12): o modelo que o próximo **Gerar imagem** vai usar. Aparece junto de **todo**
+ * botão de gerar (o do frame e o de cada cartão de prompt), para o usuário ver e trocar o modelo em qualquer geração. A escolha
+ * é a mesma para todos (Z6). Some enquanto a lista de modelos do servidor não chegou.
+ */
+@Composable
+internal fun ModeloDeImagemEmUso(estado: EstadoDoPainel, acoes: AcoesDoPainel, ocupado: Boolean) {
+    modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem)?.let { emUso ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Modelo de imagem: $emUso", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
+            TextButton(onClick = acoes.aoAbrirEscolhaDeModelo, enabled = !ocupado) { Text("Trocar", maxLines = 1, softWrap = false) }
+        }
+    }
 }
 
 /**
