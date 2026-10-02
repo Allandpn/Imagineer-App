@@ -571,7 +571,23 @@ fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
         "RECUSADO" -> add(prompt.modelo_imagem?.let { "Recusado por $it" } ?: "Recusado pelo provedor")
         "COM_SUCESSO" -> prompt.modelo_imagem?.let { add("Gerado com $it") }
     }
+    // F16: a pessoa nunca fica em dúvida de como a imagem nasceu.
+    if (prompt.sem_filtro_de_seguranca) add(ETIQUETA_SEM_FILTRO)
 }
+
+/** A etiqueta de uma tentativa feita com o filtro de segurança do modelo desligado (F16). */
+const val ETIQUETA_SEM_FILTRO = "Sem filtro"
+
+/**
+ * O botão **Tentar sem o filtro** (F12, F13): só num prompt que o provedor **recusou** e só se o servidor tem ao menos um
+ * modelo na lista de modelos sem filtro. Nunca aparece num prompt que nunca foi recusado.
+ */
+fun podeTentarSemFiltro(prompt: PromptDeFrame, modelos: ModelosDeImagem?): Boolean =
+    prompt.situacao_da_geracao == "RECUSADO" && !modelos?.semFiltro.isNullOrEmpty()
+
+/** Os modelos do diálogo **sem filtro** (F13): só os da lista do servidor, sem repetir nem vazios; **nunca o padrão**. */
+fun modelosSemFiltroParaEscolher(modelos: ModelosDeImagem): List<String> =
+    modelos.semFiltro.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
 /** Os modelos que a pessoa pode escolher (Z2, Z6): o **padrão primeiro**, mesmo que não esteja na lista, sem repetir. */
 fun modelosParaEscolher(modelos: ModelosDeImagem): List<String> =
@@ -586,7 +602,8 @@ fun alternativaAoModelo(recusado: String?, opcoes: List<String>): String? =
     opcoes.firstOrNull { it != recusado } ?: opcoes.firstOrNull()
 
 /** O que a tela cheia diz da imagem (Z8): quem a gerou, ou que foi importada. */
-fun descreverOrigemDaImagem(imagem: ImagemDoPrompt): String = imagem.modelo?.let { "Gerada por $it" } ?: "Importada"
+fun descreverOrigemDaImagem(imagem: ImagemDoPrompt): String =
+    (imagem.modelo?.let { "Gerada por $it" } ?: "Importada") + if (imagem.sem_filtro_de_seguranca) " (sem filtro)" else ""
 
 // ---------------------------------------------------------------------------------------------------------------- //
 // Novo retrato (incremento 10b, terceira fatia: N1 a N8)

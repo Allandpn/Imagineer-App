@@ -39,6 +39,8 @@ data class PromptDeFrame(
     val prompt_original_id: Int? = null,
     /** O modelo de imagem da última tentativa deste prompt, inclusive a recusada (Z1, Z7); nulo se nunca tentado. */
     val modelo_imagem: String? = null,
+    /** A última tentativa foi com o filtro de segurança do modelo desligado, a pedido da pessoa (F16). */
+    val sem_filtro_de_seguranca: Boolean = false,
 )
 
 /**
@@ -71,6 +73,8 @@ data class ImagemDoPrompt(
     val origem: String = "IMPORTADA",
     /** O modelo de imagem que gerou esta imagem (Z8); nulo se foi importada. */
     val modelo: String? = null,
+    /** A imagem foi gerada com o filtro de segurança do modelo desligado (F16). */
+    val sem_filtro_de_seguranca: Boolean = false,
     val data_importacao: String = "",
 )
 
@@ -82,7 +86,7 @@ data class ReferenciaVisual(val id: Int)
  * Os modelos de imagem que o usuário pode escolher (Z2): o [padrao] do servidor e a [lista] mantida na configuração. O
  * padrão sempre aparece na escolha, mesmo fora da lista (veja `modelosParaEscolher`).
  */
-data class ModelosDeImagem(val padrao: String, val lista: List<String>)
+data class ModelosDeImagem(val padrao: String, val lista: List<String>, val semFiltro: List<String> = emptyList())
 
 /**
  * O que o modal da cena precisa dos prompts de um frame (item 6.6). Interface, para o ViewModel ser testado com uma
@@ -102,7 +106,12 @@ interface RepositorioDePrompts {
      * `POST /prompts/{id}/gerar-imagem`: **gera** (e cobra) a imagem (K1). [textoEditado] é o prompt que a pessoa editou à
      * mão depois de uma recusa (K4): o servidor o envia direto, sem suavizar. Recusa responde 200 com `RECUSADA`.
      */
-    suspend fun gerarImagem(promptId: Int, textoEditado: String? = null, modelo: String? = null): ResultadoDaChamada<ResultadoDaGeracao>
+    suspend fun gerarImagem(
+        promptId: Int,
+        textoEditado: String? = null,
+        modelo: String? = null,
+        semFiltro: Boolean = false,
+    ): ResultadoDaChamada<ResultadoDaGeracao>
 
     /** `GET /configuracao`: o modelo de imagem padrão e a lista de modelos que se pode escolher (Z2, Z6). Nunca gasta IA. */
     suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem>
@@ -177,13 +186,20 @@ class RepositorioDePromptsPeloRetrofit(
         return interpretarRemocao(chamarApi { api.removerImagem(imagemId) })
     }
 
-    override suspend fun gerarImagem(promptId: Int, textoEditado: String?, modelo: String?): ResultadoDaChamada<ResultadoDaGeracao> {
+    override suspend fun gerarImagem(
+        promptId: Int,
+        textoEditado: String?,
+        modelo: String?,
+        semFiltro: Boolean,
+    ): ResultadoDaChamada<ResultadoDaGeracao> {
         val api = provedor.obter() ?: return provedor.semServidor()
         // Só o que a pessoa decidiu: sem texto o servidor segue o fluxo normal (original e, se recusar, suaviza); sem
         // modelo vale o padrão do servidor (Z3).
         val corpo: JsonObject = buildJsonObject {
             if (textoEditado != null) put("texto", textoEditado)
             if (modelo != null) put("modelo", modelo)
+            // F12: só por pedido explícito da pessoa, no diálogo próprio; nunca vai por padrão.
+            if (semFiltro) put("sem_filtro_de_seguranca", true)
         }
         return chamarApi { api.gerarImagem(promptId, corpo) }
     }
@@ -192,7 +208,7 @@ class RepositorioDePromptsPeloRetrofit(
         val api = provedor.obter() ?: return provedor.semServidor()
         return when (val resposta = chamarApi { api.configuracao() }) {
             is ResultadoDaChamada.Sucesso ->
-                ResultadoDaChamada.Sucesso(ModelosDeImagem(resposta.dado.modelo_imagem.orEmpty(), resposta.dado.modelos_de_imagem))
+                ResultadoDaChamada.Sucesso(ModelosDeImagem(resposta.dado.modelo_imagem.orEmpty(), resposta.dado.modelos_de_imagem, resposta.dado.modelos_sem_filtro))
             is ResultadoDaChamada.Falha -> resposta
         }
     }
@@ -226,8 +242,12 @@ object PromptsSemServidor : RepositorioDePrompts {
     override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
-    override suspend fun gerarImagem(promptId: Int, textoEditado: String?, modelo: String?): ResultadoDaChamada<ResultadoDaGeracao> =
-        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+    override suspend fun gerarImagem(
+        promptId: Int,
+        textoEditado: String?,
+        modelo: String?,
+        semFiltro: Boolean,
+    ): ResultadoDaChamada<ResultadoDaGeracao> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")

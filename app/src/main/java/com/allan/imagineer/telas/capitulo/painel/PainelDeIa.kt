@@ -129,6 +129,10 @@ class AcoesDoPainel(
     val aoEscolherModelo: (String) -> Unit,
     val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
+    // Gerar sem o filtro de segurança, depois de uma recusa (F12 a F18).
+    val aoAbrirSemFiltro: (frameId: Int, promptId: Int, texto: String) -> Unit,
+    val aoFecharSemFiltro: () -> Unit,
+    val aoGerarSemFiltro: (frameId: Int, promptId: Int, texto: String, modelo: String) -> Unit,
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
     val aoFecharEdicaoDePrompt: () -> Unit,
@@ -178,6 +182,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
+    estado.semFiltro?.let { DialogoSemFiltro(it, estado, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -1034,6 +1039,13 @@ private fun CartaoDePrompt(
                 ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
                 OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
+                // F12: só num prompt que o provedor recusou, e só se o servidor tem modelos que permitem isso (F13).
+                if (podeTentarSemFiltro(prompt, estado.modelosDeImagem)) {
+                    OutlinedButton(
+                        onClick = { acoes.aoAbrirSemFiltro(frameId, prompt.id, prompt.texto) },
+                        enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
+                    ) { Text("Tentar sem o filtro", maxLines = 1, softWrap = false) }
+                }
             }
             ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -1140,6 +1152,31 @@ private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, estado: EstadoDoPain
         modeloInicial = modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem),
         aoConfirmar = { texto, modelo -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto, modelo) },
         aoFechar = acoes.aoFecharEdicaoDePrompt,
+        rotuloDoFechar = "Cancelar",
+    )
+}
+
+/**
+ * O diálogo **Tentar sem o filtro** (F12 a F18): diz com clareza o que vai acontecer, mostra o texto (editável) e o seletor
+ * **só com os modelos que permitem desligar o filtro** (F13); o primeiro já vem marcado, mas a pessoa vê e pode trocar. Não gera nada até tocar em **Gerar sem o filtro**. Menores de idade: o servidor recusa (F15).
+ */
+@Composable
+private fun DialogoSemFiltro(pedido: PedidoSemFiltro, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val opcoes = estado.modelosDeImagem?.let(::modelosSemFiltroParaEscolher).orEmpty()
+    DialogoDoTextoDoPrompt(
+        chave = "semFiltro${pedido.promptId}",
+        titulo = "Tentar sem o filtro de segurança",
+        motivo = null,
+        explicacao = "O filtro de segurança do modelo será DESLIGADO nesta tentativa, só no Replicate. A responsabilidade pelo " +
+            "conteúdo é de quem pede. O sistema recusa se o texto falar de um menor de idade. A imagem fica marcada " +
+            "\"Sem filtro\". Não suaviza nada: o texto vai como está.",
+        textoInicial = pedido.texto,
+        rotuloDoBotao = "Gerar sem o filtro",
+        opcoesDeModelo = opcoes,
+        padraoDoServidor = null,
+        modeloInicial = opcoes.firstOrNull(),
+        aoConfirmar = { texto, modelo -> modelo?.let { acoes.aoGerarSemFiltro(pedido.frameId, pedido.promptId, texto, it) } },
+        aoFechar = acoes.aoFecharSemFiltro,
         rotuloDoFechar = "Cancelar",
     )
 }

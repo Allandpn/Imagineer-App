@@ -83,7 +83,15 @@ internal class PromptsFalso : RepositorioDePrompts {
         return resultadoDosModelos
     }
 
-    override suspend fun gerarImagem(promptId: Int, textoEditado: String?, modelo: String?): ResultadoDaChamada<ResultadoDaGeracao> {
+    val pedidosSemFiltro = mutableListOf<Int>() // os prompts pedidos com o filtro desligado (F12)
+
+    override suspend fun gerarImagem(
+        promptId: Int,
+        textoEditado: String?,
+        modelo: String?,
+        semFiltro: Boolean,
+    ): ResultadoDaChamada<ResultadoDaGeracao> {
+        if (semFiltro) pedidosSemFiltro += promptId
         geracoesDeImagem += promptId to textoEditado
         modelosPedidos += modelo
         travaDaGeracaoDeImagem?.await()

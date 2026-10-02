@@ -312,6 +312,8 @@ data class ConfiguracaoAtual(
     val modelo_imagem: String? = null,
     /** Os modelos de imagem que o usuário pode escolher (Z2). */
     val modelos_de_imagem: List<String> = emptyList(),
+    /** Os modelos em que se pode pedir para **desligar o filtro de segurança**, depois de uma recusa (F13). Vazia = nenhum. */
+    val modelos_sem_filtro: List<String> = emptyList(),
     val prioridade_ia: String,
 )
 
