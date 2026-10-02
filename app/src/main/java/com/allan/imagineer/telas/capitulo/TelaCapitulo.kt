@@ -346,6 +346,7 @@ private fun LeitorPaginado(
                         acoes = acoesDoPainel,
                         aoFechar = aoAlternarPainel,
                         modifier = Modifier.width(380.dp).fillMaxHeight(),
+                        retratos = retratosPorSugestao(artefatosDaTela),
                     )
                 }
             }
@@ -357,6 +358,7 @@ private fun LeitorPaginado(
                     acoes = acoesDoPainel,
                     aoFechar = null,
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {},
+                    retratos = retratosPorSugestao(artefatosDaTela),
                 )
             }
         }

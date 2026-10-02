@@ -130,12 +130,14 @@ fun PainelDeIa(
     acoes: AcoesDoPainel,
     aoFechar: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    /** Qual sugestão de elemento já tem retrato neste capítulo: sugestão -> frame (N4). */
+    retratos: Map<Int, Int> = emptyMap(),
 ) {
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(modifier = Modifier.fillMaxSize()) {
             CabecalhoDoPainel(aoFechar)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                CorpoDoPainel(estado, acoes)
+                CorpoDoPainel(estado, acoes, retratos)
             }
         }
     }
@@ -220,11 +222,9 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
                         aoAlternar = {},
                         estado = estado,
                         acoes = acoes,
+                        // O frame vem do artefato (N4) ou do que acabou de ser criado.
+                        frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
                     )
-                    // N1: só o elemento confirmado tem retrato. O frame vem do artefato (N4) ou do que acabou de ser criado.
-                    if (podeTerRetrato(elemento)) {
-                        BlocoDoRetrato(elemento, retratos[elemento.id] ?: estado.retratosCriados[elemento.id], estado, acoes)
-                    }
                 }
             }
         }
@@ -273,7 +273,7 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?) {
 }
 
 @Composable
-private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>) {
     when (val conteudo = estado.conteudo) {
         // P1: o painel só pede algo ao servidor depois de aberto; até lá não há o que mostrar.
         ConteudoDoPainel.NaoCarregado, ConteudoDoPainel.Lendo -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -296,7 +296,7 @@ private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
 
         is ConteudoDoPainel.NuncaAnalisado -> NuncaAnalisado(conteudo, estado, acoes)
 
-        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes)
+        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes, retratos)
     }
 }
 
@@ -338,7 +338,7 @@ private fun NuncaAnalisado(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>) {
     val abertos = rememberSaveable { mutableStateListOf<String>() }
     fun alternar(chave: String) {
         if (chave in abertos) abertos.remove(chave) else abertos.add(chave)
@@ -428,6 +428,7 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
                         aoAlternar = { alternar(chave) },
                         estado = estado,
                         acoes = acoes,
+                        frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
                     )
                 }
             }
@@ -436,7 +437,8 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
         if (cenas.isNotEmpty()) {
             item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
             items(cenas, key = { "c${it.id}" }) { cena ->
-                CartaoDeCena(cena, estado, acoes)
+                val chaveDaCena = "cena:${cena.id}"
+                CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
             }
         }
     }
@@ -460,6 +462,8 @@ internal fun CartaoDeElemento(
     aoAlternar: () -> Unit,
     estado: EstadoDoPainel,
     acoes: AcoesDoPainel,
+    /** O frame do retrato deste elemento neste capítulo, se já existe (N4). */
+    frameDoRetrato: Int? = null,
 ) {
     val ocupado = elemento.id in estado.ocupados
     val situacao = situacaoDoElemento(elemento)
@@ -525,6 +529,8 @@ internal fun CartaoDeElemento(
                         }
                     }
                 }
+                // N1 e N3: o retrato (e, com ele, os prompts) vive no cartão — na lista do painel e no modal, a mesma coisa.
+                if (podeTerRetrato(elemento)) BlocoDoRetrato(elemento, frameDoRetrato, estado, acoes)
             }
         }
     }
@@ -818,14 +824,16 @@ private fun DialogoDescartarEmCenas(dialogo: DialogoDeElemento.DescartandoEmCena
 }
 
 /**
- * O cartão da cena (C9): título, quantos participantes e **uma etiqueta de situação**. Tocar abre o **modal da cena**
- * (C1); o cartão deixa de se expandir no lugar, porque o modal mostra os detalhes.
+ * O cartão da cena na lista do painel: título, quantos participantes e **uma etiqueta de situação**. **Tocar o expande no
+ * lugar**, com o **mesmo corpo do modal** (participantes, decisões e, na cena confirmada, os prompts): tudo o que se faz
+ * pelo ícone no texto também se faz pela lista (pedido do Allan, 01/10/2026).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () -> Unit, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val ocupada = cena.id in estado.cenasOcupadas
-    Card(onClick = { acoes.aoAbrirCena(cena.id) }, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Card(onClick = aoAlternar, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -836,7 +844,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Aco
                         cena.titulo,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = if (aberto) Int.MAX_VALUE else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
@@ -851,8 +859,13 @@ internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Aco
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
             }
-            estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
-            if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
+            if (!aberto) {
+                estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
+                if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            } else {
+                CorpoDaCena(cena, estado, acoes)
+            }
         }
     }
 }
@@ -1033,9 +1046,6 @@ fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val ocupada = cena.id in estado.cenasOcupadas
-    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -1044,6 +1054,19 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
     }
+    CorpoDaCena(cena, estado, acoes)
+}
+
+/**
+ * O corpo de uma cena (C3 a C7 e G1 a G13): descrição, participantes com as suas ações, decisões e, na cena confirmada, os
+ * prompts. **O mesmo** no modal (ícone no texto) e no cartão expandido da lista do painel.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val ocupada = cena.id in estado.cenasOcupadas
+    val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
+
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)
     if (situacao.isNotEmpty()) {
