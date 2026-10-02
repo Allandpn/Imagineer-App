@@ -7,6 +7,7 @@ import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.PromptsSemServidor
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDePrompts
@@ -137,6 +138,11 @@ data class EstadoDoPainel(
     val mensagensDePrompt: Map<Int, MensagemDoElemento> = emptyMap(),
     /** O diálogo "Gerar o prompt gasta IA" está aberto para este frame (G3). */
     val confirmandoPrompt: Int? = null,
+    /**
+     * Quantos prompts foram gerados **nesta sessão** por frame. Só serve para o modal mostrar o aviso translúcido
+     * "Prompt gerado." quando o número **sobe** (G13).
+     */
+    val promptsGerados: Map<Int, Int> = emptyMap(),
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -175,12 +181,12 @@ class PainelDeIaViewModel(
      * Onde as análises de IA **de fato rodam** (defeito D1): no escopo do app, e não neste ViewModel, para
      * sobreviverem a quem sai da tela antes de elas terminarem. O padrão cria um serviço próprio (testes).
      */
+    private val prompts: RepositorioDePrompts = PromptsSemServidor,
     private val servico: ServicoDeAnalises = ServicoDeAnalises(
         sugestoes,
         CoroutineScope(SupervisorJob() + Dispatchers.Main),
+        prompts,
     ),
-    /** Os prompts de um frame (10b, segunda fatia). O padrão não tem servidor, para os testes que não os usam. */
-    private val prompts: RepositorioDePrompts = PromptsSemServidor,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoDoPainel())
@@ -305,6 +311,11 @@ class PainelDeIaViewModel(
         // Qualquer entrada (lendo, pronta ou com erro) segura a leitura: o erro só se refaz por [recarregarPrompts].
         if (_estado.value.prompts[frameId] != null) return
         lerPrompts(frameId)
+        // Voltou ao modal com uma geração ainda rodando (G8, revisto): reencontra o "gerando" e recebe o resultado.
+        servico.promptEmAndamento(frameId)?.let { trabalho ->
+            _estado.update { it.copy(gerandoPrompt = it.gerandoPrompt + frameId) }
+            aguardarPrompt(frameId, trabalho)
+        }
     }
 
     /** "Tentar de novo" depois de um erro de leitura. */
@@ -345,14 +356,25 @@ class PainelDeIaViewModel(
             it.copy(confirmandoPrompt = null, gerandoPrompt = it.gerandoPrompt + frameId, mensagensDePrompt = it.mensagensDePrompt - frameId)
         }
         val comentario = ajuste.trim().ifBlank { null }
+        // O trabalho roda no serviço do app (G8, revisto): sair do capítulo não o cancela, e ao terminar sai o aviso.
+        val cena = (_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.cenas?.firstOrNull { it.frame_id == frameId }
+        aguardarPrompt(frameId, servico.iniciarPrompt(frameId, capituloId, livroId, rotuloDoCapitulo, cena?.titulo ?: "cena", comentario))
+    }
+
+    /** Espera o resultado de uma geração (a nossa, ou a que já estava rodando) e o aplica à lista (G5, G7). */
+    private fun aguardarPrompt(frameId: Int, trabalho: Deferred<ResultadoDaChamada<PromptDeFrame>>) {
         viewModelScope.launch {
-            val resultado = prompts.gerar(frameId, comentario)
+            val resultado = trabalho.await()
             _estado.update { atual ->
                 val daLista = (atual.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista.orEmpty()
                 when (resultado) {
                     is ResultadoDaChamada.Sucesso -> atual.copy(
                         gerandoPrompt = atual.gerandoPrompt - frameId,
-                        prompts = atual.prompts + (frameId to PromptsDoFrame.Pronto(listOf(resultado.dado) + daLista)),
+                        // Sem repetir: se a leitura já trouxe este prompt (gravado antes de ela terminar), não duplica.
+                        prompts = atual.prompts + (frameId to PromptsDoFrame.Pronto(
+                            if (daLista.any { it.id == resultado.dado.id }) daLista else listOf(resultado.dado) + daLista,
+                        )),
+                        promptsGerados = atual.promptsGerados + (frameId to ((atual.promptsGerados[frameId] ?: 0) + 1)),
                     )
                     is ResultadoDaChamada.Falha -> atual.copy(
                         gerandoPrompt = atual.gerandoPrompt - frameId,
@@ -361,6 +383,11 @@ class PainelDeIaViewModel(
                 }
             }
         }
+    }
+
+    /** O modal de cena deste frame está na tela (ou deixou de estar, com `null`): o aviso global se cala (G13). */
+    fun definirModalDoFrameVisivel(frameId: Int?) {
+        servico.definirModalDoFrameVisivel(frameId)
     }
 
     // ------------------------------------------------------------------ //

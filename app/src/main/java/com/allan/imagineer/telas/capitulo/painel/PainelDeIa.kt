@@ -47,6 +47,12 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.allan.imagineer.rede.PromptDeFrame
+import android.content.Context
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,6 +100,7 @@ class AcoesDoPainel(
     val aoFecharModal: () -> Unit,
     // Incremento 10b, segunda fatia: gerar o prompt e copiar (G1 a G10).
     val aoCarregarPrompts: (frameId: Int) -> Unit,
+    val aoModalDoPromptVisivel: (frameId: Int?) -> Unit,
     val aoRecarregarPrompts: (frameId: Int) -> Unit,
     val aoPedirGerarPrompt: (frameId: Int) -> Unit,
     val aoCancelarGerarPrompt: () -> Unit,
@@ -186,7 +193,7 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {
@@ -828,7 +835,13 @@ internal fun CartaoDeCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Aco
 @Composable
 private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
+    // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
+    DisposableEffect(frameId) {
+        acoes.aoModalDoPromptVisivel(frameId)
+        onDispose { acoes.aoModalDoPromptVisivel(null) }
+    }
     val area = LocalClipboardManager.current
+    val contexto = LocalContext.current
     val gerando = frameId in estado.gerandoPrompt
     val conteudo = estado.prompts[frameId]
     val jaTem = (conteudo as? PromptsDoFrame.Pronto)?.lista?.isNotEmpty() == true
@@ -844,7 +857,13 @@ private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoP
             if (conteudo.lista.isEmpty()) {
                 Text("Nenhum prompt gerado ainda.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            conteudo.lista.forEach { prompt -> CartaoDePrompt(prompt, aoCopiar = { area.setText(AnnotatedString(prompt.texto)) }) }
+            conteudo.lista.forEach { prompt ->
+                CartaoDePrompt(
+                    prompt,
+                    aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
+                    aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
+                )
+            }
         }
     }
 
@@ -858,21 +877,66 @@ private fun BlocoDePrompts(frameId: Int, estado: EstadoDoPainel, acoes: AcoesDoP
     OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
         Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
     }
+    AvisoDePromptGerado(estado.promptsGerados[frameId] ?: 0)
+}
+
+/**
+ * O aviso translúcido "Prompt gerado." (G13), no mesmo espírito do aviso global da análise: aparece por uns segundos
+ * quando o número de prompts gerados **sobe**. Mostra-se aqui, e não só no aviso global, porque o modal é uma janela
+ * por cima de tudo e esconderia o aviso do app.
+ */
+@Composable
+private fun AvisoDePromptGerado(geradosAgora: Int) {
+    val aoAbrir = remember { geradosAgora } // o que já havia quando o modal abriu não conta
+    var visivel by remember { mutableStateOf(false) }
+    LaunchedEffect(geradosAgora) {
+        if (geradosAgora > aoAbrir) {
+            visivel = true
+            delay(DURACAO_DO_AVISO_DE_PROMPT_EM_MS)
+            visivel = false
+        }
+    }
+    AnimatedVisibility(visible = visivel) {
+        Surface(
+            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f),
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(AVISO_PROMPT_GERADO, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+/** Abre o seletor do Android para mandar o [texto] a outro app (uma IA, por exemplo) — G11. */
+private fun compartilharTexto(contexto: Context, texto: String) {
+    val envio = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, texto)
+    }
+    contexto.startActivity(Intent.createChooser(envio, "Compartilhar o prompt").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
 /** Um prompt gerado: o texto (selecionável) e **Copiar**, que confirma na hora (G6). */
 @Composable
-private fun CartaoDePrompt(prompt: PromptDeFrame, aoCopiar: () -> Unit) {
+private fun CartaoDePrompt(prompt: PromptDeFrame, aoCopiar: () -> Unit, aoCompartilhar: () -> Unit) {
     var copiado by remember(prompt.id) { mutableStateOf(false) }
+    var explicandoImagem by remember(prompt.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar") }
-                if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
+                // G12: o lugar do "Gerar imagem" já existe, para o dia em que o app gerar a imagem. Por ora só explica.
+                OutlinedButton(onClick = { explicandoImagem = !explicandoImagem }) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
+            }
+            if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+            if (explicandoImagem) {
+                Text(AVISO_GERAR_IMAGEM_EM_BREVE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -913,8 +977,9 @@ fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
         onDismissRequest = acoes.aoFecharModalDaCena,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
+        // Com rolagem: o que passa da altura da folha (um prompt longo, por exemplo) ficava cortado.
         Column(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {

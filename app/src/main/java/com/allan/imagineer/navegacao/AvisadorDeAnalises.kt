@@ -40,7 +40,7 @@ fun AvisadorDeAnalises(controle: NavHostController, avisos: SnackbarHostState) {
                 (aplicacao.repositorioDeLivros.abrirLivro(evento.livroId) as? ResultadoDaChamada.Sucesso)?.dado?.titulo
             }
 
-            val texto = descreverAviso(evento, local, servico.painelVisivel.value, titulo) ?: return@collect
+            val texto = descreverAviso(evento, local, servico.painelVisivel.value, titulo, servico.modalDoFrameVisivel.value) ?: return@collect
             // Cada aviso em sua própria corrotina: o Snackbar enfileira, e esperar um fechar travaria a coleta.
             launch { avisos.showSnackbar(texto) }
         }

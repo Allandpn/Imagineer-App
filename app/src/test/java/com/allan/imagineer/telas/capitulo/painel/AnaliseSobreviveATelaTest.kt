@@ -48,7 +48,7 @@ class AnaliseSobreviveATelaTest {
         val servico = ServicoDeAnalises(repositorio, CoroutineScope(SupervisorJob() + agendador))
 
         // A primeira tela pede a reanálise...
-        val primeiro = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico)
+        val primeiro = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico = servico)
         primeiro.aoAbrirPainel(); advanceUntilIdle()
         primeiro.pedirReanalise()
         primeiro.confirmarReanalise()
@@ -56,7 +56,7 @@ class AnaliseSobreviveATelaTest {
         assertTrue(primeiro.estado.value.analisando)
 
         // ...o usuário sai e volta: um painel NOVO (o ViewModel antigo morreu com a tela).
-        val segundo = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico)
+        val segundo = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico = servico)
         runCurrent()
         assertTrue("o painel novo deve mostrar a análise em andamento", segundo.estado.value.analisando)
 
@@ -73,7 +73,7 @@ class AnaliseSobreviveATelaTest {
         val repositorio = SugestoesFalso()
         val servico = ServicoDeAnalises(repositorio, CoroutineScope(SupervisorJob() + agendador))
 
-        val vm = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico)
+        val vm = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico = servico)
         advanceUntilIdle()
 
         assertEquals(EstadoDoPainel(), vm.estado.value)
@@ -87,7 +87,7 @@ class AnaliseSobreviveATelaTest {
         CoroutineScope(SupervisorJob() + agendador).launch { servico.eventos.collect { eventos += it } }
         runCurrent()
 
-        val vm = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico)
+        val vm = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico = servico)
         vm.definirLivro(2)
         vm.definirRotuloDoCapitulo(ordem = 3, titulo = "O muro")
         vm.aoAbrirPainel(); advanceUntilIdle()

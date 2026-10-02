@@ -493,3 +493,16 @@ sealed interface PromptsDoFrame {
 
 /** O aviso de que o prompt foi copiado (G6). */
 const val AVISO_PROMPT_COPIADO = "Copiado."
+
+/** O aviso translúcido que o modal mostra quando o prompt fica pronto (G13). */
+const val AVISO_PROMPT_GERADO = "Prompt gerado."
+
+/** Quanto tempo o aviso fica na tela (G13). */
+const val DURACAO_DO_AVISO_DE_PROMPT_EM_MS = 2500L
+
+/**
+ * O que o botão "Gerar imagem" diz ao ser tocado (G12). O app ainda **não gera a imagem**: o botão existe para reservar o
+ * lugar na interface; enquanto isso, o caminho é copiar ou compartilhar o prompt e importar a imagem depois.
+ */
+const val AVISO_GERAR_IMAGEM_EM_BREVE =
+    "Em breve: gerar a imagem aqui no app. Por enquanto, copie ou compartilhe o prompt e importe a imagem depois."

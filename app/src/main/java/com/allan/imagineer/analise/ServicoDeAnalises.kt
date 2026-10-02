@@ -1,5 +1,8 @@
 package com.allan.imagineer.analise
 
+import com.allan.imagineer.rede.PromptDeFrame
+import com.allan.imagineer.rede.PromptsSemServidor
+import com.allan.imagineer.rede.RepositorioDePrompts
 import com.allan.imagineer.rede.RepositorioDeSugestoes
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.SugestoesDeCapitulo
@@ -24,7 +27,15 @@ data class EventoDeAnalise(
     val rotuloDoCapitulo: String,
     val sucesso: Boolean,
     val motivo: String? = null,
+    /** O que terminou: a análise do capítulo ou a geração do prompt de uma cena (item 10b, G13). */
+    val tipo: TipoDeEvento = TipoDeEvento.ANALISE,
+    /** Só no [TipoDeEvento.PROMPT]: o frame da cena e o nome dela, para o aviso. */
+    val frameId: Int? = null,
+    val rotuloDaCena: String? = null,
 )
+
+/** O que terminou e merece um aviso. */
+enum class TipoDeEvento { ANALISE, PROMPT }
 
 /**
  * As análises de IA em andamento — **vivem no escopo do app, e não no da tela**.
@@ -42,6 +53,8 @@ data class EventoDeAnalise(
 class ServicoDeAnalises(
     private val sugestoes: RepositorioDeSugestoes,
     private val escopo: CoroutineScope,
+    /** Os prompts: a geração também vive aqui (G8, revisto), para sobreviver à saída da tela e gerar o aviso final. */
+    private val prompts: RepositorioDePrompts = PromptsSemServidor,
 ) {
     private val trava = Any()
     private val emAndamento = mutableMapOf<Int, Deferred<ResultadoDaChamada<SugestoesDeCapitulo>>>()
@@ -51,6 +64,55 @@ class ServicoDeAnalises(
 
     /** Um evento por análise que termina, com sucesso ou não. */
     val eventos: SharedFlow<EventoDeAnalise> = _eventos.asSharedFlow()
+
+    private val promptsEmAndamento = mutableMapOf<Int, Deferred<ResultadoDaChamada<PromptDeFrame>>>()
+
+    private val _modalDoFrameVisivel = MutableStateFlow<Int?>(null)
+
+    /** O frame cujo modal de cena está **na tela agora** (ou `null`): ele mostra o próprio aviso, então o global se cala. */
+    val modalDoFrameVisivel: StateFlow<Int?> = _modalDoFrameVisivel.asStateFlow()
+
+    fun definirModalDoFrameVisivel(frameId: Int?) {
+        _modalDoFrameVisivel.value = frameId
+    }
+
+    /** A geração de prompt deste frame que está rodando agora, se houver. */
+    fun promptEmAndamento(frameId: Int): Deferred<ResultadoDaChamada<PromptDeFrame>>? =
+        synchronized(trava) { promptsEmAndamento[frameId] }
+
+    /**
+     * Começa a geração do prompt do frame — ou devolve a que já está rodando (**uma por frame de cada vez**, G4).
+     * Como a análise, **vive no escopo do app**: sair do capítulo não a cancela, e ao terminar sai um aviso.
+     */
+    fun iniciarPrompt(
+        frameId: Int,
+        capituloId: Int,
+        livroId: Int?,
+        rotuloDoCapitulo: String,
+        rotuloDaCena: String,
+        comentario: String?,
+    ): Deferred<ResultadoDaChamada<PromptDeFrame>> = synchronized(trava) {
+        promptsEmAndamento[frameId]?.let { return it }
+        val trabalho = escopo.async {
+            val resultado = prompts.gerar(frameId, comentario)
+            synchronized(trava) { promptsEmAndamento.remove(frameId) }
+            _eventos.emit(
+                EventoDeAnalise(
+                    capituloId = capituloId,
+                    livroId = livroId,
+                    rotuloDoCapitulo = rotuloDoCapitulo,
+                    sucesso = resultado is ResultadoDaChamada.Sucesso,
+                    motivo = (resultado as? ResultadoDaChamada.Falha)?.motivo,
+                    tipo = TipoDeEvento.PROMPT,
+                    frameId = frameId,
+                    rotuloDaCena = rotuloDaCena,
+                ),
+            )
+            resultado
+        }
+        promptsEmAndamento[frameId] = trabalho
+        trabalho
+    }
 
     private val _painelVisivel = MutableStateFlow<Int?>(null)
 
@@ -134,7 +196,9 @@ fun descreverAviso(
     local: LocalDoUsuario,
     painelVisivel: Int?,
     tituloDoLivro: String?,
+    modalDoFrameVisivel: Int? = null,
 ): String? {
+    if (evento.tipo == TipoDeEvento.PROMPT) return descreverAvisoDePrompt(evento, local, tituloDoLivro, modalDoFrameVisivel)
     if (evento.capituloId == painelVisivel) return null
 
     val dentroDoLivro = evento.livroId != null && local.livroId == evento.livroId
@@ -152,6 +216,28 @@ fun descreverAviso(
         } else {
             "A análise de $onde falhou$motivo"
         }
+    }
+}
+
+/**
+ * O aviso de um **prompt** gerado (G13), no mesmo espírito do da análise: dentro do livro, só a cena; fora, o livro e o
+ * capítulo também. **Sem aviso** quando o modal daquela cena está na tela: ele mostra o próprio aviso, por cima do texto.
+ */
+private fun descreverAvisoDePrompt(
+    evento: EventoDeAnalise,
+    local: LocalDoUsuario,
+    tituloDoLivro: String?,
+    modalDoFrameVisivel: Int?,
+): String? {
+    if (evento.frameId != null && evento.frameId == modalDoFrameVisivel) return null
+    val cena = "«${evento.rotuloDaCena ?: "cena"}»"
+    val dentroDoLivro = evento.livroId != null && local.livroId == evento.livroId
+    val onde = if (dentroDoLivro || tituloDoLivro == null) "" else " em «$tituloDoLivro», ${evento.rotuloDoCapitulo}"
+    return if (evento.sucesso) {
+        "Prompt gerado$onde: $cena."
+    } else {
+        val motivo = evento.motivo?.let { ": $it" }.orEmpty()
+        "A geração do prompt$onde de $cena falhou$motivo"
     }
 }
 

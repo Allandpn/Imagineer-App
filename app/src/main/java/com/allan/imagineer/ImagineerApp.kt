@@ -77,7 +77,7 @@ class ImagineerApp : Application() {
     }
 
     /** As análises de IA, no escopo do app: sobrevivem a quem sai da tela e geram o aviso final (D1). */
-    val servicoDeAnalises: ServicoDeAnalises by lazy { ServicoDeAnalises(repositorioDeSugestoes, escopoDeFundo) }
+    val servicoDeAnalises: ServicoDeAnalises by lazy { ServicoDeAnalises(repositorioDeSugestoes, escopoDeFundo, repositorioDePrompts) }
 
     val repositorioDePrompts: RepositorioDePrompts by lazy {
         RepositorioDePromptsPeloRetrofit(provedorDeApi)
