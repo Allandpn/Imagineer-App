@@ -103,7 +103,9 @@ class AcoesDoPainel(
     val aoModalDoPromptVisivel: (frameId: Int?) -> Unit,
     val aoRecarregarPrompts: (frameId: Int) -> Unit,
     val aoPedirGerarPrompt: (frameId: Int, rotulo: String) -> Unit,
-    val aoCriarRetrato: (ElementoSugerido) -> Unit,
+    // Gerar a imagem em um toque (Q1 a Q9): o retrato de um elemento sem frame, e o botão principal de um frame.
+    val aoGerarRetrato: (ElementoSugerido) -> Unit,
+    val aoGerarImagemDoFrame: (chave: String, frameId: Int, rotulo: String) -> Unit,
     val aoCancelarGerarPrompt: () -> Unit,
     val aoGerarPrompt: (frameId: Int, ajuste: String) -> Unit,
     // Confirmar todos (pedido do Allan, 01/10/2026).
@@ -248,24 +250,33 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
 }
 
 /**
- * O retrato do elemento (N2 e N3): sem retrato, o botão **Novo retrato** (não gasta IA); com retrato, **a mesma seção de
- * prompts da cena**, sem oferecer um segundo retrato.
+ * O retrato do elemento (Q1, Q2): sem frame, o botão **Gerar retrato**, que cria o frame, gera o prompt e gera a imagem num
+ * toque só (revisa N2: o *Novo retrato* deixou de ser um botão solto); com frame, a **mesma área do frame da cena**: a imagem
+ * em destaque, as importadas e os prompts recolhidos.
  */
 @Composable
 private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val ocupado = elemento.id in estado.retratosOcupados
+    val chave = chaveDoFluxoDoRetrato(elemento.id)
     Text("Retrato", style = MaterialTheme.typography.titleSmall)
     if (frameId == null) {
+        val etapa = estado.etapasDeImagem[chave]
+        val ocupado = etapa != null || elemento.id in estado.retratosOcupados
         Text(
             "Ainda não há retrato deste elemento neste capítulo.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         estado.mensagensDeRetrato[elemento.id]?.let { RecadoDaCena(it) }
-        if (ocupado) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        Button(onClick = { acoes.aoCriarRetrato(elemento) }, enabled = !ocupado) { Text("Novo retrato", maxLines = 1, softWrap = false) }
+        if (ocupado) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text(descreverEtapa(etapa ?: EtapaDaImagem.CRIANDO_O_RETRATO), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
+        Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes)
+        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato")
     }
 }
 
@@ -887,11 +898,19 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
 }
 
 /**
- * Os prompts de uma cena confirmada (G1 a G7): a lista do mais novo para o mais antigo, cada um com **Copiar**, e o botão
- * de gerar (que pede confirmação, porque gasta IA). Ler a lista não custa (G2).
+ * A área de um frame que já existe (cena ou retrato): **a imagem em destaque** com o botão principal (Q1 a Q4), as **imagens
+ * importadas** (T) e os **prompts recolhidos** em "Ver prompts" (Q7), onde ficam a lista, copiar, compartilhar, editar, o
+ * *Gerar imagem* de um prompt antigo e o **Novo prompt** (G3: com diálogo de custo e ajuste opcional, Q6). Ler a lista não custa (G2).
  */
 @Composable
-private fun BlocoDePrompts(frameId: Int, rotulo: String, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+private fun BlocoDePrompts(
+    frameId: Int,
+    rotulo: String,
+    estado: EstadoDoPainel,
+    acoes: AcoesDoPainel,
+    chaveDoFluxo: String,
+    rotuloDoBotao: String,
+) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
     // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
     DisposableEffect(frameId) {
@@ -902,44 +921,53 @@ private fun BlocoDePrompts(frameId: Int, rotulo: String, estado: EstadoDoPainel,
     val contexto = LocalContext.current
     val gerando = frameId in estado.gerandoPrompt
     val conteudo = estado.prompts[frameId]
-    val jaTem = (conteudo as? PromptsDoFrame.Pronto)?.lista?.isNotEmpty() == true
+    val lista = (conteudo as? PromptsDoFrame.Pronto)?.lista.orEmpty()
+    val jaTem = lista.isNotEmpty()
+    var aberto by rememberSaveable(frameId) { mutableStateOf(false) }
 
-    Text("Prompts", style = MaterialTheme.typography.titleSmall)
-    when (conteudo) {
-        null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        is PromptsDoFrame.Erro -> {
-            Text(conteudo.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            OutlinedButton(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
-        }
-        is PromptsDoFrame.Pronto -> {
-            if (conteudo.lista.isEmpty()) {
-                Text("Nenhum prompt gerado ainda.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            conteudo.lista.forEach { prompt ->
-                CartaoDePrompt(
-                    prompt,
-                    frameId = frameId,
-                    estado = estado,
-                    acoes = acoes,
-                    aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
-                    aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
-                )
-            }
-        }
-    }
+    // Q1: a imagem em destaque, com o botão que faz o que falta.
+    SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao)
 
-    // T1, T2: as imagens importadas ficam numa seção própria, no fim, com um só botão para importar.
+    // T1, T2: as imagens importadas ficam numa seção própria, com um só botão para importar.
     (conteudo as? PromptsDoFrame.Pronto)?.let { SecaoDeImagensImportadas(frameId, it.lista, estado, acoes) }
 
+    // Falhas do prompt (do fluxo ou do Novo prompt) ficam fora do recolhido: a pessoa precisa vê-las.
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
-    if (gerando) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text("Gerando… pode levar mais de um minuto.", style = MaterialTheme.typography.bodySmall)
+
+    // Q7: os prompts recolhidos.
+    TextButton(onClick = { aberto = !aberto }) { Text(rotuloDeVerPrompts(aberto, lista.size)) }
+    if (aberto) {
+        when (conteudo) {
+            null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            is PromptsDoFrame.Erro -> {
+                Text(conteudo.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                OutlinedButton(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
+            }
+            is PromptsDoFrame.Pronto -> {
+                if (conteudo.lista.isEmpty()) {
+                    Text("Nenhum prompt gerado ainda.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                conteudo.lista.forEach { prompt ->
+                    CartaoDePrompt(
+                        prompt,
+                        frameId = frameId,
+                        estado = estado,
+                        acoes = acoes,
+                        aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
+                        aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
+                    )
+                }
+            }
         }
-    }
-    OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
-        Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
+        if (gerando) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("Gerando… pode levar mais de um minuto.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
+            Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
+        }
     }
     AvisoDePromptGerado(estado.promptsGerados[frameId] ?: 0)
 }
@@ -1010,7 +1038,6 @@ private fun CartaoDePrompt(
                 // R1: editar o texto antes de gerar; T4: a importação é única, no fim da lista (não por prompt).
                 OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
             }
-            ImagensDoPrompt(prompt, estado, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
         }
     }
@@ -1251,7 +1278,7 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
     // G1: o bloco de prompts só existe para a cena que já virou frame.
-    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes) }
+    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem") }
 
     val acoesDaCena = acoesDaCena(cena)
     if (acoesDaCena.isNotEmpty()) {

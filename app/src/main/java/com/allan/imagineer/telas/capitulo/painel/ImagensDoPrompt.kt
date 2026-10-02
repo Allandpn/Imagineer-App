@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -62,20 +63,38 @@ private fun urlDoServidorEmUso(): String? {
 }
 
 /**
- * As imagens **geradas** de um prompt (T2): a barra enquanto o servidor gera (K2), o recado do resultado (K3) e as
- * miniaturas, da mais nova para a mais antiga. As importadas **não** aparecem aqui: ficam na seção própria, no fim.
+ * A **imagem do frame**, em destaque (Q1, Q7): as miniaturas das imagens **geradas** (de todos os prompts), a barra com a
+ * etapa em andamento (Q4), os recados da geração e **o botão principal**, que faz o que falta (Q2): criar o retrato, gerar o
+ * prompt e gerar a imagem. Sob o botão, a linha que diz o que ele faz e que gasta IA (Q3). [lista] vem do mais novo para o
+ * mais antigo; vazia se os prompts ainda não foram lidos.
  */
 @Composable
-internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    if (prompt.id in estado.gerandoImagem) {
-        // K2: o servidor não informa o andamento, então a barra é indeterminada.
+internal fun SecaoDaImagemDoFrame(
+    frameId: Int,
+    lista: List<PromptDeFrame>,
+    estado: EstadoDoPainel,
+    acoes: AcoesDoPainel,
+    chave: String,
+    rotulo: String,
+    rotuloDoBotao: String,
+) {
+    val etapa = estado.etapasDeImagem[chave]
+    val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
+    Text("Imagem", style = MaterialTheme.typography.titleSmall)
+    Miniaturas(frameId, lista.flatMap { prompt -> prompt.imagens.filter { it.origem == "GERADA" } }, "Imagem gerada", acoes)
+    if (etapa != null || gerandoAlgum) {
+        // O servidor não informa o andamento, então a barra é indeterminada (K2).
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text(AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
+            Text(etapa?.let(::descreverEtapa) ?: AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
         }
     }
-    estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) }
-    Miniaturas(prompt.frame_id, prompt.imagens.filter { it.origem == "GERADA" }, "Imagem gerada", acoes)
+    lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
+    Button(
+        onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
+        enabled = etapa == null && !gerandoAlgum && frameId !in estado.gerandoPrompt,
+    ) { Text(rotuloDoBotao, maxLines = 1, softWrap = false) }
+    Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /**

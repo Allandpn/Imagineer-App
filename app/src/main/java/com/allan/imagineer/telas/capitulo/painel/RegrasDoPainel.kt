@@ -469,7 +469,7 @@ fun descreverResultadoDoLote(
 const val LIMITE_DO_AJUSTE_DO_PROMPT = 2000
 
 /** O rótulo do botão (G3): "Gerar prompt" na primeira vez, "Gerar outro prompt" depois. */
-fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "Gerar outro prompt" else "Gerar prompt"
+fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "Novo prompt" else "Gerar prompt"
 
 /** O que o diálogo de confirmação diz (G3): que **gasta IA**, e o que o campo "Ajuste" faz. */
 const val TEXTO_DO_DIALOGO_DE_PROMPT =
@@ -507,6 +507,33 @@ const val DURACAO_DO_AVISO_DE_PROMPT_EM_MS = 2500L
 
 /** O texto da barra de progresso enquanto o servidor gera a imagem (K2). */
 const val AVISO_GERANDO_IMAGEM = "Gerando a imagem… pode levar mais de um minuto."
+
+/** As etapas do botão principal (Q4): o que o toque está fazendo agora. */
+enum class EtapaDaImagem { CRIANDO_O_RETRATO, MONTANDO_O_PROMPT, GERANDO_A_IMAGEM }
+
+/** O texto de cada etapa, na barra de progresso (Q4). */
+fun descreverEtapa(etapa: EtapaDaImagem): String = when (etapa) {
+    EtapaDaImagem.CRIANDO_O_RETRATO -> "Criando o retrato…"
+    EtapaDaImagem.MONTANDO_O_PROMPT -> "Montando o prompt… pode levar mais de um minuto."
+    EtapaDaImagem.GERANDO_A_IMAGEM -> AVISO_GERANDO_IMAGEM
+}
+
+/** A chave do fluxo de um toque do **retrato** de um elemento: vale antes e depois de o frame existir (Q5). */
+fun chaveDoFluxoDoRetrato(elementoId: Int): String = "retrato:$elementoId"
+
+/** A chave do fluxo de um toque de um **frame** (a cena). */
+fun chaveDoFluxoDoFrame(frameId: Int): String = "frame:$frameId"
+
+/** A linha fixa sob o botão principal (Q3): diz o que o toque faz e que gasta IA. */
+fun avisoDoBotaoPrincipal(jaTemPrompt: Boolean): String =
+    if (jaTemPrompt) "Gera a imagem (gasta IA)." else "Gera o prompt e a imagem (gasta IA)."
+
+/** O rótulo do botão que recolhe e mostra os prompts (Q7). */
+fun rotuloDeVerPrompts(aberto: Boolean, quantos: Int): String = when {
+    aberto -> "Ocultar prompts"
+    quantos > 0 -> "Ver prompts ($quantos)"
+    else -> "Ver prompts"
+}
 
 /** O aviso depois de salvar a imagem na galeria (U2). */
 const val AVISO_SALVA_NA_GALERIA = "Salva na galeria."

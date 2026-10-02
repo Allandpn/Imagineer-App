@@ -96,9 +96,9 @@ internal class PromptsFalso : RepositorioDePrompts {
 class RegrasDoPromptTest {
 
     @Test
-    fun `G3 o botao diz Gerar na primeira vez e Gerar outro depois`() {
+    fun `G3 Q6 o botao diz Gerar prompt na primeira vez e Novo prompt depois`() {
         assertEquals("Gerar prompt", rotuloDoBotaoDePrompt(jaTemPrompts = false))
-        assertEquals("Gerar outro prompt", rotuloDoBotaoDePrompt(jaTemPrompts = true))
+        assertEquals("Novo prompt", rotuloDoBotaoDePrompt(jaTemPrompts = true))
     }
 
     @Test

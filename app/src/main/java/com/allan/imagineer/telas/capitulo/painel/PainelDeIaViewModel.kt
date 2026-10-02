@@ -165,6 +165,11 @@ data class EstadoDoPainel(
     val alvoDaImportacao: AlvoDaImportacao? = null,
     /** O recado de cada prompt sobre a **importação**: a recusa, a falha ou "Imagem importada." (J2, J3). Separado do da geração (K3). */
     val mensagensDeImportacao: Map<Int, MensagemDoElemento> = emptyMap(),
+    /**
+     * O que o botão principal está fazendo agora (Q4), por chave (`chaveDoFluxoDoRetrato` / `chaveDoFluxoDoFrame`): um toque
+     * por chave de cada vez. Sem entrada = parado.
+     */
+    val etapasDeImagem: Map<String, EtapaDaImagem> = emptyMap(),
     /** O diálogo "Excluir esta imagem?" está aberto para esta imagem (U3); `null` = sem diálogo. */
     val excluindoImagem: ImagemParaExcluir? = null,
     /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
@@ -355,28 +360,109 @@ class PainelDeIaViewModel(
      * Sucesso: o app guarda o frame novo (N4) e a tela relê os artefatos. Falha: a mensagem do servidor no modal.
      */
     fun criarRetrato(elemento: ElementoSugerido) {
-        val estadoId = elemento.estado_vigente?.id ?: return
-        if (!podeTerRetrato(elemento) || elemento.id in _estado.value.retratosOcupados) return
+        val estadoId = reservarRetrato(elemento) ?: return
+        viewModelScope.launch { concluirCriacaoDoRetrato(elemento, estadoId) }
+    }
+
+    /** Marca o retrato como ocupado (N5) e devolve o estado a usar; `null` se não pode (N1) ou se já está sendo criado. */
+    private fun reservarRetrato(elemento: ElementoSugerido): Int? {
+        val estadoId = elemento.estado_vigente?.id ?: return null
+        if (!podeTerRetrato(elemento) || elemento.id in _estado.value.retratosOcupados) return null
         _estado.update {
             it.copy(retratosOcupados = it.retratosOcupados + elemento.id, mensagensDeRetrato = it.mensagensDeRetrato - elemento.id)
         }
-        viewModelScope.launch {
-            val resultado = sugestoes.criarRetrato(capituloId, estadoId)
-            _estado.update { atual ->
-                when (resultado) {
-                    is ResultadoDaChamada.Sucesso -> atual.copy(
-                        retratosOcupados = atual.retratosOcupados - elemento.id,
-                        retratosCriados = atual.retratosCriados + (elemento.id to resultado.dado.id),
-                        rotulosDeFrame = atual.rotulosDeFrame + (resultado.dado.id to rotuloDoRetrato(elemento)),
-                        versaoDosFrames = atual.versaoDosFrames + 1,
-                    )
-                    is ResultadoDaChamada.Falha -> atual.copy(
-                        retratosOcupados = atual.retratosOcupados - elemento.id,
-                        mensagensDeRetrato = atual.mensagensDeRetrato + (elemento.id to MensagemDoElemento(resultado.motivo, ehErro = true)),
-                    )
-                }
+        return estadoId
+    }
+
+    /** Cria o frame do retrato e guarda o resultado (N4). Devolve o id do frame, ou `null` se falhou (a mensagem já foi posta). */
+    private suspend fun concluirCriacaoDoRetrato(elemento: ElementoSugerido, estadoId: Int): Int? {
+        val resultado = sugestoes.criarRetrato(capituloId, estadoId)
+        _estado.update { atual ->
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> atual.copy(
+                    retratosOcupados = atual.retratosOcupados - elemento.id,
+                    retratosCriados = atual.retratosCriados + (elemento.id to resultado.dado.id),
+                    rotulosDeFrame = atual.rotulosDeFrame + (resultado.dado.id to rotuloDoRetrato(elemento)),
+                    versaoDosFrames = atual.versaoDosFrames + 1,
+                )
+                is ResultadoDaChamada.Falha -> atual.copy(
+                    retratosOcupados = atual.retratosOcupados - elemento.id,
+                    mensagensDeRetrato = atual.mensagensDeRetrato + (elemento.id to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                )
             }
         }
+        return (resultado as? ResultadoDaChamada.Sucesso)?.dado?.id
+    }
+
+    // ------------------------------------------------------------------ //
+    // Gerar a imagem em um toque (incremento 12, quarta fatia: Q1 a Q9)
+    // ------------------------------------------------------------------ //
+
+    /**
+     * O botão **"Gerar retrato"** de um elemento sem frame (Q1): cria o frame, gera o prompt e gera a imagem, **só o que
+     * falta** (Q2). Se o retrato já foi criado nesta sessão, continua dele.
+     */
+    fun gerarRetrato(elemento: ElementoSugerido) {
+        if (!podeTerRetrato(elemento)) return
+        iniciarFluxoDeImagem(chaveDoFluxoDoRetrato(elemento.id), rotuloDoRetrato(elemento), _estado.value.retratosCriados[elemento.id]) {
+            reservarRetrato(elemento)?.let { concluirCriacaoDoRetrato(elemento, it) }
+        }
+    }
+
+    /** O botão principal de um frame que já existe (a cena, ou o retrato com frame): gera o prompt, se não há, e a imagem (Q2, Q6). */
+    fun gerarImagemDoFrame(chave: String, frameId: Int, rotulo: String) {
+        iniciarFluxoDeImagem(chave, rotulo, frameId, null)
+    }
+
+    /**
+     * A orquestração de Q2, com as três etapas e **sem rota nova**: (a) cria o frame, se falta; (b) gera o prompt, **se o
+     * frame não tem nenhum**; (c) gera a imagem do prompt **mais recente**. Uma etapa que falha deixa as anteriores
+     * gravadas e mostra a mensagem do servidor; tocar de novo **continua de onde parou** (Q5). Um toque por chave de cada vez.
+     */
+    private fun iniciarFluxoDeImagem(chave: String, rotulo: String, frameInicial: Int?, criarFrame: (suspend () -> Int?)?) {
+        if (chave in _estado.value.etapasDeImagem) return
+        definirEtapa(chave, if (frameInicial == null) EtapaDaImagem.CRIANDO_O_RETRATO else EtapaDaImagem.GERANDO_A_IMAGEM)
+        viewModelScope.launch {
+            var frameId = frameInicial
+            try {
+                frameId = frameInicial ?: criarFrame?.invoke() ?: return@launch
+                val existentes = when (val leitura = prompts.listar(frameId)) {
+                    is ResultadoDaChamada.Sucesso -> leitura.dado
+                    is ResultadoDaChamada.Falha -> {
+                        _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(leitura.motivo, ehErro = true))) }
+                        return@launch
+                    }
+                }
+                // O servidor entrega do mais antigo ao mais recente: o último é o que vale (Q2).
+                val prompt = existentes.lastOrNull() ?: run {
+                    definirEtapa(chave, EtapaDaImagem.MONTANDO_O_PROMPT)
+                    gerarPromptDoFluxo(frameId, rotulo) ?: return@launch
+                }
+                definirEtapa(chave, EtapaDaImagem.GERANDO_A_IMAGEM)
+                if (reservarGeracaoDeImagem(prompt.id)) concluirGeracaoDeImagem(frameId, prompt.id, null)
+            } finally {
+                _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem - chave) }
+                frameId?.let { relerPromptsSemPiscar(it) } // K6: o frame pode ter prompt novo e imagem nova
+            }
+        }
+    }
+
+    private fun definirEtapa(chave: String, etapa: EtapaDaImagem) {
+        _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem + (chave to etapa)) }
+    }
+
+    /** O passo "gerar o prompt" do fluxo, pelo serviço do app (como o botão Novo prompt, mas **sem confirmação**, Q3). */
+    private suspend fun gerarPromptDoFluxo(frameId: Int, rotulo: String): PromptDeFrame? {
+        _estado.update {
+            it.copy(
+                gerandoPrompt = it.gerandoPrompt + frameId,
+                mensagensDePrompt = it.mensagensDePrompt - frameId,
+                rotulosDeFrame = it.rotulosDeFrame + (frameId to rotulo),
+            )
+        }
+        val resultado = servico.iniciarPrompt(frameId, capituloId, livroId, rotuloDoCapitulo, rotulo, null).await()
+        aplicarResultadoDoPrompt(frameId, resultado)
+        return (resultado as? ResultadoDaChamada.Sucesso)?.dado
     }
 
     // ------------------------------------------------------------------ //
@@ -514,13 +600,19 @@ class PainelDeIaViewModel(
     }
 
     /**
-     * **Gerar imagem** (K1 a K9): pede ao servidor, que envia o prompt, suaviza se o provedor recusar e tenta de novo. Sem
-     * confirmação (a imagem custa cerca de US$ 0,01). Um pedido por prompt, sem repetição automática (K2). [textoEditado] só
-     * vem do diálogo da recusa (K4): o servidor o envia direto, sem suavizar.
+     * **Gerar imagem** de um prompt (K1 a K9): pede ao servidor, que envia o prompt, suaviza se o provedor recusar e tenta de
+     * novo. Sem confirmação (a imagem custa cerca de US$ 0,01). Um pedido por prompt, sem repetição automática (K2).
+     * [textoEditado] vem do diálogo da recusa (K4) ou da edição (R2): o servidor o envia direto, sem suavizar.
      */
     fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null) {
+        if (!reservarGeracaoDeImagem(promptId)) return
+        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado) }
+    }
+
+    /** Marca o prompt como "gerando" (K2); `false` se já há um pedido ou uma importação dele em andamento. */
+    private fun reservarGeracaoDeImagem(promptId: Int): Boolean {
         val atual = _estado.value
-        if (promptId in atual.gerandoImagem || promptId in atual.importandoImagem) return
+        if (promptId in atual.gerandoImagem || promptId in atual.importandoImagem) return false
         _estado.update {
             it.copy(
                 gerandoImagem = it.gerandoImagem + promptId,
@@ -529,42 +621,45 @@ class PainelDeIaViewModel(
                 edicaoDePrompt = null,
             )
         }
-        viewModelScope.launch {
-            val resultado = prompts.gerarImagem(promptId, textoEditado)
-            _estado.update { agora ->
-                val semPedido = agora.gerandoImagem - promptId
-                when (resultado) {
-                    is ResultadoDaChamada.Sucesso -> {
-                        val geracao = resultado.dado
-                        if (geracao.gerada) {
-                            agora.copy(
-                                gerandoImagem = semPedido,
-                                mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(avisoDaGeracao(geracao.suavizado), ehErro = false)),
-                                // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
-                                versaoDosFrames = agora.versaoDosFrames + 1,
-                            )
-                        } else {
-                            // K4: recusou de novo; o prompt devolvido vai para a edição.
-                            agora.copy(
-                                gerandoImagem = semPedido,
-                                recusaDeImagem = RecusaDeImagem(
-                                    frameId = frameId,
-                                    promptId = geracao.prompt.id,
-                                    texto = geracao.prompt.texto,
-                                    motivo = geracao.prompt.motivo_da_recusa ?: MOTIVO_PADRAO_DA_RECUSA,
-                                ),
-                            )
-                        }
+        return true
+    }
+
+    /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
+    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?) {
+        val resultado = prompts.gerarImagem(promptId, textoEditado)
+        _estado.update { agora ->
+            val semPedido = agora.gerandoImagem - promptId
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> {
+                    val geracao = resultado.dado
+                    if (geracao.gerada) {
+                        agora.copy(
+                            gerandoImagem = semPedido,
+                            mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(avisoDaGeracao(geracao.suavizado), ehErro = false)),
+                            // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
+                            versaoDosFrames = agora.versaoDosFrames + 1,
+                        )
+                    } else {
+                        // K4: recusou de novo; o prompt devolvido vai para a edição.
+                        agora.copy(
+                            gerandoImagem = semPedido,
+                            recusaDeImagem = RecusaDeImagem(
+                                frameId = frameId,
+                                promptId = geracao.prompt.id,
+                                texto = geracao.prompt.texto,
+                                motivo = geracao.prompt.motivo_da_recusa ?: MOTIVO_PADRAO_DA_RECUSA,
+                            ),
+                        )
                     }
-                    is ResultadoDaChamada.Falha -> agora.copy(
-                        gerandoImagem = semPedido,
-                        mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
-                    )
                 }
+                is ResultadoDaChamada.Falha -> agora.copy(
+                    gerandoImagem = semPedido,
+                    mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                )
             }
-            // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
-            if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
         }
+        // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
+        if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
     }
 
     /** **Excluir** na tela cheia da imagem (U3): pede confirmação, porque apaga para sempre. */
@@ -672,24 +767,26 @@ class PainelDeIaViewModel(
 
     /** Espera o resultado de uma geração (a nossa, ou a que já estava rodando) e o aplica à lista (G5, G7). */
     private fun aguardarPrompt(frameId: Int, trabalho: Deferred<ResultadoDaChamada<PromptDeFrame>>) {
-        viewModelScope.launch {
-            val resultado = trabalho.await()
-            _estado.update { atual ->
-                val daLista = (atual.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista.orEmpty()
-                when (resultado) {
-                    is ResultadoDaChamada.Sucesso -> atual.copy(
-                        gerandoPrompt = atual.gerandoPrompt - frameId,
-                        // Sem repetir: se a leitura já trouxe este prompt (gravado antes de ela terminar), não duplica.
-                        prompts = atual.prompts + (frameId to PromptsDoFrame.Pronto(
-                            if (daLista.any { it.id == resultado.dado.id }) daLista else listOf(resultado.dado) + daLista,
-                        )),
-                        promptsGerados = atual.promptsGerados + (frameId to ((atual.promptsGerados[frameId] ?: 0) + 1)),
-                    )
-                    is ResultadoDaChamada.Falha -> atual.copy(
-                        gerandoPrompt = atual.gerandoPrompt - frameId,
-                        mensagensDePrompt = atual.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true)),
-                    )
-                }
+        viewModelScope.launch { aplicarResultadoDoPrompt(frameId, trabalho.await()) }
+    }
+
+    /** Aplica o resultado de uma geração de prompt à lista do frame (G5, G7). */
+    private fun aplicarResultadoDoPrompt(frameId: Int, resultado: ResultadoDaChamada<PromptDeFrame>) {
+        _estado.update { atual ->
+            val daLista = (atual.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista.orEmpty()
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> atual.copy(
+                    gerandoPrompt = atual.gerandoPrompt - frameId,
+                    // Sem repetir: se a leitura já trouxe este prompt (gravado antes de ela terminar), não duplica.
+                    prompts = atual.prompts + (frameId to PromptsDoFrame.Pronto(
+                        if (daLista.any { it.id == resultado.dado.id }) daLista else listOf(resultado.dado) + daLista,
+                    )),
+                    promptsGerados = atual.promptsGerados + (frameId to ((atual.promptsGerados[frameId] ?: 0) + 1)),
+                )
+                is ResultadoDaChamada.Falha -> atual.copy(
+                    gerandoPrompt = atual.gerandoPrompt - frameId,
+                    mensagensDePrompt = atual.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                )
             }
         }
     }

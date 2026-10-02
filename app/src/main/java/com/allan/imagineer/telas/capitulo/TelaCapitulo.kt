@@ -260,7 +260,8 @@ private fun LeitorPaginado(
         aoModalDoPromptVisivel = painel::definirModalDoFrameVisivel,
         aoRecarregarPrompts = painel::recarregarPrompts,
         aoPedirGerarPrompt = { frameId, rotulo -> painel.pedirGerarPrompt(frameId, rotulo) },
-        aoCriarRetrato = painel::criarRetrato,
+        aoGerarRetrato = painel::gerarRetrato,
+        aoGerarImagemDoFrame = painel::gerarImagemDoFrame,
         aoImportarImagem = painel::importarImagem,
         aoEscolherImagem = { frameId, promptId ->
             painel.escolherImagemPara(frameId, promptId)
