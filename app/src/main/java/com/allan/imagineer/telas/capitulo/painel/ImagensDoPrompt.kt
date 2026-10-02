@@ -55,32 +55,36 @@ private fun urlDoServidorEmUso(): String? {
 }
 
 /**
- * **Importar imagem** (J1 e J2): pede à tela do capítulo para abrir o seletor de arquivos do Android, só de imagens. O
- * seletor **não mora aqui**: este botão fica dentro do modal, e o modal sai da tela enquanto o seletor está aberto, levando
- * junto o resultado da escolha. Fica desabilitado enquanto este prompt já tem um envio ou uma geração em andamento.
+ * As imagens **geradas** de um prompt (T2): a barra enquanto o servidor gera (K2), o recado do resultado (K3) e as
+ * miniaturas, da mais nova para a mais antiga. As importadas **não** aparecem aqui: ficam na seção própria, no fim.
  */
 @Composable
-internal fun BotaoImportarImagem(frameId: Int, promptId: Int, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    OutlinedButton(
-        onClick = { acoes.aoEscolherImagem(frameId, promptId) },
-        enabled = promptId !in estado.importandoImagem && promptId !in estado.gerandoImagem,
-    ) {
-        Text("Importar imagem", maxLines = 1, softWrap = false)
+internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
+    if (prompt.id in estado.gerandoImagem) {
+        // K2: o servidor não informa o andamento, então a barra é indeterminada.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
+        }
     }
+    estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) }
+    Miniaturas(prompt.imagens.filter { it.origem == "GERADA" }, "Imagem gerada")
 }
 
 /**
- * O que a importação mostra dentro do cartão do prompt (J3, J4, J8): a barra de envio, o recado e as **miniaturas** das
- * imagens, da mais nova para a mais antiga. Tocar numa miniatura abre a imagem em tela cheia.
+ * A seção **"Imagens importadas"** (T1, T2), no fim da lista de prompts do frame: as miniaturas de todas as imagens
+ * importadas e **um só botão "Importar imagem"**, que leva a imagem para o prompt **mais recente** ([lista] vem do mais novo
+ * para o mais antigo). O botão **não abre o seletor aqui**: o seletor mora na tela do capítulo (J2).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
-    val urlBase = urlDoServidorEmUso()
-    var aberta by remember(prompt.id) { mutableStateOf<ImagemDoPrompt?>(null) }
+internal fun SecaoDeImagensImportadas(frameId: Int, lista: List<PromptDeFrame>, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val maisRecente = lista.firstOrNull() ?: return // sem prompt não há para onde importar (T1)
+    val importadas = lista.flatMap { prompt -> prompt.imagens.filter { it.origem == "IMPORTADA" } }.sortedByDescending { it.id }
+    val importando = maisRecente.id in estado.importandoImagem
 
-    if (prompt.id in estado.importandoImagem) {
-        val fracao = estado.importandoImagem[prompt.id]
+    Text("Imagens importadas", style = MaterialTheme.typography.titleSmall)
+    if (importando) {
+        val fracao = estado.importandoImagem[maisRecente.id]
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (fracao == null) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -90,27 +94,42 @@ internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
             Text("Enviando a imagem…", style = MaterialTheme.typography.bodySmall)
         }
     }
-    if (prompt.id in estado.gerandoImagem) {
-        // K2: o servidor não informa o andamento, então a barra é indeterminada.
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text(AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
-        }
+    estado.mensagensDeImportacao[maisRecente.id]?.let { RecadoDeImagem(it) }
+    if (importadas.isEmpty() && !importando) {
+        Text("Nenhuma imagem importada.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    estado.mensagensDeImagem[prompt.id]?.let { mensagem ->
-        Text(
-            mensagem.texto,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (mensagem.ehErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
-        )
+    Miniaturas(importadas, "Imagem importada")
+    // J2: um botão só por frame; a imagem vai para o prompt mais recente.
+    OutlinedButton(
+        onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) },
+        enabled = !importando && maisRecente.id !in estado.gerandoImagem,
+    ) {
+        Text("Importar imagem", maxLines = 1, softWrap = false)
     }
-    if (urlBase != null && prompt.imagens.isNotEmpty()) {
-        // Do mais novo para o mais antigo (J4). O servidor entrega por ordem de importação.
+}
+
+@Composable
+private fun RecadoDeImagem(mensagem: MensagemDoElemento) {
+    Text(
+        mensagem.texto,
+        style = MaterialTheme.typography.bodySmall,
+        color = if (mensagem.ehErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+    )
+}
+
+/** As miniaturas de [imagens] (J4): tocar numa abre a imagem em tela cheia, no tamanho normal. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Miniaturas(imagens: List<ImagemDoPrompt>, descricao: String) {
+    val urlBase = urlDoServidorEmUso()
+    var aberta by remember { mutableStateOf<ImagemDoPrompt?>(null) }
+    if (urlBase != null && imagens.isNotEmpty()) {
+        // Do mais novo para o mais antigo (J4).
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            prompt.imagens.sortedByDescending { it.id }.forEach { imagem ->
+            imagens.sortedByDescending { it.id }.forEach { imagem ->
                 AsyncImage(
                     model = enderecoDaImagem(urlBase, imagem.id, "miniatura"),
-                    contentDescription = "Imagem importada",
+                    contentDescription = descricao,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .size(96.dp)

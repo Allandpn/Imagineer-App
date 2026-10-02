@@ -61,6 +61,8 @@ data class ImagemDoPrompt(
     val altura: Int? = null,
     /** `RETRATO`, `PAISAGEM` ou nulo (sem dimensões). Serve à segunda fatia (desenhar no texto). */
     val orientacao: String? = null,
+    /** `IMPORTADA` (a pessoa trouxe de fora) ou `GERADA` (o servidor gerou): as geradas ficam em destaque (T2). */
+    val origem: String = "IMPORTADA",
     val data_importacao: String = "",
 )
 

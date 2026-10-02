@@ -268,6 +268,8 @@ private fun LeitorPaginado(
         },
         aoGerarImagem = painel::gerarImagem,
         aoFecharRecusaDeImagem = painel::fecharRecusaDeImagem,
+        aoEditarPrompt = painel::editarPrompt,
+        aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
         aoGerarPrompt = painel::gerarPrompt,
         aoPedirConfirmarTodos = painel::pedirConfirmarTodos,

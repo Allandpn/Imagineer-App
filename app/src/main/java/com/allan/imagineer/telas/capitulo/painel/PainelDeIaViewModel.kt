@@ -163,6 +163,10 @@ data class EstadoDoPainel(
      * é a tela do capítulo, que consulta este alvo.
      */
     val alvoDaImportacao: AlvoDaImportacao? = null,
+    /** O recado de cada prompt sobre a **importação**: a recusa, a falha ou "Imagem importada." (J2, J3). Separado do da geração (K3). */
+    val mensagensDeImportacao: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
+    val edicaoDePrompt: EdicaoDePrompt? = null,
     /** Prompts com uma imagem sendo **gerada** pelo servidor (K2): um pedido por prompt. */
     val gerandoImagem: Set<Int> = emptySet(),
     /** O provedor recusou de novo e a pessoa pode editar o prompt para tentar outra vez (K4); `null` = sem diálogo. */
@@ -204,6 +208,9 @@ const val ERRO_NOME_VAZIO = "Dê um nome ao elemento."
  * deu e o frame a que pertence (para a lista ser relida depois da nova tentativa).
  */
 data class AlvoDaImportacao(val frameId: Int, val promptId: Int)
+
+/** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
+data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
 
 data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String)
 
@@ -446,7 +453,7 @@ class PainelDeIaViewModel(
             return
         }
         _estado.update {
-            it.copy(importandoImagem = it.importandoImagem + (promptId to null), mensagensDeImagem = it.mensagensDeImagem - promptId)
+            it.copy(importandoImagem = it.importandoImagem + (promptId to null), mensagensDeImportacao = it.mensagensDeImportacao - promptId)
         }
         viewModelScope.launch {
             val resultado = prompts.importarImagem(promptId, arquivo) { enviados, total ->
@@ -461,13 +468,13 @@ class PainelDeIaViewModel(
                     is ResultadoDaChamada.Sucesso -> atual.copy(
                         importandoImagem = semEnvio,
                         prompts = atual.prompts + (frameId to comAImagemNova(atual.prompts[frameId], promptId, resultado.dado)),
-                        mensagensDeImagem = atual.mensagensDeImagem + (promptId to MensagemDoElemento("Imagem importada.", ehErro = false)),
+                        mensagensDeImportacao = atual.mensagensDeImportacao + (promptId to MensagemDoElemento("Imagem importada.", ehErro = false)),
                         // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
                         versaoDosFrames = atual.versaoDosFrames + 1,
                     )
                     is ResultadoDaChamada.Falha -> atual.copy(
                         importandoImagem = semEnvio,
-                        mensagensDeImagem = atual.mensagensDeImagem + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                        mensagensDeImportacao = atual.mensagensDeImportacao + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
                     )
                 }
             }
@@ -475,7 +482,7 @@ class PainelDeIaViewModel(
     }
 
     private fun avisarSobreImagem(promptId: Int, texto: String, ehErro: Boolean) {
-        _estado.update { it.copy(mensagensDeImagem = it.mensagensDeImagem + (promptId to MensagemDoElemento(texto, ehErro))) }
+        _estado.update { it.copy(mensagensDeImportacao = it.mensagensDeImportacao + (promptId to MensagemDoElemento(texto, ehErro))) }
     }
 
     /** Põe a imagem recém-importada **na frente** (a mais nova primeiro, J4) do prompt dela, sem duplicar. */
@@ -514,6 +521,7 @@ class PainelDeIaViewModel(
                 gerandoImagem = it.gerandoImagem + promptId,
                 mensagensDeImagem = it.mensagensDeImagem - promptId,
                 recusaDeImagem = null,
+                edicaoDePrompt = null,
             )
         }
         viewModelScope.launch {
@@ -552,6 +560,16 @@ class PainelDeIaViewModel(
             // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
             if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
         }
+    }
+
+    /** **Editar** num prompt (R1): abre o diálogo com o texto dele. */
+    fun editarPrompt(frameId: Int, promptId: Int, texto: String) {
+        _estado.update { it.copy(edicaoDePrompt = EdicaoDePrompt(frameId, promptId, texto)) }
+    }
+
+    /** "Cancelar" no diálogo de edição (R2): nada muda. */
+    fun fecharEdicaoDePrompt() {
+        _estado.update { it.copy(edicaoDePrompt = null) }
     }
 
     /** "Fechar" no diálogo da recusa (K4): o prompt continua na lista, marcado. */

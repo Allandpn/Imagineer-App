@@ -121,6 +121,9 @@ class AcoesDoPainel(
     // Incremento 12, terceira fatia: gerar a imagem (K1 a K10).
     val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?) -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
+    // Editar o prompt antes de gerar (R1 a R3).
+    val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
+    val aoFecharEdicaoDePrompt: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
 )
 
@@ -162,6 +165,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, acoes) }
+    estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -919,6 +923,9 @@ private fun BlocoDePrompts(frameId: Int, rotulo: String, estado: EstadoDoPainel,
         }
     }
 
+    // T1, T2: as imagens importadas ficam numa seção própria, no fim, com um só botão para importar.
+    (conteudo as? PromptsDoFrame.Pronto)?.let { SecaoDeImagensImportadas(frameId, it.lista, estado, acoes) }
+
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
     if (gerando) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -995,7 +1002,8 @@ private fun CartaoDePrompt(
                     onClick = { acoes.aoGerarImagem(frameId, prompt.id, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
-                BotaoImportarImagem(frameId, prompt.id, estado, acoes)
+                // R1: editar o texto antes de gerar; T4: a importação é única, no fim da lista (não por prompt).
+                OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
             }
             ImagensDoPrompt(prompt, estado)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -1032,17 +1040,59 @@ private fun EtiquetasDoPrompt(prompt: PromptDeFrame) {
  */
 @Composable
 private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, acoes: AcoesDoPainel) {
-    var texto by rememberSaveable(recusa.promptId) { mutableStateOf(recusa.texto) }
+    DialogoDoTextoDoPrompt(
+        chave = "recusa${recusa.promptId}",
+        titulo = "O provedor recusou este prompt",
+        motivo = recusa.motivo,
+        explicacao = "Edite o prompt, se quiser, e tente de novo. A nova tentativa vai direto ao provedor, sem outra suavização.",
+        textoInicial = recusa.texto,
+        rotuloDoBotao = "Tentar de novo",
+        aoConfirmar = { texto -> acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto) },
+        aoFechar = acoes.aoFecharRecusaDeImagem,
+        rotuloDoFechar = "Fechar",
+    )
+}
+
+/**
+ * O diálogo de **editar o prompt** (R1 a R3): o mesmo campo do da recusa, com o texto do prompt. **Gerar imagem com este
+ * texto** envia a edição como prompt novo, em chamada direta (sem suavizar); **Cancelar** não muda nada.
+ */
+@Composable
+private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, acoes: AcoesDoPainel) {
+    DialogoDoTextoDoPrompt(
+        chave = "edicao${edicao.promptId}",
+        titulo = "Editar o prompt",
+        motivo = null,
+        explicacao = "O texto editado vira um prompt novo, ligado a este; o original não muda. Vai direto ao provedor, sem suavizar.",
+        textoInicial = edicao.texto,
+        rotuloDoBotao = "Gerar imagem com este texto",
+        aoConfirmar = { texto -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto) },
+        aoFechar = acoes.aoFecharEdicaoDePrompt,
+        rotuloDoFechar = "Cancelar",
+    )
+}
+
+/** O campo editável do texto de um prompt, comum à recusa (K4) e à edição (R1). */
+@Composable
+private fun DialogoDoTextoDoPrompt(
+    chave: String,
+    titulo: String,
+    motivo: String?,
+    explicacao: String,
+    textoInicial: String,
+    rotuloDoBotao: String,
+    aoConfirmar: (String) -> Unit,
+    aoFechar: () -> Unit,
+    rotuloDoFechar: String,
+) {
+    var texto by rememberSaveable(chave) { mutableStateOf(textoInicial) }
     AlertDialog(
-        onDismissRequest = acoes.aoFecharRecusaDeImagem,
-        title = { Text("O provedor recusou este prompt") },
+        onDismissRequest = aoFechar,
+        title = { Text(titulo) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(recusa.motivo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                Text(
-                    "Edite o prompt, se quiser, e tente de novo. A nova tentativa vai direto ao provedor, sem outra suavização.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                motivo?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+                Text(explicacao, style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(
                     value = texto,
                     onValueChange = { texto = it.take(LIMITE_DO_PROMPT_EDITADO) },
@@ -1053,12 +1103,8 @@ private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, acoes: AcoesDoPainel
                 )
             }
         },
-        confirmButton = {
-            TextButton(onClick = { acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto) }, enabled = texto.isNotBlank()) {
-                Text("Tentar de novo")
-            }
-        },
-        dismissButton = { TextButton(onClick = acoes.aoFecharRecusaDeImagem) { Text("Fechar") } },
+        confirmButton = { TextButton(onClick = { aoConfirmar(texto) }, enabled = texto.isNotBlank()) { Text(rotuloDoBotao) } },
+        dismissButton = { TextButton(onClick = aoFechar) { Text(rotuloDoFechar) } },
     )
 }
 

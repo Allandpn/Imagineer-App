@@ -303,4 +303,34 @@ class GerarImagemNoPainelTest {
 
         assertEquals(0, prompts.listagens)
     }
+
+    @Test
+    fun `R1 editar abre o dialogo com o texto do prompt e cancelar nao muda nada`() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+
+        vm.editarPrompt(70, 3, "close-up, Auri")
+        assertEquals(EdicaoDePrompt(frameId = 70, promptId = 3, texto = "close-up, Auri"), vm.estado.value.edicaoDePrompt)
+        vm.fecharEdicaoDePrompt()
+        advanceUntilIdle()
+
+        assertNull(vm.estado.value.edicaoDePrompt)
+        assertTrue(prompts.geracoesDeImagem.isEmpty()) // cancelar não gera nada
+    }
+
+    @Test
+    fun `R2 gerar com o texto editado fecha o dialogo e manda o texto como esta`() = runTest {
+        val prompts = PromptsFalso().also {
+            it.resultadoDaGeracaoDeImagem = ResultadoDaChamada.Sucesso(gerada(umPrompt(9, "COM_SUCESSO", original = 3)))
+        }
+        val vm = vm(prompts)
+        vm.editarPrompt(70, 3, "close-up, Auri")
+
+        vm.gerarImagem(70, 3, "close-up, Auri, wrapped in linen")
+        advanceUntilIdle()
+
+        assertNull(vm.estado.value.edicaoDePrompt)
+        assertEquals(listOf(3 to "close-up, Auri, wrapped in linen"), prompts.geracoesDeImagem)
+        assertEquals("Imagem gerada.", vm.estado.value.mensagensDeImagem.getValue(3).texto)
+    }
 }

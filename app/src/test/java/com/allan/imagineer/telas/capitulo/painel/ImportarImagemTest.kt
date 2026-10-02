@@ -130,7 +130,7 @@ class ImportarImagemNoPainelTest {
         assertEquals(listOf(500, 400), lista.single().imagens.map { it.id }) // a mais nova primeiro
         assertEquals(2, lista.single().total_de_imagens)
         assertEquals(1, vm.estado.value.versaoDosFrames) // J6
-        assertEquals(MensagemDoElemento("Imagem importada.", ehErro = false), vm.estado.value.mensagensDeImagem[1])
+        assertEquals(MensagemDoElemento("Imagem importada.", ehErro = false), vm.estado.value.mensagensDeImportacao[1])
         assertTrue(vm.estado.value.importandoImagem.isEmpty())
     }
 
@@ -143,7 +143,7 @@ class ImportarImagemNoPainelTest {
         advanceUntilIdle()
 
         assertTrue(prompts.importacoes.isEmpty())
-        assertEquals(MensagemDoElemento("Escolha uma imagem PNG, JPG, WEBP ou GIF.", ehErro = true), vm.estado.value.mensagensDeImagem[1])
+        assertEquals(MensagemDoElemento("Escolha uma imagem PNG, JPG, WEBP ou GIF.", ehErro = true), vm.estado.value.mensagensDeImportacao[1])
         assertEquals(0, vm.estado.value.versaoDosFrames)
     }
 
@@ -156,7 +156,7 @@ class ImportarImagemNoPainelTest {
         advanceUntilIdle()
 
         assertTrue(prompts.importacoes.isEmpty())
-        assertEquals(MensagemDoElemento("Não consegui abrir o arquivo escolhido.", ehErro = true), vm.estado.value.mensagensDeImagem[1])
+        assertEquals(MensagemDoElemento("Não consegui abrir o arquivo escolhido.", ehErro = true), vm.estado.value.mensagensDeImportacao[1])
     }
 
     @Test
@@ -185,7 +185,7 @@ class ImportarImagemNoPainelTest {
         vm.importarImagem(70, 1, foto())
         advanceUntilIdle()
 
-        assertEquals(MensagemDoElemento("Extensão não suportada.", ehErro = true), vm.estado.value.mensagensDeImagem[1])
+        assertEquals(MensagemDoElemento("Extensão não suportada.", ehErro = true), vm.estado.value.mensagensDeImportacao[1])
         assertEquals(0, vm.estado.value.versaoDosFrames)
         assertTrue(vm.estado.value.importandoImagem.isEmpty())
 
@@ -193,7 +193,7 @@ class ImportarImagemNoPainelTest {
         vm.importarImagem(70, 1, foto())
         advanceUntilIdle()
         assertEquals(2, prompts.importacoes.size)
-        assertEquals("Imagem importada.", vm.estado.value.mensagensDeImagem.getValue(1).texto) // o erro antigo some
+        assertEquals("Imagem importada.", vm.estado.value.mensagensDeImportacao.getValue(1).texto) // o erro antigo some
     }
 
     @Test
@@ -248,7 +248,7 @@ class ImportarImagemNoPainelTest {
         advanceUntilIdle()
 
         assertTrue(prompts.importacoes.isEmpty())
-        assertTrue(vm.estado.value.mensagensDeImagem.isEmpty())
+        assertTrue(vm.estado.value.mensagensDeImportacao.isEmpty())
         assertNull(vm.estado.value.alvoDaImportacao)
     }
 

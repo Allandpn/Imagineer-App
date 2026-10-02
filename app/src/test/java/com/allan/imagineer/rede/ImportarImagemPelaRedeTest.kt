@@ -164,4 +164,17 @@ class ImportarImagemPelaRedeTest {
         assertEquals(422, falha.codigoHttp)
         assertEquals("Nenhum modelo de imagem foi escolhido.", falha.motivo)
     }
+
+    @Test
+    fun `T3 a origem da imagem vem do servidor, e importada e o padrao`() = runTest {
+        servidor.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"id":4,"frame_id":70,"texto":"t","total_de_imagens":2,"imagens":[{"id":9,"prompt_id":4,"origem":"GERADA"},{"id":10,"prompt_id":4}]}""",
+            ),
+        )
+
+        val imagens = (repositorio().detalhar(4) as ResultadoDaChamada.Sucesso).dado.imagens
+
+        assertEquals(listOf("GERADA", "IMPORTADA"), imagens.map { it.origem })
+    }
 }
