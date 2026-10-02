@@ -900,7 +900,8 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
 /**
  * A área de um frame que já existe (cena ou retrato): **as imagens em destaque**, com o botão principal e o de importar
  * (Q1 a Q4, T), e os **prompts recolhidos** em "Ver prompts" (Q7), onde ficam a lista, copiar, compartilhar, editar, o
- * *Gerar imagem* de um prompt antigo e o **Novo prompt** (G3: com diálogo de custo e ajuste opcional, Q6). Ler a lista não custa (G2).
+ * *Gerar imagem* de um prompt antigo. O **Novo prompt** (G3: com diálogo de custo e ajuste opcional, Q6) fica **à vista**, ao lado
+ * do botão principal. Ler a lista não custa (G2).
  */
 @Composable
 private fun BlocoDePrompts(
@@ -919,10 +920,8 @@ private fun BlocoDePrompts(
     }
     val area = LocalClipboardManager.current
     val contexto = LocalContext.current
-    val gerando = frameId in estado.gerandoPrompt
     val conteudo = estado.prompts[frameId]
     val lista = (conteudo as? PromptsDoFrame.Pronto)?.lista.orEmpty()
-    val jaTem = lista.isNotEmpty()
     var aberto by rememberSaveable(frameId) { mutableStateOf(false) }
 
     // Q1: a imagem em destaque, com o botão que faz o que falta.
@@ -956,15 +955,7 @@ private fun BlocoDePrompts(
                 }
             }
         }
-        if (gerando) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text("Gerando… pode levar mais de um minuto.", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !gerando && conteudo !is PromptsDoFrame.Erro) {
-            Text(rotuloDoBotaoDePrompt(jaTem), maxLines = 1, softWrap = false)
-        }
+        // O "Novo prompt" saiu daqui: ficou à vista, ao lado do botão principal (Q6).
     }
     AvisoDePromptGerado(estado.promptsGerados[frameId] ?: 0)
 }

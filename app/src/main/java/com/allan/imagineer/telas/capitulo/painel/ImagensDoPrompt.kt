@@ -86,15 +86,19 @@ internal fun SecaoDaImagemDoFrame(
     val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
     val maisRecente = lista.firstOrNull() // para onde vai a imagem importada (T1)
     val importando = maisRecente != null && maisRecente.id in estado.importandoImagem
-    val ocupado = etapa != null || gerandoAlgum || importando || frameId in estado.gerandoPrompt
+    val gerandoPrompt = frameId in estado.gerandoPrompt
+    val ocupado = etapa != null || gerandoAlgum || importando || gerandoPrompt
 
     Text("Imagens", style = MaterialTheme.typography.titleSmall)
     Miniaturas(frameId, lista.flatMap { it.imagens }, "Imagem", acoes)
-    if (etapa != null || gerandoAlgum) {
+    if (etapa != null || gerandoAlgum || gerandoPrompt) {
         // O servidor não informa o andamento, então a barra é indeterminada (K2).
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text(etapa?.let(::descreverEtapa) ?: AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
+            // O "Novo prompt" (fora do fluxo de um toque) também mostra a sua etapa aqui.
+            val texto = etapa?.let(::descreverEtapa)
+                ?: if (gerandoPrompt) descreverEtapa(EtapaDaImagem.MONTANDO_O_PROMPT) else AVISO_GERANDO_IMAGEM
+            Text(texto, style = MaterialTheme.typography.bodySmall)
         }
     }
     if (importando && maisRecente != null) {
@@ -120,6 +124,12 @@ internal fun SecaoDaImagemDoFrame(
         if (maisRecente != null) {
             OutlinedButton(onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) }, enabled = !ocupado) {
                 Text("Importar imagem", maxLines = 1, softWrap = false)
+            }
+            // G3, Q6: **Novo prompt** à vista: gera outro prompt (com o diálogo de custo e o ajuste opcional). Como o botão
+            // principal usa o prompt mais recente, é por aqui que se recomeça do zero, por exemplo para testar outro
+            // modelo de suavização. Depois é só tocar em Gerar imagem.
+            OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !ocupado) {
+                Text(rotuloDoBotaoDePrompt(jaTemPrompts = true), maxLines = 1, softWrap = false)
             }
         }
     }
