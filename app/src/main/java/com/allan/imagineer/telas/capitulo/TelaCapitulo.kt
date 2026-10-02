@@ -252,6 +252,8 @@ private fun LeitorPaginado(
         aoPedirGerarPrompt = { frameId, rotulo -> painel.pedirGerarPrompt(frameId, rotulo) },
         aoCriarRetrato = painel::criarRetrato,
         aoImportarImagem = painel::importarImagem,
+        aoGerarImagem = painel::gerarImagem,
+        aoFecharRecusaDeImagem = painel::fecharRecusaDeImagem,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
         aoGerarPrompt = painel::gerarPrompt,
         aoPedirConfirmarTodos = painel::pedirConfirmarTodos,

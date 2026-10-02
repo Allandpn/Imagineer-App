@@ -68,7 +68,7 @@ internal fun BotaoImportarImagem(frameId: Int, promptId: Int, estado: EstadoDoPa
         // Cancelar o seletor devolve null: não é erro, é só desistir.
         if (uri != null) acoes.aoImportarImagem(frameId, promptId, aplicacao.leitorDeArquivos.descrever(uri.toString()))
     }
-    OutlinedButton(onClick = { seletor.launch("image/*") }, enabled = promptId !in estado.importandoImagem) {
+    OutlinedButton(onClick = { seletor.launch("image/*") }, enabled = promptId !in estado.importandoImagem && promptId !in estado.gerandoImagem) {
         Text("Importar imagem", maxLines = 1, softWrap = false)
     }
 }
@@ -92,6 +92,13 @@ internal fun ImagensDoPrompt(prompt: PromptDeFrame, estado: EstadoDoPainel) {
                 LinearProgressIndicator(progress = { fracao }, modifier = Modifier.fillMaxWidth())
             }
             Text("Enviando a imagem…", style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    if (prompt.id in estado.gerandoImagem) {
+        // K2: o servidor não informa o andamento, então a barra é indeterminada.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
         }
     }
     estado.mensagensDeImagem[prompt.id]?.let { mensagem ->

@@ -201,6 +201,19 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): PromptDeFrame
 
+    /**
+     * `POST /prompts/{id}/gerar-imagem` — **gera** (e cobra, cerca de US$ 0,01) a imagem pelo servidor (item 6.6): envia o
+     * prompt; se o provedor recusar o conteúdo, o servidor suaviza e tenta de novo; recusando de novo, devolve `RECUSADA`.
+     * Pode levar mais de um minuto, então usa o mesmo tempo de espera longo da geração de prompt. O corpo leva `texto`
+     * só quando a pessoa editou o prompt à mão (chamada direta, sem suavização).
+     */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("prompts/{id}/gerar-imagem")
+    suspend fun gerarImagem(
+        @Path("id") promptId: Int,
+        @Body corpo: JsonObject,
+    ): ResultadoDaGeracao
+
     /** `GET /prompts/{id}` — o prompt com as imagens que saíram dele (item 6.6). Só leitura. */
     @GET("prompts/{id}")
     suspend fun prompt(@Path("id") promptId: Int): PromptDeFrame

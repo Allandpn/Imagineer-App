@@ -501,12 +501,38 @@ const val AVISO_PROMPT_GERADO = "Prompt gerado."
 /** Quanto tempo o aviso fica na tela (G13). */
 const val DURACAO_DO_AVISO_DE_PROMPT_EM_MS = 2500L
 
+// ---------------------------------------------------------------------------------------------------------------- //
+// Gerar a imagem no app (incremento 12, terceira fatia: K1 a K10)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** O texto da barra de progresso enquanto o servidor gera a imagem (K2). */
+const val AVISO_GERANDO_IMAGEM = "Gerando a imagem… pode levar mais de um minuto."
+
+/** O aviso quando a imagem saiu do prompt como estava (K3). */
+const val AVISO_IMAGEM_GERADA = "Imagem gerada."
+
+/** O aviso quando o servidor precisou suavizar o prompt para o provedor aceitar (K3). */
+const val AVISO_IMAGEM_GERADA_SUAVIZADA =
+    "O provedor recusou o prompt original; a imagem saiu de uma versão mais suave, que ficou salva como outro prompt."
+
+/** O motivo mostrado quando o provedor recusou mas não disse por quê (K4). */
+const val MOTIVO_PADRAO_DA_RECUSA = "O provedor recusou o conteúdo do prompt."
+
+/** O tamanho máximo do prompt editado à mão: o mesmo que o servidor aceita (item 6.6). */
+const val LIMITE_DO_PROMPT_EDITADO = 8000
+
+/** O aviso de uma geração bem-sucedida (K3): diz se o servidor precisou suavizar. */
+fun avisoDaGeracao(suavizado: Boolean): String = if (suavizado) AVISO_IMAGEM_GERADA_SUAVIZADA else AVISO_IMAGEM_GERADA
+
 /**
- * O que o botão "Gerar imagem" diz ao ser tocado (G12). O app ainda **não gera a imagem**: o botão existe para reservar o
- * lugar na interface; enquanto isso, o caminho é copiar ou compartilhar o prompt e importar a imagem depois.
+ * As etiquetas de um prompt na lista (K5): de onde ele veio e como terminou a última tentativa de gerar a imagem. **Versão
+ * suavizada** é a que o sistema reescreveu (o servidor preenche o `modelo_ia` só nela); **versão editada**, a que a pessoa
+ * reescreveu. `NAO_TENTADO` não leva etiqueta.
  */
-const val AVISO_GERAR_IMAGEM_EM_BREVE =
-    "Em breve: gerar a imagem aqui no app. Por enquanto, copie ou compartilhe o prompt e importe a imagem depois."
+fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
+    if (prompt.prompt_original_id != null) add(if (prompt.modelo_ia != null) "Versão suavizada" else "Versão editada")
+    if (prompt.situacao_da_geracao == "RECUSADO") add("Recusado pelo provedor")
+}
 
 // ---------------------------------------------------------------------------------------------------------------- //
 // Novo retrato (incremento 10b, terceira fatia: N1 a N8)

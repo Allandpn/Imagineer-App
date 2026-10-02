@@ -118,6 +118,9 @@ class AcoesDoPainel(
     val aoRevisarParticipante: (sugestaoElementoId: Int) -> Unit,
     // Incremento 12, primeira fatia: importar a imagem (J1 a J10).
     val aoImportarImagem: (frameId: Int, promptId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit,
+    // Incremento 12, terceira fatia: gerar a imagem (K1 a K10).
+    val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?) -> Unit,
+    val aoFecharRecusaDeImagem: () -> Unit,
 )
 
 /**
@@ -157,6 +160,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     }
     estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
+    estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -975,9 +979,9 @@ private fun CartaoDePrompt(
     aoCompartilhar: () -> Unit,
 ) {
     var copiado by remember(prompt.id) { mutableStateOf(false) }
-    var explicandoImagem by remember(prompt.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            EtiquetasDoPrompt(prompt)
             SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -985,17 +989,76 @@ private fun CartaoDePrompt(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
-                // G12: o lugar do "Gerar imagem" já existe, para o dia em que o app gerar a imagem. Por ora só explica.
-                OutlinedButton(onClick = { explicandoImagem = !explicandoImagem }) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
+                // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
+                OutlinedButton(
+                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null) },
+                    enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
+                ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
                 BotaoImportarImagem(frameId, prompt.id, estado, acoes)
             }
             ImagensDoPrompt(prompt, estado)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
-            if (explicandoImagem) {
-                Text(AVISO_GERAR_IMAGEM_EM_BREVE, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** As etiquetas do prompt (K5): "Versão suavizada/editada" e "Recusado pelo provedor", com o motivo da recusa à mostra. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EtiquetasDoPrompt(prompt: PromptDeFrame) {
+    val etiquetas = etiquetasDoPrompt(prompt)
+    if (etiquetas.isEmpty()) return
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        etiquetas.forEach { etiqueta ->
+            val recusado = etiqueta == "Recusado pelo provedor"
+            Surface(
+                color = if (recusado) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text(etiqueta, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
+    prompt.motivo_da_recusa?.takeIf { prompt.situacao_da_geracao == "RECUSADO" }?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/**
+ * O diálogo da recusa (K4): o provedor recusou o prompt (de novo, depois da suavização). Mostra o **motivo**, o prompt
+ * devolvido num campo **editável** e **Tentar de novo**, que manda o texto editado em chamada direta (sem suavizar).
+ * Desenhado **uma vez**, na raiz do painel, como o do *Gerar prompt*.
+ */
+@Composable
+private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, acoes: AcoesDoPainel) {
+    var texto by rememberSaveable(recusa.promptId) { mutableStateOf(recusa.texto) }
+    AlertDialog(
+        onDismissRequest = acoes.aoFecharRecusaDeImagem,
+        title = { Text("O provedor recusou este prompt") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(recusa.motivo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Text(
+                    "Edite o prompt, se quiser, e tente de novo. A nova tentativa vai direto ao provedor, sem outra suavização.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = texto,
+                    onValueChange = { texto = it.take(LIMITE_DO_PROMPT_EDITADO) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Prompt") },
+                    minLines = 4,
+                    maxLines = 10,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto) }, enabled = texto.isNotBlank()) {
+                Text("Tentar de novo")
+            }
+        },
+        dismissButton = { TextButton(onClick = acoes.aoFecharRecusaDeImagem) { Text("Fechar") } },
+    )
 }
 
 @Composable

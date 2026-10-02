@@ -157,6 +157,10 @@ data class EstadoDoPainel(
     val importandoImagem: Map<Int, Float?> = emptyMap(),
     /** O recado de cada prompt sobre a importação: o motivo da recusa ou da falha, ou "Imagem importada." (J2, J3). */
     val mensagensDeImagem: Map<Int, MensagemDoElemento> = emptyMap(),
+    /** Prompts com uma imagem sendo **gerada** pelo servidor (K2): um pedido por prompt. */
+    val gerandoImagem: Set<Int> = emptySet(),
+    /** O provedor recusou de novo e a pessoa pode editar o prompt para tentar outra vez (K4); `null` = sem diálogo. */
+    val recusaDeImagem: RecusaDeImagem? = null,
     /** Como cada frame se chama nos avisos ("A partida", "Retrato de Jon"); guardado ao pedir o prompt (N6). */
     val rotulosDeFrame: Map<Int, String> = emptyMap(),
 ) {
@@ -189,6 +193,12 @@ const val ERRO_NOME_VAZIO = "Dê um nome ao elemento."
  * os únicos que gastam IA (item 6.8). As ações de elemento (E1 a E18) são só rotas de
  * cadastro e nunca gastam IA.
  */
+/**
+ * O que o diálogo da recusa precisa (K4): o prompt que o servidor enviou por último (agora editável), o motivo que o provedor
+ * deu e o frame a que pertence (para a lista ser relida depois da nova tentativa).
+ */
+data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String)
+
 class PainelDeIaViewModel(
     private val capituloId: Int,
     private val sugestoes: RepositorioDeSugestoes,
@@ -405,7 +415,7 @@ class PainelDeIaViewModel(
      * arquivo. Confere extensão e tamanho **antes** de enviar (J2); um envio por prompt, sem repetição automática (J3).
      */
     fun importarImagem(frameId: Int, promptId: Int, arquivo: ArquivoEscolhido?) {
-        if (promptId in _estado.value.importandoImagem) return
+        if (promptId in _estado.value.importandoImagem || promptId in _estado.value.gerandoImagem) return
         val recusa = if (arquivo == null) "Não consegui abrir o arquivo escolhido." else motivoParaNaoImportar(arquivo)
         if (arquivo == null || recusa != null) {
             avisarSobreImagem(promptId, recusa!!, ehErro = true)
@@ -456,6 +466,73 @@ class PainelDeIaViewModel(
                 }
             },
         )
+    }
+
+    /** Relê a lista de prompts do frame **sem** voltar ao "Lendo…" (K6): a tela não pisca. Falha da leitura: mantém a lista. */
+    private suspend fun relerPromptsSemPiscar(frameId: Int) {
+        val resultado = prompts.listar(frameId)
+        if (resultado is ResultadoDaChamada.Sucesso) {
+            val lista = comAsImagens(resultado.dado).reversed()
+            _estado.update { it.copy(prompts = it.prompts + (frameId to PromptsDoFrame.Pronto(lista))) }
+        }
+    }
+
+    /**
+     * **Gerar imagem** (K1 a K9): pede ao servidor, que envia o prompt, suaviza se o provedor recusar e tenta de novo. Sem
+     * confirmação (a imagem custa cerca de US$ 0,01). Um pedido por prompt, sem repetição automática (K2). [textoEditado] só
+     * vem do diálogo da recusa (K4): o servidor o envia direto, sem suavizar.
+     */
+    fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null) {
+        val atual = _estado.value
+        if (promptId in atual.gerandoImagem || promptId in atual.importandoImagem) return
+        _estado.update {
+            it.copy(
+                gerandoImagem = it.gerandoImagem + promptId,
+                mensagensDeImagem = it.mensagensDeImagem - promptId,
+                recusaDeImagem = null,
+            )
+        }
+        viewModelScope.launch {
+            val resultado = prompts.gerarImagem(promptId, textoEditado)
+            _estado.update { agora ->
+                val semPedido = agora.gerandoImagem - promptId
+                when (resultado) {
+                    is ResultadoDaChamada.Sucesso -> {
+                        val geracao = resultado.dado
+                        if (geracao.gerada) {
+                            agora.copy(
+                                gerandoImagem = semPedido,
+                                mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(avisoDaGeracao(geracao.suavizado), ehErro = false)),
+                                // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
+                                versaoDosFrames = agora.versaoDosFrames + 1,
+                            )
+                        } else {
+                            // K4: recusou de novo; o prompt devolvido vai para a edição.
+                            agora.copy(
+                                gerandoImagem = semPedido,
+                                recusaDeImagem = RecusaDeImagem(
+                                    frameId = frameId,
+                                    promptId = geracao.prompt.id,
+                                    texto = geracao.prompt.texto,
+                                    motivo = geracao.prompt.motivo_da_recusa ?: MOTIVO_PADRAO_DA_RECUSA,
+                                ),
+                            )
+                        }
+                    }
+                    is ResultadoDaChamada.Falha -> agora.copy(
+                        gerandoImagem = semPedido,
+                        mensagensDeImagem = agora.mensagensDeImagem + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                    )
+                }
+            }
+            // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
+            if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
+        }
+    }
+
+    /** "Fechar" no diálogo da recusa (K4): o prompt continua na lista, marcado. */
+    fun fecharRecusaDeImagem() {
+        _estado.update { it.copy(recusaDeImagem = null) }
     }
 
     /** "Gerar prompt": **pede confirmação** antes de gastar IA (G3). Ignora se já há uma geração rodando para o frame. */

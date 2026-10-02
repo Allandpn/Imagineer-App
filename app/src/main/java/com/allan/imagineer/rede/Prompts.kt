@@ -27,7 +27,28 @@ data class PromptDeFrame(
     val referencias_visuais: List<ReferenciaVisual> = emptyList(),
     /** Só vêm em `GET /prompts/{id}` (a listagem do frame traz apenas [total_de_imagens]). */
     val imagens: List<ImagemDoPrompt> = emptyList(),
+    /** O que o provedor respondeu à última tentativa de gerar a imagem: `NAO_TENTADO`, `RECUSADO` ou `COM_SUCESSO` (K5). */
+    val situacao_da_geracao: String = "NAO_TENTADO",
+    /** A mensagem do provedor quando `RECUSADO`. */
+    val motivo_da_recusa: String? = null,
+    /** No prompt suavizado ou editado, o prompt de onde ele saiu. */
+    val prompt_original_id: Int? = null,
 )
+
+/**
+ * O desfecho de `POST /prompts/{id}/gerar-imagem` (item 6.6). `resultado` é `GERADA` ou `RECUSADA`; [prompt] é o que o
+ * servidor enviou **por último** (o original, o suavizado ou o editado); [imagem] só vem se `GERADA`.
+ */
+@Serializable
+data class ResultadoDaGeracao(
+    val resultado: String,
+    val suavizado: Boolean = false,
+    val prompt: PromptDeFrame,
+    val imagem: ImagemDoPrompt? = null,
+) {
+    /** `true` se o provedor gerou a imagem. */
+    val gerada: Boolean get() = resultado == "GERADA"
+}
 
 /** Uma imagem importada para um prompt (item 6.6). Os bytes se buscam em `GET /imagens/{id}/arquivo` (item 6.9). */
 @Serializable
@@ -60,6 +81,12 @@ interface RepositorioDePrompts {
      * pontual do usuário, com prioridade sobre a leitura automática; é assim que se pede um refinamento.
      */
     suspend fun gerar(frameId: Int, comentario: String?): ResultadoDaChamada<PromptDeFrame>
+
+    /**
+     * `POST /prompts/{id}/gerar-imagem`: **gera** (e cobra) a imagem (K1). [textoEditado] é o prompt que a pessoa editou à
+     * mão depois de uma recusa (K4): o servidor o envia direto, sem suavizar. Recusa responde 200 com `RECUSADA`.
+     */
+    suspend fun gerarImagem(promptId: Int, textoEditado: String? = null): ResultadoDaChamada<ResultadoDaGeracao>
 
     /** `GET /prompts/{id}`: o prompt **com as suas imagens** (J5). Nunca gasta IA. */
     suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame>
@@ -98,6 +125,13 @@ class RepositorioDePromptsPeloRetrofit(
         return chamarApi { api.prompt(promptId) }
     }
 
+    override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        // Só o texto, e só se a pessoa editou: sem ele o servidor segue o fluxo normal (original e, se recusar, suaviza).
+        val corpo: JsonObject = buildJsonObject { if (textoEditado != null) put("texto", textoEditado) }
+        return chamarApi { api.gerarImagem(promptId, corpo) }
+    }
+
     override suspend fun importarImagem(
         promptId: Int,
         arquivo: ArquivoEscolhido,
@@ -124,6 +158,9 @@ object PromptsSemServidor : RepositorioDePrompts {
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> =
+        ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+
+    override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> =
         ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun importarImagem(

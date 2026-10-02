@@ -105,4 +105,63 @@ class ImportarImagemPelaRedeTest {
         assertEquals(listOf(9), (resultado as ResultadoDaChamada.Sucesso).dado.imagens.map { it.id })
         assertEquals("/prompts/4", servidor.takeRequest().path)
     }
+
+    private val respostaGerada = """{"resultado":"GERADA","suavizado":true,"prompt":{"id":8,"frame_id":70,"texto":"suave","modelo_ia":"m","situacao_da_geracao":"COM_SUCESSO","prompt_original_id":4,"total_de_imagens":1},"imagem":{"id":21,"prompt_id":8,"largura":1024,"altura":1536,"orientacao":"RETRATO","data_importacao":"x"}}"""
+
+    @Test
+    fun `K1 gerar a imagem manda corpo vazio e le o desfecho`() = runTest {
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(respostaGerada))
+
+        val resultado = repositorio().gerarImagem(4)
+
+        val geracao = (resultado as ResultadoDaChamada.Sucesso).dado
+        assertTrue(geracao.gerada)
+        assertTrue(geracao.suavizado)
+        assertEquals(8, geracao.prompt.id)
+        assertEquals(4, geracao.prompt.prompt_original_id)
+        assertEquals("COM_SUCESSO", geracao.prompt.situacao_da_geracao)
+        assertEquals(21, geracao.imagem?.id)
+        val pedido = servidor.takeRequest()
+        assertEquals("POST", pedido.method)
+        assertEquals("/prompts/4/gerar-imagem", pedido.path)
+        assertEquals("{}", pedido.body.readUtf8()) // sem texto editado: o servidor segue o fluxo normal
+    }
+
+    @Test
+    fun `K4 o texto editado vai no corpo`() = runTest {
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(respostaGerada))
+
+        repositorio().gerarImagem(4, "close-up, Auri, wrapped in linen")
+
+        assertEquals("""{"texto":"close-up, Auri, wrapped in linen"}""", servidor.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `K4 recusa e um desfecho de 200, com o motivo e sem imagem`() = runTest {
+        servidor.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"resultado":"RECUSADA","suavizado":true,"prompt":{"id":8,"frame_id":70,"texto":"suave","situacao_da_geracao":"RECUSADO","motivo_da_recusa":"content management policy","prompt_original_id":4},"imagem":null}""",
+            ),
+        )
+
+        val geracao = (repositorio().gerarImagem(4) as ResultadoDaChamada.Sucesso).dado
+
+        assertTrue(!geracao.gerada)
+        assertEquals("RECUSADO", geracao.prompt.situacao_da_geracao)
+        assertEquals("content management policy", geracao.prompt.motivo_da_recusa)
+        assertEquals(null, geracao.imagem)
+    }
+
+    @Test
+    fun `K7 a mensagem do servidor chega como esta`() = runTest {
+        servidor.enqueue(
+            MockResponse().setResponseCode(422).setHeader("Content-Type", "application/json")
+                .setBody("""{"detail":"Nenhum modelo de imagem foi escolhido."}"""),
+        )
+
+        val falha = repositorio().gerarImagem(4) as ResultadoDaChamada.Falha
+
+        assertEquals(422, falha.codigoHttp)
+        assertEquals("Nenhum modelo de imagem foi escolhido.", falha.motivo)
+    }
 }

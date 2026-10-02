@@ -6,6 +6,7 @@ import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.ReferenciaVisual
 import com.allan.imagineer.rede.RepositorioDePrompts
 import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.ResultadoDaGeracao
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -51,6 +52,17 @@ internal class PromptsFalso : RepositorioDePrompts {
     val importacoes = mutableListOf<Pair<Int, ArquivoEscolhido>>()
     var resultadoDaImportacao: ResultadoDaChamada<ImagemDoPrompt> = ResultadoDaChamada.Sucesso(ImagemDoPrompt(id = 500, prompt_id = 1))
     var travaDaImportacao: CompletableDeferred<Unit>? = null
+
+    val geracoesDeImagem = mutableListOf<Pair<Int, String?>>() // prompt e texto editado de cada geração de imagem
+    var resultadoDaGeracaoDeImagem: ResultadoDaChamada<ResultadoDaGeracao> =
+        ResultadoDaChamada.Sucesso(ResultadoDaGeracao("GERADA", false, PromptDeFrame(id = 1, frame_id = 70, texto = "p1"), ImagemDoPrompt(id = 700)))
+    var travaDaGeracaoDeImagem: CompletableDeferred<Unit>? = null
+
+    override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> {
+        geracoesDeImagem += promptId to textoEditado
+        travaDaGeracaoDeImagem?.await()
+        return resultadoDaGeracaoDeImagem
+    }
 
     override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> {
         detalhesPedidos += promptId
