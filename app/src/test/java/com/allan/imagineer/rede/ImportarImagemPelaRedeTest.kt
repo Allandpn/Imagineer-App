@@ -3,6 +3,7 @@ package com.allan.imagineer.rede
 import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.dados.LeitorDeArquivos
+import com.allan.imagineer.telas.capitulo.painel.modelosParaEscolher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -227,5 +228,68 @@ class ImportarImagemPelaRedeTest {
         servidor.enqueue(MockResponse().setResponseCode(500))
 
         assertTrue(repositorio().removerImagem(21) is ResultadoDaChamada.Falha)
+    }
+
+    @Test
+    fun `Z3 o modelo do pedido vai no corpo, junto do texto editado se houver`() = runTest {
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(respostaGerada))
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(respostaGerada))
+
+        repositorio().gerarImagem(4, null, "bytedance-seed/seedream-5-0-flash")
+        repositorio().gerarImagem(4, "texto editado", "google/gemini-2.5-flash-image")
+
+        assertEquals("""{"modelo":"bytedance-seed/seedream-5-0-flash"}""", servidor.takeRequest().body.readUtf8())
+        assertEquals("""{"texto":"texto editado","modelo":"google/gemini-2.5-flash-image"}""", servidor.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `Z3 sem modelo o corpo continua vazio, e o servidor usa o padrao`() = runTest {
+        servidor.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(respostaGerada))
+
+        repositorio().gerarImagem(4)
+
+        assertEquals("{}", servidor.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `Z1 Z5 o modelo vem no prompt e na imagem`() = runTest {
+        servidor.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"id":4,"frame_id":70,"texto":"t","situacao_da_geracao":"RECUSADO","modelo_imagem":"meta/muse-image","total_de_imagens":1,"imagens":[{"id":9,"prompt_id":4,"modelo":"bytedance-seed/seedream-5-0-flash","origem":"GERADA"},{"id":10,"prompt_id":4}]}""",
+            ),
+        )
+
+        val prompt = (repositorio().detalhar(4) as ResultadoDaChamada.Sucesso).dado
+
+        assertEquals("meta/muse-image", prompt.modelo_imagem)
+        assertEquals(listOf("bytedance-seed/seedream-5-0-flash", null), prompt.imagens.map { it.modelo })
+    }
+
+    @Test
+    fun `Z2 a configuracao entrega o modelo padrao e a lista`() = runTest {
+        servidor.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json").setBody(
+                """{"tem_chave_api":true,"origem_da_chave":"ambiente","modelo_imagem":"meta/muse-image","modelos_de_imagem":["meta/muse-image","bytedance-seed/seedream-5-0-flash"],"prioridade_ia":"ECONOMIA","modelo_suavizacao":null}""",
+            ),
+        )
+
+        val modelos = (repositorio().modelosDeImagem() as ResultadoDaChamada.Sucesso).dado
+
+        assertEquals(ModelosDeImagem("meta/muse-image", listOf("meta/muse-image", "bytedance-seed/seedream-5-0-flash")), modelos)
+        assertEquals("/configuracao", servidor.takeRequest().path)
+    }
+
+    @Test
+    fun `Z2 servidor sem a lista nova ainda responde, so com o padrao`() = runTest {
+        servidor.enqueue(
+            MockResponse().setHeader("Content-Type", "application/json")
+                .setBody("""{"tem_chave_api":true,"origem_da_chave":"ambiente","prioridade_ia":"ECONOMIA"}"""),
+        )
+
+        val modelos = (repositorio().modelosDeImagem() as ResultadoDaChamada.Sucesso).dado
+
+        assertEquals(emptyList<String>(), modelos.lista)
+        // Sem padrão e sem lista, não há o que escolher: a tela esconde a troca de modelo.
+        assertEquals(emptyList<String>(), modelosParaEscolher(modelos))
     }
 }

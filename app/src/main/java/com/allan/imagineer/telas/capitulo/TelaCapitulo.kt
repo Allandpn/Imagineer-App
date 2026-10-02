@@ -268,6 +268,10 @@ private fun LeitorPaginado(
             seletorDeImagem.launch("image/*")
         },
         aoGerarImagem = painel::gerarImagem,
+        aoCarregarModelosDeImagem = painel::carregarModelosDeImagem,
+        aoAbrirEscolhaDeModelo = painel::abrirEscolhaDeModelo,
+        aoEscolherModelo = painel::escolherModelo,
+        aoFecharEscolhaDeModelo = painel::fecharEscolhaDeModelo,
         aoFecharRecusaDeImagem = painel::fecharRecusaDeImagem,
         aoEditarPrompt = painel::editarPrompt,
         aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,

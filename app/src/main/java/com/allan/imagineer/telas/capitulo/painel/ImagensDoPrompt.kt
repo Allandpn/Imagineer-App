@@ -17,6 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -89,6 +94,8 @@ internal fun SecaoDaImagemDoFrame(
     val gerandoPrompt = frameId in estado.gerandoPrompt
     val ocupado = etapa != null || gerandoAlgum || importando || gerandoPrompt
 
+    // Z6: a lista de modelos vem do servidor, uma vez.
+    LaunchedEffect(Unit) { acoes.aoCarregarModelosDeImagem() }
     Text("Imagens", style = MaterialTheme.typography.titleSmall)
     Miniaturas(frameId, lista.flatMap { it.imagens }, "Imagem", acoes)
     if (etapa != null || gerandoAlgum || gerandoPrompt) {
@@ -113,6 +120,13 @@ internal fun SecaoDaImagemDoFrame(
         }
     }
     lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
+    // Z6: qual modelo de imagem a próxima geração vai usar, com a troca.
+    modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem)?.let { emUso ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Modelo de imagem: $emUso", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
+            TextButton(onClick = acoes.aoAbrirEscolhaDeModelo, enabled = !ocupado) { Text("Trocar", maxLines = 1, softWrap = false) }
+        }
+    }
     maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
@@ -134,6 +148,32 @@ internal fun SecaoDaImagemDoFrame(
         }
     }
     Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/**
+ * A lista de modelos de imagem para escolher (Z6, Z9), uma opção por linha com um botão de opção. O [padrao] do servidor
+ * leva "(padrão)". Usado no diálogo de trocar o modelo e dentro dos diálogos de editar e da recusa.
+ */
+@Composable
+internal fun SeletorDeModelo(opcoes: List<String>, padrao: String?, selecionado: String?, aoSelecionar: (String) -> Unit) {
+    Column(modifier = Modifier.selectableGroup()) {
+        opcoes.forEach { modelo ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(selected = modelo == selecionado, onClick = { aoSelecionar(modelo) }, role = Role.RadioButton)
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = modelo == selecionado, onClick = null)
+                Text(
+                    if (modelo == padrao) "$modelo (padrão)" else modelo,
+                    modifier = Modifier.padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
 }
 
 /** As imagens de **um prompt**, no cartão dele: a relação prompt-imagem (02/10/2026). Tocar numa abre a tela cheia. */
@@ -257,6 +297,17 @@ private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: ()
             IconButton(onClick = aoFechar, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
             }
+            // Z8: quem gerou a imagem.
+            Text(
+                descreverOrigemDaImagem(imagem),
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(16.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
             Row(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,

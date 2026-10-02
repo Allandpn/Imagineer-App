@@ -46,6 +46,7 @@ import androidx.compose.runtime.key
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.PromptDeFrame
 import android.content.Context
 import android.content.Intent
@@ -121,7 +122,12 @@ class AcoesDoPainel(
     // Incremento 12, primeira fatia: importar a imagem (J1 a J10).
     val aoImportarImagem: (frameId: Int, promptId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit,
     // Incremento 12, terceira fatia: gerar a imagem (K1 a K10).
-    val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?) -> Unit,
+    val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) -> Unit,
+    // Qual modelo de imagem usar (Z6 a Z9).
+    val aoCarregarModelosDeImagem: () -> Unit,
+    val aoAbrirEscolhaDeModelo: () -> Unit,
+    val aoEscolherModelo: (String) -> Unit,
+    val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,
@@ -170,9 +176,10 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     }
     estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
-    estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, acoes) }
-    estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, acoes) }
+    estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
+    estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
+    if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
         is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
@@ -1020,7 +1027,7 @@ private fun CartaoDePrompt(
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
                 OutlinedButton(
-                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null) },
+                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
@@ -1066,46 +1073,76 @@ private fun DialogoExcluirImagem(acoes: AcoesDoPainel) {
     )
 }
 
+/** Z6: escolher o modelo de imagem das próximas gerações. Não muda o padrão do servidor. */
+@Composable
+private fun DialogoEscolherModelo(modelos: ModelosDeImagem, escolhido: String?, acoes: AcoesDoPainel) {
+    AlertDialog(
+        onDismissRequest = acoes.aoFecharEscolhaDeModelo,
+        title = { Text("Modelo de imagem") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Vale para as próximas imagens até você trocar de novo. Não muda o padrão do servidor.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                SeletorDeModelo(modelosParaEscolher(modelos), modelos.padrao, modeloEmUso(escolhido, modelos), acoes.aoEscolherModelo)
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = acoes.aoFecharEscolhaDeModelo) { Text("Fechar") } },
+    )
+}
+
 /**
- * O diálogo da recusa (K4): o provedor recusou o prompt (de novo, depois da suavização). Mostra o **motivo**, o prompt
- * devolvido num campo **editável** e **Tentar de novo**, que manda o texto editado em chamada direta (sem suavizar).
+ * O diálogo da recusa (K4, Z9): o provedor recusou o prompt (de novo, depois da suavização). Diz **qual modelo recusou**, mostra
+ * o **motivo**, o prompt devolvido num campo **editável** e o **seletor de modelo**, já marcado com o primeiro modelo
+ * **diferente** do que recusou. **Tentar com este modelo** manda o texto com esse modelo (que vira o modelo ativo).
  * Desenhado **uma vez**, na raiz do painel, como o do *Gerar prompt*.
  */
 @Composable
-private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, acoes: AcoesDoPainel) {
+private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val opcoes = estado.modelosDeImagem?.let(::modelosParaEscolher).orEmpty()
     DialogoDoTextoDoPrompt(
         chave = "recusa${recusa.promptId}",
-        titulo = "O provedor recusou este prompt",
+        titulo = recusa.modelo?.let { "O modelo $it recusou este prompt" } ?: "O provedor recusou este prompt",
         motivo = recusa.motivo,
-        explicacao = "Edite o prompt, se quiser, e tente de novo. A nova tentativa vai direto ao provedor, sem outra suavização.",
+        explicacao = "Escolha outro modelo ou edite o prompt, e tente de novo. A nova tentativa vai direto ao modelo, sem outra suavização.",
         textoInicial = recusa.texto,
-        rotuloDoBotao = "Tentar de novo",
-        aoConfirmar = { texto -> acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto) },
+        rotuloDoBotao = "Tentar com este modelo",
+        opcoesDeModelo = opcoes,
+        padraoDoServidor = estado.modelosDeImagem?.padrao,
+        modeloInicial = alternativaAoModelo(recusa.modelo, opcoes),
+        aoConfirmar = { texto, modelo -> acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto, modelo) },
         aoFechar = acoes.aoFecharRecusaDeImagem,
         rotuloDoFechar = "Fechar",
     )
 }
 
 /**
- * O diálogo de **editar o prompt** (R1 a R3): o mesmo campo do da recusa, com o texto do prompt. **Gerar imagem com este
- * texto** envia a edição como prompt novo, em chamada direta (sem suavizar); **Cancelar** não muda nada.
+ * O diálogo de **editar o prompt** (R1 a R3): o mesmo campo do da recusa, com o texto do prompt e o seletor de modelo (já no
+ * modelo ativo). **Gerar imagem com este texto** envia a edição como prompt novo, em chamada direta (sem suavizar);
+ * **Cancelar** não muda nada.
  */
 @Composable
-private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, acoes: AcoesDoPainel) {
+private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val opcoes = estado.modelosDeImagem?.let(::modelosParaEscolher).orEmpty()
     DialogoDoTextoDoPrompt(
         chave = "edicao${edicao.promptId}",
         titulo = "Editar o prompt",
         motivo = null,
-        explicacao = "O texto editado vira um prompt novo, ligado a este; o original não muda. Vai direto ao provedor, sem suavizar.",
+        explicacao = "O texto editado vira um prompt novo, ligado a este; o original não muda. Vai direto ao modelo, sem suavizar.",
         textoInicial = edicao.texto,
         rotuloDoBotao = "Gerar imagem com este texto",
-        aoConfirmar = { texto -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto) },
+        opcoesDeModelo = opcoes,
+        padraoDoServidor = estado.modelosDeImagem?.padrao,
+        modeloInicial = modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem),
+        aoConfirmar = { texto, modelo -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto, modelo) },
         aoFechar = acoes.aoFecharEdicaoDePrompt,
         rotuloDoFechar = "Cancelar",
     )
 }
 
-/** O campo editável do texto de um prompt, comum à recusa (K4) e à edição (R1). */
+/** O campo editável do texto de um prompt, com o seletor de modelo de imagem, comum à recusa (K4, Z9) e à edição (R1). */
 @Composable
 private fun DialogoDoTextoDoPrompt(
     chave: String,
@@ -1114,11 +1151,15 @@ private fun DialogoDoTextoDoPrompt(
     explicacao: String,
     textoInicial: String,
     rotuloDoBotao: String,
-    aoConfirmar: (String) -> Unit,
+    opcoesDeModelo: List<String>,
+    padraoDoServidor: String?,
+    modeloInicial: String?,
+    aoConfirmar: (texto: String, modelo: String?) -> Unit,
     aoFechar: () -> Unit,
     rotuloDoFechar: String,
 ) {
     var texto by rememberSaveable(chave) { mutableStateOf(textoInicial) }
+    var modelo by rememberSaveable(chave) { mutableStateOf(modeloInicial) }
     AlertDialog(
         onDismissRequest = aoFechar,
         title = { Text(titulo) },
@@ -1126,6 +1167,10 @@ private fun DialogoDoTextoDoPrompt(
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 motivo?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
                 Text(explicacao, style = MaterialTheme.typography.bodySmall)
+                if (opcoesDeModelo.isNotEmpty()) {
+                    Text("Modelo de imagem", style = MaterialTheme.typography.labelLarge)
+                    SeletorDeModelo(opcoesDeModelo, padraoDoServidor, modelo) { modelo = it }
+                }
                 OutlinedTextField(
                     value = texto,
                     onValueChange = { texto = it.take(LIMITE_DO_PROMPT_EDITADO) },
@@ -1136,7 +1181,7 @@ private fun DialogoDoTextoDoPrompt(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { aoConfirmar(texto) }, enabled = texto.isNotBlank()) { Text(rotuloDoBotao) } },
+        confirmButton = { TextButton(onClick = { aoConfirmar(texto, modelo) }, enabled = texto.isNotBlank()) { Text(rotuloDoBotao) } },
         dismissButton = { TextButton(onClick = aoFechar) { Text(rotuloDoFechar) } },
     )
 }

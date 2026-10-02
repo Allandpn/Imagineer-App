@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.ModelosDeImagem
+import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.DetalheDoElemento
@@ -558,14 +560,33 @@ const val LIMITE_DO_PROMPT_EDITADO = 8000
 fun avisoDaGeracao(suavizado: Boolean): String = if (suavizado) AVISO_IMAGEM_GERADA_SUAVIZADA else AVISO_IMAGEM_GERADA
 
 /**
- * As etiquetas de um prompt na lista (K5): de onde ele veio e como terminou a última tentativa de gerar a imagem. **Versão
- * suavizada** é a que o sistema reescreveu (o servidor preenche o `modelo_ia` só nela); **versão editada**, a que a pessoa
- * reescreveu. `NAO_TENTADO` não leva etiqueta.
+ * As etiquetas de um prompt na lista (K5, Z7): de onde ele veio e como terminou a última tentativa de gerar a imagem, **com o
+ * modelo**. **Versão suavizada** é a que o sistema reescreveu (o servidor preenche o `modelo_ia` só nela); **versão editada**,
+ * a que a pessoa reescreveu. **Recusado por X** / **Gerado com X** dizem qual modelo de imagem foi; sem o modelo (prompt
+ * antigo), fica **Recusado pelo provedor**. `NAO_TENTADO` não leva etiqueta.
  */
 fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
     if (prompt.prompt_original_id != null) add(if (prompt.modelo_ia != null) "Versão suavizada" else "Versão editada")
-    if (prompt.situacao_da_geracao == "RECUSADO") add("Recusado pelo provedor")
+    when (prompt.situacao_da_geracao) {
+        "RECUSADO" -> add(prompt.modelo_imagem?.let { "Recusado por $it" } ?: "Recusado pelo provedor")
+        "COM_SUCESSO" -> prompt.modelo_imagem?.let { add("Gerado com $it") }
+    }
 }
+
+/** Os modelos que a pessoa pode escolher (Z2, Z6): o **padrão primeiro**, mesmo que não esteja na lista, sem repetir. */
+fun modelosParaEscolher(modelos: ModelosDeImagem): List<String> =
+    (listOf(modelos.padrao) + modelos.lista).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+
+/** O modelo que a próxima geração vai usar (Z6): o que a pessoa escolheu, ou o padrão do servidor; `null` se ainda não se sabe. */
+fun modeloEmUso(escolhido: String?, modelos: ModelosDeImagem?): String? =
+    escolhido?.takeIf { it.isNotBlank() } ?: modelos?.padrao?.takeIf { it.isNotBlank() }
+
+/** O modelo sugerido depois de uma recusa (Z9): o primeiro da lista que **não** foi o que recusou. */
+fun alternativaAoModelo(recusado: String?, opcoes: List<String>): String? =
+    opcoes.firstOrNull { it != recusado } ?: opcoes.firstOrNull()
+
+/** O que a tela cheia diz da imagem (Z8): quem a gerou, ou que foi importada. */
+fun descreverOrigemDaImagem(imagem: ImagemDoPrompt): String = imagem.modelo?.let { "Gerada por $it" } ?: "Importada"
 
 // ---------------------------------------------------------------------------------------------------------------- //
 // Novo retrato (incremento 10b, terceira fatia: N1 a N8)

@@ -69,8 +69,23 @@ internal class PromptsFalso : RepositorioDePrompts {
         ResultadoDaChamada.Sucesso(ResultadoDaGeracao("GERADA", false, PromptDeFrame(id = 1, frame_id = 70, texto = "p1"), ImagemDoPrompt(id = 700)))
     var travaDaGeracaoDeImagem: CompletableDeferred<Unit>? = null
 
-    override suspend fun gerarImagem(promptId: Int, textoEditado: String?): ResultadoDaChamada<ResultadoDaGeracao> {
+    val modelosPedidos = mutableListOf<String?>() // o modelo de cada geração de imagem (null = o padrão do servidor)
+    var resultadoDosModelos: ResultadoDaChamada<com.allan.imagineer.rede.ModelosDeImagem> = ResultadoDaChamada.Sucesso(
+        com.allan.imagineer.rede.ModelosDeImagem(
+            "meta/muse-image",
+            listOf("meta/muse-image", "bytedance-seed/seedream-5-0-flash", "google/gemini-2.5-flash-image"),
+        ),
+    )
+    var leiturasDosModelos = 0
+
+    override suspend fun modelosDeImagem(): ResultadoDaChamada<com.allan.imagineer.rede.ModelosDeImagem> {
+        leiturasDosModelos++
+        return resultadoDosModelos
+    }
+
+    override suspend fun gerarImagem(promptId: Int, textoEditado: String?, modelo: String?): ResultadoDaChamada<ResultadoDaGeracao> {
         geracoesDeImagem += promptId to textoEditado
+        modelosPedidos += modelo
         travaDaGeracaoDeImagem?.await()
         return resultadoDaGeracaoDeImagem
     }

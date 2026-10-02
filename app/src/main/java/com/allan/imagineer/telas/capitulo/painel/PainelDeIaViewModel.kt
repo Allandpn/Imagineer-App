@@ -8,6 +8,7 @@ import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.motivoParaNaoImportar
 import com.allan.imagineer.rede.PromptsSemServidor
@@ -170,6 +171,12 @@ data class EstadoDoPainel(
      * por chave de cada vez. Sem entrada = parado.
      */
     val etapasDeImagem: Map<String, EtapaDaImagem> = emptyMap(),
+    /** Os modelos de imagem que se pode escolher, lidos do servidor (Z2, Z6); `null` enquanto não vieram. */
+    val modelosDeImagem: ModelosDeImagem? = null,
+    /** O modelo que a pessoa escolheu para as próximas gerações (Z6); `null` = o padrão do servidor. Vale até trocar. */
+    val modeloEscolhido: String? = null,
+    /** O diálogo de escolher o modelo de imagem está aberto (Z6). */
+    val escolhendoModelo: Boolean = false,
     /** O diálogo "Excluir esta imagem?" está aberto para esta imagem (U3); `null` = sem diálogo. */
     val excluindoImagem: ImagemParaExcluir? = null,
     /** O diálogo de **editar o prompt** está aberto (R1); `null` = sem diálogo. */
@@ -222,7 +229,7 @@ data class ImagemParaExcluir(val frameId: Int, val promptId: Int, val imagemId: 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
 data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
 
-data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String)
+data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String, val modelo: String? = null)
 
 class PainelDeIaViewModel(
     private val capituloId: Int,
@@ -439,7 +446,7 @@ class PainelDeIaViewModel(
                     gerarPromptDoFluxo(frameId, rotulo) ?: return@launch
                 }
                 definirEtapa(chave, EtapaDaImagem.GERANDO_A_IMAGEM)
-                if (reservarGeracaoDeImagem(prompt.id)) concluirGeracaoDeImagem(frameId, prompt.id, null)
+                if (reservarGeracaoDeImagem(prompt.id)) concluirGeracaoDeImagem(frameId, prompt.id, null, _estado.value.modeloEscolhido)
             } finally {
                 _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem - chave) }
                 frameId?.let { relerPromptsSemPiscar(it) } // K6: o frame pode ter prompt novo e imagem nova
@@ -604,9 +611,38 @@ class PainelDeIaViewModel(
      * novo. Sem confirmação (a imagem custa cerca de US$ 0,01). Um pedido por prompt, sem repetição automática (K2).
      * [textoEditado] vem do diálogo da recusa (K4) ou da edição (R2): o servidor o envia direto, sem suavizar.
      */
-    fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null) {
+    fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null, modelo: String? = null) {
         if (!reservarGeracaoDeImagem(promptId)) return
-        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado) }
+        // Z9: escolher o modelo no diálogo da recusa o torna o modelo ativo, para as próximas gerações também.
+        if (!modelo.isNullOrBlank()) _estado.update { it.copy(modeloEscolhido = modelo) }
+        val modeloDoPedido = modelo?.takeIf { it.isNotBlank() } ?: _estado.value.modeloEscolhido
+        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
+    }
+
+    /** Lê a lista de modelos de imagem **uma vez** (Z6); uma falha de leitura só deixa a escolha de modelo escondida. */
+    fun carregarModelosDeImagem() {
+        if (_estado.value.modelosDeImagem != null || carregandoModelos) return
+        carregandoModelos = true
+        viewModelScope.launch {
+            val resultado = prompts.modelosDeImagem()
+            carregandoModelos = false
+            if (resultado is ResultadoDaChamada.Sucesso) _estado.update { it.copy(modelosDeImagem = resultado.dado) }
+        }
+    }
+
+    private var carregandoModelos = false
+
+    fun abrirEscolhaDeModelo() {
+        if (_estado.value.modelosDeImagem != null) _estado.update { it.copy(escolhendoModelo = true) }
+    }
+
+    fun fecharEscolhaDeModelo() {
+        _estado.update { it.copy(escolhendoModelo = false) }
+    }
+
+    /** A pessoa escolheu o modelo das próximas gerações (Z6). Não muda o padrão do servidor. */
+    fun escolherModelo(modelo: String) {
+        _estado.update { it.copy(modeloEscolhido = modelo.takeIf { escolhido -> escolhido.isNotBlank() }, escolhendoModelo = false) }
     }
 
     /** Marca o prompt como "gerando" (K2); `false` se já há um pedido ou uma importação dele em andamento. */
@@ -625,8 +661,8 @@ class PainelDeIaViewModel(
     }
 
     /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
-    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?) {
-        val resultado = prompts.gerarImagem(promptId, textoEditado)
+    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) {
+        val resultado = prompts.gerarImagem(promptId, textoEditado, modelo)
         _estado.update { agora ->
             val semPedido = agora.gerandoImagem - promptId
             when (resultado) {
@@ -648,6 +684,7 @@ class PainelDeIaViewModel(
                                 promptId = geracao.prompt.id,
                                 texto = geracao.prompt.texto,
                                 motivo = geracao.prompt.motivo_da_recusa ?: MOTIVO_PADRAO_DA_RECUSA,
+                                modelo = geracao.prompt.modelo_imagem,
                             ),
                         )
                     }

@@ -308,6 +308,10 @@ data class ConfiguracaoAtual(
     val modelo_extracao: String? = null,
     val modelo_prompt: String? = null,
     val modelo_perfil: String? = null,
+    /** O modelo de imagem padrão do servidor (item 7.5b, Z2). */
+    val modelo_imagem: String? = null,
+    /** Os modelos de imagem que o usuário pode escolher (Z2). */
+    val modelos_de_imagem: List<String> = emptyList(),
     val prioridade_ia: String,
 )
 
