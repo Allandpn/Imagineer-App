@@ -898,8 +898,8 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
 }
 
 /**
- * A área de um frame que já existe (cena ou retrato): **a imagem em destaque** com o botão principal (Q1 a Q4), as **imagens
- * importadas** (T) e os **prompts recolhidos** em "Ver prompts" (Q7), onde ficam a lista, copiar, compartilhar, editar, o
+ * A área de um frame que já existe (cena ou retrato): **as imagens em destaque**, com o botão principal e o de importar
+ * (Q1 a Q4, T), e os **prompts recolhidos** em "Ver prompts" (Q7), onde ficam a lista, copiar, compartilhar, editar, o
  * *Gerar imagem* de um prompt antigo e o **Novo prompt** (G3: com diálogo de custo e ajuste opcional, Q6). Ler a lista não custa (G2).
  */
 @Composable
@@ -927,9 +927,6 @@ private fun BlocoDePrompts(
 
     // Q1: a imagem em destaque, com o botão que faz o que falta.
     SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao)
-
-    // T1, T2: as imagens importadas ficam numa seção própria, com um só botão para importar.
-    (conteudo as? PromptsDoFrame.Pronto)?.let { SecaoDeImagensImportadas(frameId, it.lista, estado, acoes) }
 
     // Falhas do prompt (do fluxo ou do Novo prompt) ficam fora do recolhido: a pessoa precisa vê-las.
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
@@ -1035,9 +1032,10 @@ private fun CartaoDePrompt(
                     onClick = { acoes.aoGerarImagem(frameId, prompt.id, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
-                // R1: editar o texto antes de gerar; T4: a importação é única, no fim da lista (não por prompt).
+                // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
                 OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
             }
+            ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
         }
     }

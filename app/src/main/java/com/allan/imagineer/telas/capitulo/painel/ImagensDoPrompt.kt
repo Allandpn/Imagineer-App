@@ -51,6 +51,7 @@ import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.extensaoDoTipo
 import kotlinx.coroutines.launch
+import android.util.Log
 import android.widget.Toast
 import com.allan.imagineer.rede.enderecoDaImagem
 
@@ -63,11 +64,14 @@ private fun urlDoServidorEmUso(): String? {
 }
 
 /**
- * A **imagem do frame**, em destaque (Q1, Q7): as miniaturas das imagens **geradas** (de todos os prompts), a barra com a
- * etapa em andamento (Q4), os recados da geração e **o botão principal**, que faz o que falta (Q2): criar o retrato, gerar o
- * prompt e gerar a imagem. Sob o botão, a linha que diz o que ele faz e que gasta IA (Q3). [lista] vem do mais novo para o
- * mais antigo; vazia se os prompts ainda não foram lidos.
+ * As **imagens do frame**, em destaque (Q1, Q7, T2 revisada em 02/10/2026): as miniaturas de **todas** as imagens, geradas e
+ * importadas, da mais nova para a mais antiga (a origem não separa mais em seções); a barra com a etapa em andamento (Q4);
+ * os recados; o **botão principal**, que faz o que falta (Q2) e, ao lado, **Importar imagem** (T1), que leva a imagem para o
+ * prompt mais recente. Sob os botões, a linha que diz o que o principal faz e que gasta IA (Q3). [lista] vem do mais novo
+ * para o mais antigo; vazia se os prompts ainda não foram lidos. A relação prompt-imagem continua visível nos prompts (cada
+ * cartão mostra as imagens dele).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SecaoDaImagemDoFrame(
     frameId: Int,
@@ -80,8 +84,12 @@ internal fun SecaoDaImagemDoFrame(
 ) {
     val etapa = estado.etapasDeImagem[chave]
     val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
-    Text("Imagem", style = MaterialTheme.typography.titleSmall)
-    Miniaturas(frameId, lista.flatMap { prompt -> prompt.imagens.filter { it.origem == "GERADA" } }, "Imagem gerada", acoes)
+    val maisRecente = lista.firstOrNull() // para onde vai a imagem importada (T1)
+    val importando = maisRecente != null && maisRecente.id in estado.importandoImagem
+    val ocupado = etapa != null || gerandoAlgum || importando || frameId in estado.gerandoPrompt
+
+    Text("Imagens", style = MaterialTheme.typography.titleSmall)
+    Miniaturas(frameId, lista.flatMap { it.imagens }, "Imagem", acoes)
     if (etapa != null || gerandoAlgum) {
         // O servidor não informa o andamento, então a barra é indeterminada (K2).
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -89,27 +97,7 @@ internal fun SecaoDaImagemDoFrame(
             Text(etapa?.let(::descreverEtapa) ?: AVISO_GERANDO_IMAGEM, style = MaterialTheme.typography.bodySmall)
         }
     }
-    lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
-    Button(
-        onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
-        enabled = etapa == null && !gerandoAlgum && frameId !in estado.gerandoPrompt,
-    ) { Text(rotuloDoBotao, maxLines = 1, softWrap = false) }
-    Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-/**
- * A seção **"Imagens importadas"** (T1, T2), no fim da lista de prompts do frame: as miniaturas de todas as imagens
- * importadas e **um só botão "Importar imagem"**, que leva a imagem para o prompt **mais recente** ([lista] vem do mais novo
- * para o mais antigo). O botão **não abre o seletor aqui**: o seletor mora na tela do capítulo (J2).
- */
-@Composable
-internal fun SecaoDeImagensImportadas(frameId: Int, lista: List<PromptDeFrame>, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    val maisRecente = lista.firstOrNull() ?: return // sem prompt não há para onde importar (T1)
-    val importadas = lista.flatMap { prompt -> prompt.imagens.filter { it.origem == "IMPORTADA" } }.sortedByDescending { it.id }
-    val importando = maisRecente.id in estado.importandoImagem
-
-    Text("Imagens importadas", style = MaterialTheme.typography.titleSmall)
-    if (importando) {
+    if (importando && maisRecente != null) {
         val fracao = estado.importandoImagem[maisRecente.id]
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (fracao == null) {
@@ -120,18 +108,28 @@ internal fun SecaoDeImagensImportadas(frameId: Int, lista: List<PromptDeFrame>, 
             Text("Enviando a imagem…", style = MaterialTheme.typography.bodySmall)
         }
     }
-    estado.mensagensDeImportacao[maisRecente.id]?.let { RecadoDeImagem(it) }
-    if (importadas.isEmpty() && !importando) {
-        Text("Nenhuma imagem importada.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    lista.forEach { prompt -> estado.mensagensDeImagem[prompt.id]?.let { RecadoDeImagem(it) } }
+    maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(
+            onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
+            enabled = !ocupado,
+        ) { Text(rotuloDoBotao, maxLines = 1, softWrap = false) }
+        // T1: um só botão por frame; a imagem vai para o prompt mais recente. Sem prompt não há para onde importar.
+        // O seletor não abre aqui: mora na tela do capítulo (J2).
+        if (maisRecente != null) {
+            OutlinedButton(onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) }, enabled = !ocupado) {
+                Text("Importar imagem", maxLines = 1, softWrap = false)
+            }
+        }
     }
-    Miniaturas(frameId, importadas, "Imagem importada", acoes)
-    // J2: um botão só por frame; a imagem vai para o prompt mais recente.
-    OutlinedButton(
-        onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) },
-        enabled = !importando && maisRecente.id !in estado.gerandoImagem,
-    ) {
-        Text("Importar imagem", maxLines = 1, softWrap = false)
-    }
+    Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** As imagens de **um prompt**, no cartão dele: a relação prompt-imagem (02/10/2026). Tocar numa abre a tela cheia. */
+@Composable
+internal fun ImagensDoPrompt(prompt: PromptDeFrame, acoes: AcoesDoPainel) {
+    Miniaturas(prompt.frame_id, prompt.imagens, "Imagem deste prompt", acoes)
 }
 
 @Composable
@@ -194,22 +192,33 @@ private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: ()
     val escopo = rememberCoroutineScope()
     var baixando by remember { mutableStateOf(false) }
 
-    /** Baixa o original para o cache (U4) e entrega o arquivo já com a extensão certa à [acao]; erro vira um aviso. */
-    fun baixarE(acao: (arquivo: java.io.File, tipo: String) -> Unit) {
+    /**
+     * Baixa o original para o cache (U4) e entrega o arquivo já com a extensão certa à [acao]. **Nada daqui fecha o app**:
+     * qualquer falha, esperada ou não, vira um aviso (com o tipo do erro, para dar para diagnosticar) e vai para o log.
+     */
+    fun baixarE(oQueFaz: String, acao: (arquivo: java.io.File, tipo: String) -> Unit) {
         if (baixando) return
         baixando = true
         escopo.launch {
-            val temporario = java.io.File(contexto.cacheDir, "imagens/imagem_${imagem.id}.baixando")
-            when (val resultado = aplicacao.repositorioDePrompts.baixarImagem(imagem.id, temporario)) {
-                is ResultadoDaChamada.Falha -> Toast.makeText(contexto, resultado.motivo, Toast.LENGTH_LONG).show()
-                is ResultadoDaChamada.Sucesso -> {
-                    val arquivo = java.io.File(temporario.parentFile, "imagem_${imagem.id}.${extensaoDoTipo(resultado.dado)}")
-                    arquivo.delete()
-                    temporario.renameTo(arquivo)
-                    acao(arquivo, resultado.dado)
+            try {
+                val temporario = java.io.File(contexto.cacheDir, "imagens/imagem_${imagem.id}.baixando")
+                when (val resultado = aplicacao.repositorioDePrompts.baixarImagem(imagem.id, temporario)) {
+                    is ResultadoDaChamada.Falha -> Toast.makeText(contexto, resultado.motivo, Toast.LENGTH_LONG).show()
+                    is ResultadoDaChamada.Sucesso -> {
+                        val arquivo = java.io.File(temporario.parentFile, "imagem_${imagem.id}.${extensaoDoTipo(resultado.dado)}")
+                        arquivo.delete()
+                        temporario.renameTo(arquivo)
+                        acao(arquivo, resultado.dado)
+                    }
                 }
+            } catch (erro: kotlinx.coroutines.CancellationException) {
+                throw erro // a tela fechou no meio: não é falha
+            } catch (erro: Exception) {
+                Log.e(ETIQUETA_DO_LOG, "Falhou ao $oQueFaz a imagem ${imagem.id}", erro)
+                Toast.makeText(contexto, "Não consegui $oQueFaz a imagem (${erro.javaClass.simpleName}).", Toast.LENGTH_LONG).show()
+            } finally {
+                baixando = false
             }
-            baixando = false
         }
     }
 
@@ -243,12 +252,21 @@ private fun ImagemEmTelaCheia(imagem: ImagemDoPrompt, url: String, aoExcluir: ()
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { baixarE { arquivo, tipo -> compartilharImagem(contexto, arquivo, tipo) } }, enabled = !baixando) {
+                TextButton(
+                    onClick = {
+                        baixarE("compartilhar") { arquivo, tipo ->
+                            if (!compartilharImagem(contexto, arquivo, tipo)) {
+                                Toast.makeText(contexto, "Não consegui compartilhar a imagem.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !baixando,
+                ) {
                     Text("Compartilhar", color = Color.White)
                 }
                 TextButton(
                     onClick = {
-                        baixarE { arquivo, tipo ->
+                        baixarE("salvar") { arquivo, tipo ->
                             val salvou = salvarNaGaleria(contexto, arquivo, tipo)
                             Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
                         }
