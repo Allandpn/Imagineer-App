@@ -80,10 +80,31 @@ internal class SugestoesFalso(
     var resultadoDoRetrato: ResultadoDaChamada<FrameCriado> = ResultadoDaChamada.Sucesso(FrameCriado(id = 80, titulo = "Retrato de Jon"))
     var travaDoRetrato: CompletableDeferred<Unit>? = null
 
-    override suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado> {
+    /** Os vinculados pedidos na criação de cada retrato (V4), na ordem das criações. */
+    val vinculadosNaCriacao = mutableListOf<List<Int>>()
+
+    override suspend fun criarRetrato(capituloId: Int, estadoId: Int, vinculadosIds: List<Int>): ResultadoDaChamada<FrameCriado> {
         retratosPedidos += estadoId
+        vinculadosNaCriacao += vinculadosIds
         travaDoRetrato?.await()
         return resultadoDoRetrato
+    }
+
+    /** O que o servidor diz que o frame já tem (V4), e as substituições pedidas por `PUT`. */
+    var vinculosNoServidor: ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>> = ResultadoDaChamada.Sucesso(emptyList())
+    val leiturasDeVinculos = mutableListOf<Int>()
+    val vinculosDefinidos = mutableListOf<Pair<Int, List<Int>>>()
+    var resultadoDeDefinirVinculos: ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>>? = null
+
+    override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>> {
+        leiturasDeVinculos += frameId
+        return vinculosNoServidor
+    }
+
+    override suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>> {
+        vinculosDefinidos += frameId to estadosIds
+        return resultadoDeDefinirVinculos
+            ?: ResultadoDaChamada.Sucesso(estadosIds.map { com.allan.imagineer.rede.VinculadoDoFrame(estado_id = it, nome = "E$it") })
     }
 
     override suspend fun descartarCena(sugestaoCenaId: Int, descartada: Boolean): ResultadoDaChamada<Unit> {

@@ -19,6 +19,7 @@ import retrofit2.http.Headers
 import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Streaming
@@ -250,6 +251,14 @@ interface ApiImagineer {
         @Path("id") capituloId: Int,
         @Body corpo: JsonObject,
     ): FrameCriado
+
+    /** `GET /frames/{id}` — o frame com os elementos vinculados ao sujeito do retrato (V4). Só leitura. */
+    @GET("frames/{id}")
+    suspend fun frame(@Path("id") frameId: Int): FrameComVinculados
+
+    /** `PUT /frames/{id}/vinculos` — substitui os elementos vinculados ao sujeito do retrato (V4). Não gasta IA. */
+    @PUT("frames/{id}/vinculos")
+    suspend fun definirVinculos(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
 
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")

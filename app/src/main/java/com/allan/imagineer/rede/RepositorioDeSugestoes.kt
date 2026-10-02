@@ -44,7 +44,13 @@ interface RepositorioDeSugestoes {
      * `POST /capitulos/{id}/frames` com `tipo=PERSONAGEM`: cria o **retrato** de um elemento a partir do estado que vale
      * neste capítulo (N2). Não gasta IA.
      */
-    suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado>
+    suspend fun criarRetrato(capituloId: Int, estadoId: Int, vinculadosIds: List<Int> = emptyList()): ResultadoDaChamada<FrameCriado>
+
+    /** `GET /frames/{id}`: os elementos vinculados ao sujeito do retrato (V4). Nunca gasta IA. */
+    suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>>
+
+    /** `PUT /frames/{id}/vinculos`: **substitui** os vinculados do retrato (V4). Lista vazia tira todos. 422 = regra de personagem individual. */
+    suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<VinculadoDoFrame>>
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
@@ -75,14 +81,27 @@ class RepositorioDeSugestoesPeloRetrofit(
         return chamarApi { api.ajustarCena(sugestaoCenaId, corpo); Unit }
     }
 
-    override suspend fun criarRetrato(capituloId: Int, estadoId: Int): ResultadoDaChamada<FrameCriado> {
+    override suspend fun criarRetrato(capituloId: Int, estadoId: Int, vinculadosIds: List<Int>): ResultadoDaChamada<FrameCriado> {
         val api = provedor.obter() ?: return provedor.semServidor()
         // O título ("Retrato de <nome>") o servidor gera sozinho para um frame PERSONAGEM (item 6.4).
         val corpo: JsonObject = buildJsonObject {
             put("tipo", "PERSONAGEM")
             put("estados_ids", buildJsonArray { add(JsonPrimitive(estadoId)) })
+            // V4: os elementos vinculados que a pessoa escolheu antes de o retrato existir; sem escolha o campo nem vai.
+            if (vinculadosIds.isNotEmpty()) put("estados_vinculados_ids", buildJsonArray { vinculadosIds.forEach { add(JsonPrimitive(it)) } })
         }
         return chamarApi { api.criarRetrato(capituloId, corpo) }
+    }
+
+    override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.frame(frameId).vinculados }
+    }
+
+    override suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<VinculadoDoFrame>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("estados_ids", buildJsonArray { estadosIds.forEach { add(JsonPrimitive(it)) } }) }
+        return chamarApi { api.definirVinculos(frameId, corpo).vinculados }
     }
 
     override suspend fun confirmarCena(capituloId: Int, sugestaoCenaId: Int): ResultadoDaChamada<FrameCriado> {

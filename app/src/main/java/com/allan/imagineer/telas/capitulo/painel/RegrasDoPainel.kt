@@ -649,6 +649,36 @@ fun descreverOrigemDaImagem(imagem: ImagemDoPrompt): String =
 fun podeTerRetrato(elemento: ElementoSugerido): Boolean =
     !elemento.descartada && situacaoDoElemento(elemento) == SituacaoDoElemento.CONFIRMADA && elemento.estado_vigente != null
 
+// ---------------------------------------------------------------------------------------------------------------- //
+// Elementos vinculados ao retrato (V1 a V10)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** Quantos elementos podem se vincular ao sujeito de um retrato (V3). */
+const val MAXIMO_DE_VINCULADOS = 4
+
+/** O tipo cujo retrato é sempre solo (V2, decisão do Allan: personagem é individual). */
+const val TIPO_INDIVIDUAL = "PERSONAGEM"
+
+/** Este elemento aceita elementos vinculados no retrato (V2)? Todo tipo, menos o personagem. */
+fun aceitaVinculos(elemento: ElementoSugerido): Boolean = elemento.tipo != TIPO_INDIVIDUAL && podeTerRetrato(elemento)
+
+/**
+ * Os elementos que se pode vincular ao retrato de [sujeito] (V8): os **outros** confirmados do capítulo, com estado, que **não** são
+ * personagens (V2), sem repetir o mesmo elemento cadastrado.
+ */
+fun candidatosAoVinculo(elementos: List<ElementoSugerido>, sujeito: ElementoSugerido): List<ElementoSugerido> =
+    elementos
+        .filter { it.id != sujeito.id && it.tipo != TIPO_INDIVIDUAL && podeTerRetrato(it) }
+        .filter { (it.elemento_id ?: -1) != (sujeito.elemento_id ?: -2) }
+        .distinctBy { it.elemento_id ?: -it.id }
+
+/** A linha "Vinculados: ..." junto do retrato (V8). */
+fun descreverVinculados(nomes: List<String>): String =
+    if (nomes.isEmpty()) "Vinculados: nenhum" else "Vinculados: ${nomes.joinToString(", ")}"
+
+/** O aviso de que mudar os vínculos não refaz o prompt que já existe (V7). */
+const val AVISO_VINCULOS_MUDARAM = "Os vínculos mudaram: gere um Novo prompt para valerem."
+
 /** O rótulo do retrato nos avisos e nos prompts (N6): "Retrato de Jon". */
 fun rotuloDoRetrato(elemento: ElementoSugerido): String = "Retrato de ${elemento.elemento_casado?.nome ?: elemento.nome}"
 

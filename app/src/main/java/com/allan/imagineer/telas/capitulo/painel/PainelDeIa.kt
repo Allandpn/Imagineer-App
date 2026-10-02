@@ -129,6 +129,13 @@ class AcoesDoPainel(
     val aoEscolherModelo: (String) -> Unit,
     val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
+    // Os elementos vinculados ao retrato (V8).
+    val aoAbrirVinculos: (elemento: ElementoSugerido, frameId: Int?) -> Unit,
+    val aoAlternarVinculo: (estadoId: Int) -> Unit,
+    val aoLimparVinculos: () -> Unit,
+    val aoUsarVinculos: (elemento: ElementoSugerido) -> Unit,
+    val aoFecharVinculos: () -> Unit,
+    val aoCarregarVinculos: (elementoId: Int, frameId: Int) -> Unit,
     // Escolher as imagens de referência da cena (W8 a W10).
     val aoAbrirReferencias: (frameId: Int) -> Unit,
     val aoAlternarReferencia: (imagemId: Int) -> Unit,
@@ -185,6 +192,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.escolhaDeReferencias?.let { DialogoDeReferencias(it, acoes) }
+    estado.escolhendoVinculos?.let { DialogoDeVinculos(it, estado, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -272,6 +280,8 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
 private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val chave = chaveDoFluxoDoRetrato(elemento.id)
     Text("Retrato", style = MaterialTheme.typography.titleSmall)
+    // V8: a linha dos vinculados, só para quem aceita (não para personagem: é individual, V2).
+    if (aceitaVinculos(elemento)) VinculadosDoRetrato(elemento, frameId, estado, acoes)
     if (frameId == null) {
         val etapa = estado.etapasDeImagem[chave]
         val ocupado = etapa != null || elemento.id in estado.retratosOcupados

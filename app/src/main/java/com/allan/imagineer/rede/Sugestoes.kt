@@ -129,3 +129,20 @@ data class FrameCriado(
     val id: Int,
     val titulo: String = "",
 )
+
+/** Um elemento vinculado ao sujeito de um retrato (V4): o **estado** que vai ao servidor, e o nome e o tipo para mostrar. */
+@Serializable
+@Suppress("PropertyName")
+data class VinculadoDoFrame(
+    val estado_id: Int,
+    val elemento_id: Int = 0,
+    val nome: String = "",
+    val tipo: String = "",
+)
+
+/** O frame com os elementos vinculados (V4): o que `GET /frames/{id}` e `PUT /frames/{id}/vinculos` devolvem, só nesta parte. */
+@Serializable
+data class FrameComVinculados(
+    val id: Int,
+    val vinculados: List<VinculadoDoFrame> = emptyList(),
+)
