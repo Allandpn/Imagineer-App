@@ -51,16 +51,15 @@ class RegrasDoSemFiltroTest {
     private val semLista = ModelosDeImagem(MUSE, listOf(MUSE, SEEDREAM))
 
     @Test
-    fun `F12 o botao so aparece num prompt que o provedor recusou`() {
-        assertTrue(podeTentarSemFiltro(umPrompt("RECUSADO"), comLista))
-        assertFalse("nunca tentado", podeTentarSemFiltro(umPrompt("NAO_TENTADO", modelo = null), comLista))
-        assertFalse("gerado com sucesso", podeTentarSemFiltro(umPrompt("COM_SUCESSO"), comLista))
-    }
-
-    @Test
-    fun `F13 sem nenhum modelo na lista do servidor o botao nao aparece`() {
-        assertFalse(podeTentarSemFiltro(umPrompt("RECUSADO"), semLista))
-        assertFalse("a lista ainda nao foi lida", podeTentarSemFiltro(umPrompt("RECUSADO"), null))
+    fun `F19 escolher um modelo da lista sem filtro e pedir a geracao sem o filtro, e so ele`() {
+        assertTrue(modeloEstaSemFiltro(FLUX, comLista))
+        assertTrue(modeloEstaSemFiltro(" $KLEIN ", comLista))
+        assertFalse("modelo moderado", modeloEstaSemFiltro(MUSE, comLista))
+        assertFalse("o mesmo id sem o prefixo não é o da lista", modeloEstaSemFiltro("black-forest-labs/flux-schnell", comLista))
+        assertFalse("servidor sem a lista", modeloEstaSemFiltro(FLUX, semLista))
+        assertFalse("sem modelo (o padrão do servidor)", modeloEstaSemFiltro(null, comLista))
+        assertFalse(modeloEstaSemFiltro("  ", comLista))
+        assertFalse("a lista ainda não foi lida", modeloEstaSemFiltro(FLUX, null))
     }
 
     @Test
@@ -86,7 +85,7 @@ class RegrasDoSemFiltroTest {
     }
 }
 
-/** O ViewModel do painel e o diálogo **Tentar sem o filtro** (F12 a F18). */
+/** O ViewModel do painel: o modelo escolhido no modal decide se o filtro vai desligado (F19). */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SemFiltroNoPainelTest {
 
@@ -115,62 +114,68 @@ class SemFiltroNoPainelTest {
     private val modelos = ModelosDeImagem(MUSE, listOf(MUSE, SEEDREAM), listOf(FLUX, KLEIN))
 
     @Test
-    fun `F13 o dialogo so abre se o servidor tem modelos sem filtro`() = runTest {
-        val sem = vm(prompts(ModelosDeImagem(MUSE, listOf(MUSE))))
-        sem.carregarModelosDeImagem(); advanceUntilIdle()
-        sem.abrirSemFiltro(70, 1, "texto")
-        assertNull(sem.estado.value.semFiltro)
-
-        val com = vm(prompts(modelos))
-        com.carregarModelosDeImagem(); advanceUntilIdle()
-        com.abrirSemFiltro(70, 1, "texto")
-        assertEquals(PedidoSemFiltro(70, 1, "texto"), com.estado.value.semFiltro)
-
-        com.fecharSemFiltro()
-        assertNull(com.estado.value.semFiltro)
-    }
-
-    @Test
-    fun `F12 gerar sem o filtro pede ao servidor com o modelo escolhido e fecha o dialogo`() = runTest {
+    fun `F19 escolher um modelo sem filtro no modal faz a geracao ir com o filtro desligado`() = runTest {
         val fake = prompts(modelos)
         val vm = vm(fake)
         vm.carregarModelosDeImagem(); advanceUntilIdle()
-        vm.abrirSemFiltro(70, 1, "texto")
 
-        vm.gerarSemFiltro(70, 1, "texto editado", KLEIN)
-        advanceUntilIdle()
+        vm.escolherModelo(KLEIN)
+        vm.gerarImagem(70, 1); advanceUntilIdle()
 
         assertEquals(listOf(1), fake.pedidosSemFiltro)
         assertEquals(listOf<String?>(KLEIN), fake.modelosPedidos)
-        assertEquals(listOf(1 to "texto editado"), fake.geracoesDeImagem)
-        assertNull(vm.estado.value.semFiltro)
     }
 
     @Test
-    fun `F12 o modelo sem filtro NAO vira o modelo ativo das proximas geracoes`() = runTest {
+    fun `F19 com um modelo moderado ou sem escolha nada vai com o filtro desligado`() = runTest {
         val fake = prompts(modelos)
         val vm = vm(fake)
         vm.carregarModelosDeImagem(); advanceUntilIdle()
-        vm.escolherModelo(SEEDREAM)
 
-        vm.gerarSemFiltro(70, 1, "texto", FLUX); advanceUntilIdle()
+        vm.gerarImagem(70, 1); advanceUntilIdle() // sem escolha: o padrão do servidor
+        vm.escolherModelo(SEEDREAM)
         vm.gerarImagem(70, 2); advanceUntilIdle()
 
-        assertEquals(SEEDREAM, vm.estado.value.modeloEscolhido)
-        assertEquals(listOf<String?>(FLUX, SEEDREAM), fake.modelosPedidos)
-        assertEquals("a geração normal depois não manda o filtro desligado", listOf(1), fake.pedidosSemFiltro)
+        assertTrue(fake.pedidosSemFiltro.isEmpty())
     }
 
     @Test
-    fun `F12 sem modelo escolhido nada e enviado`() = runTest {
+    fun `F19 a escolha vale ate trocar, e voltar a um modelo moderado volta ao pedido normal`() = runTest {
         val fake = prompts(modelos)
         val vm = vm(fake)
+        vm.carregarModelosDeImagem(); advanceUntilIdle()
 
-        vm.gerarSemFiltro(70, 1, "texto", " ")
-        advanceUntilIdle()
+        vm.escolherModelo(FLUX)
+        vm.gerarImagem(70, 1); advanceUntilIdle()
+        vm.gerarImagem(70, 2); advanceUntilIdle()
+        vm.escolherModelo(MUSE)
+        vm.gerarImagem(70, 3); advanceUntilIdle()
 
-        assertTrue(fake.pedidosSemFiltro.isEmpty())
-        assertTrue(fake.geracoesDeImagem.isEmpty())
+        assertEquals(listOf(1, 2), fake.pedidosSemFiltro)
+    }
+
+    @Test
+    fun `F19 o fluxo de um toque do frame tambem respeita o modelo sem filtro`() = runTest {
+        val fake = prompts(modelos).also { it.lista = ResultadoDaChamada.Sucesso(listOf(PromptDeFrame(id = 9, frame_id = 70, texto = "p9"))) }
+        val vm = vm(fake)
+        vm.carregarModelosDeImagem(); advanceUntilIdle()
+        vm.escolherModelo(KLEIN)
+
+        vm.gerarImagemDoFrame("frame70", 70, "A cena"); advanceUntilIdle()
+
+        assertEquals(listOf(9), fake.pedidosSemFiltro)
+    }
+
+    @Test
+    fun `F19 o dialogo da recusa e o de editar tambem mandam o filtro desligado se o modelo for da lista`() = runTest {
+        val fake = prompts(modelos)
+        val vm = vm(fake)
+        vm.carregarModelosDeImagem(); advanceUntilIdle()
+
+        vm.gerarImagem(70, 1, "texto editado", KLEIN); advanceUntilIdle() // é o que o diálogo da recusa chama
+
+        assertEquals(listOf(1), fake.pedidosSemFiltro)
+        assertEquals(KLEIN, vm.estado.value.modeloEscolhido)
     }
 
     @Test
@@ -181,21 +186,25 @@ class SemFiltroNoPainelTest {
             )
         }
         val vm = vm(fake)
+        vm.carregarModelosDeImagem(); advanceUntilIdle()
+        vm.escolherModelo(FLUX)
 
-        vm.gerarSemFiltro(70, 1, "texto", FLUX); advanceUntilIdle()
+        vm.gerarImagem(70, 1); advanceUntilIdle()
 
         assertEquals(FLUX, vm.estado.value.recusaDeImagem?.modelo)
         assertEquals("uma só chamada", listOf(1), fake.pedidosSemFiltro)
     }
 
     @Test
-    fun `F12 uma falha do servidor, como o 422 da trava de menores, aparece como recado do prompt`() = runTest {
+    fun `F15 uma falha do servidor, como o 422 da trava de menores, aparece como recado do prompt`() = runTest {
         val fake = prompts(modelos).also {
             it.resultadoDaGeracaoDeImagem = ResultadoDaChamada.Falha("O prompt fala de uma pessoa menor de idade")
         }
         val vm = vm(fake)
+        vm.carregarModelosDeImagem(); advanceUntilIdle()
+        vm.escolherModelo(FLUX)
 
-        vm.gerarSemFiltro(70, 1, "texto", FLUX); advanceUntilIdle()
+        vm.gerarImagem(70, 1); advanceUntilIdle()
 
         val recado = vm.estado.value.mensagensDeImagem[1]
         assertTrue(recado?.ehErro == true)

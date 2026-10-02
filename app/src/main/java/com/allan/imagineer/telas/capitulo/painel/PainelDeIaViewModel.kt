@@ -183,8 +183,6 @@ data class EstadoDoPainel(
     val edicaoDePrompt: EdicaoDePrompt? = null,
     /** Prompts com uma imagem sendo **gerada** pelo servidor (K2): um pedido por prompt. */
     val gerandoImagem: Set<Int> = emptySet(),
-    /** O diálogo **Tentar sem o filtro** está aberto (F12); `null` = sem diálogo. */
-    val semFiltro: PedidoSemFiltro? = null,
     /** O provedor recusou de novo e a pessoa pode editar o prompt para tentar outra vez (K4); `null` = sem diálogo. */
     val recusaDeImagem: RecusaDeImagem? = null,
     /** Como cada frame se chama nos avisos ("A partida", "Retrato de Jon"); guardado ao pedir o prompt (N6). */
@@ -230,9 +228,6 @@ data class ImagemParaExcluir(val frameId: Int, val promptId: Int, val imagemId: 
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
 data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
-
-/** O que o diálogo **Tentar sem o filtro** precisa (F12): o frame, o prompt recusado e o texto dele. */
-data class PedidoSemFiltro(val frameId: Int, val promptId: Int, val texto: String)
 
 data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String, val modelo: String? = null)
 
@@ -624,26 +619,6 @@ class PainelDeIaViewModel(
         viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
     }
 
-    /**
-     * **Gerar sem o filtro** (F12 a F18): o único caminho que pede ao servidor para desligar o filtro de segurança do modelo,
-     * e só pelo diálogo próprio. O modelo escolhido ali **não** vira o modelo ativo (Z6): a lista é outra e o pedido vale uma vez.
-     */
-    fun gerarSemFiltro(frameId: Int, promptId: Int, texto: String, modelo: String) {
-        if (modelo.isBlank() || !reservarGeracaoDeImagem(promptId)) return
-        val editado = texto.takeIf { it.isNotBlank() }
-        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, editado, modelo, semFiltro = true) }
-    }
-
-    /** **Tentar sem o filtro** num prompt recusado: abre o diálogo (F12). Só abre se o servidor tem modelos para isso (F13). */
-    fun abrirSemFiltro(frameId: Int, promptId: Int, texto: String) {
-        if (_estado.value.modelosDeImagem?.semFiltro.isNullOrEmpty()) return
-        _estado.update { it.copy(semFiltro = PedidoSemFiltro(frameId, promptId, texto)) }
-    }
-
-    fun fecharSemFiltro() {
-        _estado.update { it.copy(semFiltro = null) }
-    }
-
     /** Lê a lista de modelos de imagem **uma vez** (Z6); uma falha de leitura só deixa a escolha de modelo escondida. */
     fun carregarModelosDeImagem() {
         if (_estado.value.modelosDeImagem != null || carregandoModelos) return
@@ -680,21 +655,19 @@ class PainelDeIaViewModel(
                 mensagensDeImagem = it.mensagensDeImagem - promptId,
                 recusaDeImagem = null,
                 edicaoDePrompt = null,
-                semFiltro = null,
             )
         }
         return true
     }
 
     /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
-    private suspend fun concluirGeracaoDeImagem(
-        frameId: Int,
-        promptId: Int,
-        textoEditado: String?,
-        modelo: String?,
-        semFiltro: Boolean = false,
-    ) {
-        val resultado = if (semFiltro) prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true) else prompts.gerarImagem(promptId, textoEditado, modelo)
+    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) {
+        // F19: escolher um modelo da lista **sem filtro** é pedir a geração sem o filtro; com qualquer outro, o pedido é o de sempre.
+        val resultado = if (modeloEstaSemFiltro(modelo, _estado.value.modelosDeImagem)) {
+            prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true)
+        } else {
+            prompts.gerarImagem(promptId, textoEditado, modelo)
+        }
         _estado.update { agora ->
             val semPedido = agora.gerandoImagem - promptId
             when (resultado) {

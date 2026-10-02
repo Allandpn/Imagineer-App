@@ -154,7 +154,8 @@ internal fun SecaoDaImagemDoFrame(
 internal fun ModeloDeImagemEmUso(estado: EstadoDoPainel, acoes: AcoesDoPainel, ocupado: Boolean) {
     modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem)?.let { emUso ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Modelo de imagem: $emUso", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
+            val sufixo = if (modeloEstaSemFiltro(emUso, estado.modelosDeImagem)) " (sem filtro)" else ""
+            Text("Modelo de imagem: $emUso$sufixo", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f, fill = false))
             TextButton(onClick = acoes.aoAbrirEscolhaDeModelo, enabled = !ocupado) { Text("Trocar", maxLines = 1, softWrap = false) }
         }
     }
@@ -165,24 +166,40 @@ internal fun ModeloDeImagemEmUso(estado: EstadoDoPainel, acoes: AcoesDoPainel, o
  * leva "(padrão)". Usado no diálogo de trocar o modelo e dentro dos diálogos de editar e da recusa.
  */
 @Composable
-internal fun SeletorDeModelo(opcoes: List<String>, padrao: String?, selecionado: String?, aoSelecionar: (String) -> Unit) {
+internal fun SeletorDeModelo(
+    opcoes: List<String>,
+    padrao: String?,
+    selecionado: String?,
+    aoSelecionar: (String) -> Unit,
+    semFiltro: List<String> = emptyList(),
+) {
     Column(modifier = Modifier.selectableGroup()) {
-        opcoes.forEach { modelo ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = modelo == selecionado, onClick = { aoSelecionar(modelo) }, role = Role.RadioButton)
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = modelo == selecionado, onClick = null)
-                Text(
-                    if (modelo == padrao) "$modelo (padrão)" else modelo,
-                    modifier = Modifier.padding(start = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+        opcoes.forEach { modelo -> LinhaDeModelo(modelo, if (modelo == padrao) "$modelo (padrão)" else modelo, selecionado, aoSelecionar) }
+        if (semFiltro.isNotEmpty()) {
+            // F19: os modelos que permitem desligar o filtro ficam numa seção própria, com o aviso à vista.
+            Text("Sem filtro de segurança", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+            Text(
+                "Escolher um destes DESLIGA o filtro de segurança do modelo (só no Replicate). A responsabilidade pelo conteúdo é de " +
+                    "quem pede, e o sistema recusa se o texto falar de um menor de idade. A imagem fica marcada \"Sem filtro\".",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+            semFiltro.forEach { modelo -> LinhaDeModelo(modelo, modelo, selecionado, aoSelecionar) }
         }
+    }
+}
+
+@Composable
+private fun LinhaDeModelo(modelo: String, texto: String, selecionado: String?, aoSelecionar: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = modelo == selecionado, onClick = { aoSelecionar(modelo) }, role = Role.RadioButton)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = modelo == selecionado, onClick = null)
+        Text(texto, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
     }
 }
 

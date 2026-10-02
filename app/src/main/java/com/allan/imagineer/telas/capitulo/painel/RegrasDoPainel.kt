@@ -578,14 +578,15 @@ fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
 /** A etiqueta de uma tentativa feita com o filtro de segurança do modelo desligado (F16). */
 const val ETIQUETA_SEM_FILTRO = "Sem filtro"
 
-/**
- * O botão **Tentar sem o filtro** (F12, F13): só num prompt que o provedor **recusou** e só se o servidor tem ao menos um
- * modelo na lista de modelos sem filtro. Nunca aparece num prompt que nunca foi recusado.
- */
-fun podeTentarSemFiltro(prompt: PromptDeFrame, modelos: ModelosDeImagem?): Boolean =
-    prompt.situacao_da_geracao == "RECUSADO" && !modelos?.semFiltro.isNullOrEmpty()
 
-/** Os modelos do diálogo **sem filtro** (F13): só os da lista do servidor, sem repetir nem vazios; **nunca o padrão**. */
+/**
+ * Este modelo é um dos **sem filtro de segurança** (F19)? Escolhê-lo no modal de modelos **é** pedir a geração sem o filtro:
+ * o app manda `sem_filtro_de_seguranca` quando (e só quando) isto é verdadeiro.
+ */
+fun modeloEstaSemFiltro(modelo: String?, modelos: ModelosDeImagem?): Boolean =
+    !modelo.isNullOrBlank() && modelos?.semFiltro.orEmpty().any { it.trim() == modelo.trim() }
+
+/** Os modelos **sem filtro** do modal (F13, F19): só os da lista do servidor, sem repetir nem vazios; **nunca o padrão**. */
 fun modelosSemFiltroParaEscolher(modelos: ModelosDeImagem): List<String> =
     modelos.semFiltro.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
