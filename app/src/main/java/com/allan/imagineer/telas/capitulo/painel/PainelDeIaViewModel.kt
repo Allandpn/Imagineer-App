@@ -746,7 +746,7 @@ class PainelDeIaViewModel(
         val imagens = escolha.selecao.imagens.toList()
         val escolhidos = todosOsElementos(dados).filter { it.estado_id in escolha.selecao.elementos }
 
-        fun concluir(nomes: List<String>?, mudou: Boolean) = _estado.update { agora ->
+        fun aplicarConclusao(nomes: List<String>?, mudou: Boolean) = _estado.update { agora ->
             val referencias = if (imagens.isEmpty()) agora.referenciasEscolhidas - frameId else agora.referenciasEscolhidas + (frameId to imagens)
             val tinha = (agora.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size ?: 0
             agora.copy(
@@ -755,6 +755,14 @@ class PainelDeIaViewModel(
                 vinculadosPorFrame = if (nomes != null) agora.vinculadosPorFrame + (frameId to nomes) else agora.vinculadosPorFrame,
                 mudancasPendentesDePrompt = if (mudou) agora.mudancasPendentesDePrompt + (frameId to tinha) else agora.mudancasPendentesDePrompt,
             )
+        }
+
+        fun concluir(nomes: List<String>?, mudou: Boolean) {
+            // RS1: a escolha de imagens também vai para o servidor (sem travar o seletor: se falhar, vale só nesta sessão).
+            if (imagens != (_estado.value.referenciasEscolhidas[frameId] ?: emptyList<Int>())) {
+                viewModelScope.launch { sugestoes.guardarReferencias(frameId, imagens) }
+            }
+            aplicarConclusao(nomes, mudou)
         }
 
         if (!elementosMudaram(dados, escolha.selecao)) {
@@ -792,6 +800,22 @@ class PainelDeIaViewModel(
     }
 
     private val vinculadosJaLidos = mutableSetOf<Int>()
+    private val referenciasJaLidas = mutableSetOf<Int>()
+
+    /**
+     * Lê **uma vez** as imagens de referência que o servidor guardou para o frame (RS1) e as põe na escolha, a não ser que o usuário já
+     * tenha mexido nela nesta sessão. É o que faz a escolha sobreviver ao fechar o app e valer em outro aparelho.
+     */
+    fun carregarReferenciasGuardadas(frameId: Int) {
+        if (frameId in referenciasJaLidas) return
+        referenciasJaLidas += frameId
+        viewModelScope.launch {
+            val resultado = sugestoes.referenciasDoFrame(frameId)
+            if (resultado is ResultadoDaChamada.Sucesso && resultado.dado.isNotEmpty()) {
+                _estado.update { if (frameId in it.referenciasEscolhidas) it else it.copy(referenciasEscolhidas = it.referenciasEscolhidas + (frameId to resultado.dado)) }
+            }
+        }
+    }
 
     /** Lê a lista de modelos de imagem **uma vez** (Z6); uma falha de leitura só deixa a escolha de modelo escondida. */
     fun carregarModelosDeImagem() {

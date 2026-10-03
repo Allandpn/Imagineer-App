@@ -137,6 +137,8 @@ class AcoesDoPainel(
     val aoLimparSeletor: () -> Unit,
     val aoUsarSeletor: () -> Unit,
     val aoFecharSeletor: () -> Unit,
+    // As referências guardadas no servidor (RS1): lidas uma vez ao abrir o frame, em qualquer aparelho.
+    val aoCarregarReferenciasGuardadas: (frameId: Int) -> Unit,
     val aoCarregarVinculados: (frameId: Int) -> Unit,
     // Editar o prompt antes de gerar (R1 a R3).
     val aoEditarPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit,

@@ -344,17 +344,20 @@ internal fun ImagemEmTelaCheia(
             IconButton(onClick = aoFechar, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
             }
-            // Z8: quem gerou a imagem (no capítulo não se sabe, só o id: sem rótulo).
-            if (mostrarOrigem) Text(
-                descreverOrigemDaImagem(imagem),
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
+            // Z8: quem gerou a imagem (no capítulo não se sabe, só o id: sem rótulo). RS2: e com quais referências.
+            if (mostrarOrigem) Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
                     .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(descreverOrigemDaImagem(imagem), color = Color.White, style = MaterialTheme.typography.labelLarge)
+                if (imagem.imagens_de_referencia.isNotEmpty()) {
+                    MiniaturasDeReferencia(imagem.imagens_de_referencia, legenda = "Gerada com estas referências", corDaLegenda = Color.White)
+                }
+            }
             Row(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,

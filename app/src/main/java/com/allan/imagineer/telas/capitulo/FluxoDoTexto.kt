@@ -73,10 +73,16 @@ sealed interface BlocoDoTexto {
 }
 
 /**
- * Monta os blocos do capítulo (I2, I3, I10). Cada parágrafo vira um [BlocoDoTexto.Comum], a não ser que tenha uma imagem
+ * Monta os blocos do capítulo (I2, I3, I10 a I13). Cada parágrafo vira um [BlocoDoTexto.Comum], a não ser que tenha uma imagem
  * **retrato**: então ele abre um [BlocoDoTexto.ComRetrato] que **consome** os parágrafos seguintes até encher a altura do quadro,
- * parando antes de um parágrafo que tenha imagem própria (cada imagem fica no seu lugar). [artefatosDo] diz os artefatos de
- * cada parágrafo; [alturaDoRetrato] e [espaco] vêm em pixels; [linhas] mede um parágrafo na **largura estreita**.
+ * com ou sem imagem própria (I12). [artefatosDo] diz os artefatos de cada parágrafo; [alturaDoRetrato] e [espaco] vêm em pixels;
+ * [linhas] mede um parágrafo na **largura estreita**.
+ *
+ * **Fila de retratos (I13):** os retratos dos parágrafos que um bloco consumiu (e o segundo retrato de um mesmo parágrafo) entram
+ * numa **fila** e **cada um abre o seu bloco com o texto que vem a seguir**, ao lado dele. Assim nenhum retrato fica sozinho ao
+ * lado de um vazio enquanto houver texto; a imagem pode sair do lugar dela, e o texto não. As **paisagens** dos parágrafos
+ * consumidos descem para o fim do bloco. Só **no fim do capítulo**, sem mais texto, o que sobrou na fila vai como
+ * [BlocoDoTexto.ComRetrato.retratosExtras] do último bloco.
  */
 fun montarBlocos(
     quantidade: Int,
@@ -86,19 +92,29 @@ fun montarBlocos(
     linhas: (Int) -> List<LinhaMedida>,
 ): List<BlocoDoTexto> {
     val blocos = mutableListOf<BlocoDoTexto>()
+    val fila = ArrayDeque<Artefato>()
     var i = 0
     while (i < quantidade) {
-        val imagens = imagensDoParagrafo(artefatosDo(i))
-        val (retratos, paisagens) = imagens.partition { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
-        if (retratos.isEmpty()) {
-            blocos += BlocoDoTexto.Comum(FatiaDeParagrafo(i), paisagens)
-            i++
-            continue
+        var paisagensAntes = emptyList<Artefato>()
+        var primeiroConsumido = i + 1 // o primeiro parágrafo cujas imagens vão para a fila (ou para depois do bloco)
+        if (fila.isEmpty()) {
+            val imagens = imagensDoParagrafo(artefatosDo(i))
+            val (retratos, paisagens) = imagens.partition { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
+            if (retratos.isEmpty()) {
+                blocos += BlocoDoTexto.Comum(FatiaDeParagrafo(i), paisagens)
+                i++
+                continue
+            }
+            fila += retratos
+            paisagensAntes = paisagens
+        } else {
+            // Há retratos esperando (I13): este bloco começa neste parágrafo, que ele mesmo consome.
+            primeiroConsumido = i
         }
+        val retrato = fila.removeFirst()
 
-        // Os parágrafos que o retrato pode consumir: o da imagem e **todos os seguintes** (I12, que amplia o I11): o texto
-        // nunca para ao lado do quadro por o parágrafo seguinte ter imagem. A conta para sozinha quando a altura do quadro
-        // enche; o que o retrato consumir leva as imagens do parágrafo (retrato ou paisagem) para o fim do bloco.
+        // Os parágrafos que o retrato pode consumir: o do começo e **todos os seguintes** (I12). A conta para sozinha quando a
+        // altura do quadro enche.
         val limite = quantidade - i
         val divisao = dividirAoRedorDaImagem(alturaDoRetrato, espaco, limite) { linhas(i + it) }
 
@@ -116,13 +132,18 @@ fun montarBlocos(
             fatias += FatiaDeParagrafo(i)
             proximo = i + 1
         }
-        // As imagens dos parágrafos seguintes que foram consumidos (I11, I12) descem para o fim do bloco, na ordem do texto:
-        // os retratos à direita, logo depois do quadro, e as paisagens na largura inteira, por último.
-        val consumidos = (i + 1) until proximo
-        val deOutros = consumidos.flatMap { k -> imagensDoParagrafo(artefatosDo(k)) }
+        // As imagens dos parágrafos consumidos: os retratos entram no fim da fila (cada um abrirá o seu bloco, I13) e as paisagens
+        // descem para o fim deste bloco (I12).
+        val deOutros = (primeiroConsumido until proximo).flatMap { k -> imagensDoParagrafo(artefatosDo(k)) }
         val (retratosDeOutros, paisagensDeOutros) = deOutros.partition { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
-        blocos += BlocoDoTexto.ComRetrato(retratos.first(), fatias, resto, paisagens, retratos.drop(1) + retratosDeOutros, paisagensDeOutros)
+        fila += retratosDeOutros
+        blocos += BlocoDoTexto.ComRetrato(retrato, fatias, resto, paisagensAntes, emptyList(), paisagensDeOutros)
         i = proximo
+    }
+    // O texto acabou com retratos na fila: não há mais texto para ficar ao lado deles, então vão depois do último quadro.
+    val ultimo = blocos.lastOrNull()
+    if (fila.isNotEmpty() && ultimo is BlocoDoTexto.ComRetrato) {
+        blocos[blocos.lastIndex] = ultimo.copy(retratosExtras = ultimo.retratosExtras + fila)
     }
     return blocos
 }

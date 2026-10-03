@@ -4,6 +4,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -280,6 +281,10 @@ interface ApiImagineer {
     @GET("frames/{id}")
     suspend fun frame(@Path("id") frameId: Int): FrameComVinculados
 
+    /** `PUT /frames/{id}/referencias` — guarda no servidor as imagens escolhidas como referência (RS1). Não gasta IA. */
+    @PUT("frames/{id}/referencias")
+    suspend fun definirReferencias(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
+
     /** `PUT /frames/{id}/vinculos` — substitui os elementos vinculados ao sujeito do retrato (V4). Não gasta IA. */
     @PUT("frames/{id}/vinculos")
     suspend fun definirVinculos(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
@@ -401,6 +406,10 @@ internal val interceptadorDeTempoDeEspera = Interceptor { cadeia ->
  */
 fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30): ApiImagineer {
     val cliente = OkHttpClient.Builder()
+        // O servidor (uvicorn) fecha a conexão ociosa depois de 5 s. Se o app a guardasse mais que isso, o primeiro pedido depois de uma
+        // pausa sairia por uma conexão já morta, e um corpo de uso único (importar imagem ou EPUB) não pode ser reenviado pelo OkHttp:
+        // dava "não consegui falar com o servidor" na primeira tentativa e funcionava na segunda. Descartar a conexão antes (4 s) evita.
+        .connectionPool(ConnectionPool(5, 4, TimeUnit.SECONDS))
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(leituraPadraoEmSegundos, TimeUnit.SECONDS)
         // O padrão (10 s por escrita) é curto para subir um EPUB numa conexão lenta.

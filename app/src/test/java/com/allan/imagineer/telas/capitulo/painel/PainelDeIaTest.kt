@@ -105,6 +105,23 @@ internal class SugestoesFalso(
         return resultadoDeDefinirEstados
     }
 
+    /** As referências que o "servidor" guarda por frame (RS1), as leituras e as gravações pedidas. */
+    val referenciasNoServidor = mutableMapOf<Int, List<Int>>()
+    val leiturasDeReferencias = mutableListOf<Int>()
+    val referenciasGuardadas = mutableListOf<Pair<Int, List<Int>>>()
+    var resultadoDeGuardarReferencias: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {
+        leiturasDeReferencias += frameId
+        return ResultadoDaChamada.Sucesso(referenciasNoServidor[frameId].orEmpty())
+    }
+
+    override suspend fun guardarReferencias(frameId: Int, imagensIds: List<Int>): ResultadoDaChamada<Unit> {
+        referenciasGuardadas += frameId to imagensIds
+        if (resultadoDeGuardarReferencias is ResultadoDaChamada.Sucesso) referenciasNoServidor[frameId] = imagensIds
+        return resultadoDeGuardarReferencias
+    }
+
     override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<com.allan.imagineer.rede.VinculadoDoFrame>> {
         leiturasDeVinculos += frameId
         return vinculosNoServidor

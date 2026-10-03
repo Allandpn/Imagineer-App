@@ -64,6 +64,8 @@ internal fun LinhaDoSeletorDeElementos(
 ) {
     // O retrato lê, uma vez, os vinculados que já tem no servidor (EV10).
     if (frameId != null && !ehCena) LaunchedEffect(frameId) { acoes.aoCarregarVinculados(frameId) }
+    // RS1: as imagens de referência guardadas no servidor (cena e retrato), lidas uma vez.
+    if (frameId != null) LaunchedEffect(frameId) { acoes.aoCarregarReferenciasGuardadas(frameId) }
     val modelos = estado.modelosDeImagem
     val aceita = modeloAceitaReferencia(modeloEmUso(estado.modeloEscolhido, modelos), modelos)
     val imagens = frameId?.let { estado.referenciasEscolhidas[it] }.orEmpty().size
@@ -78,7 +80,7 @@ internal fun LinhaDoSeletorDeElementos(
     }
     // EV14: as miniaturas das imagens que vão como referência (esmaecidas se o modelo em uso não as usa).
     val ids = frameId?.let { estado.referenciasEscolhidas[it] }.orEmpty()
-    if (ids.isNotEmpty()) MiniaturasDeReferencia(ids, legenda = "Vão como referência na próxima geração", esmaecidas = !aceita)
+    if (ids.isNotEmpty()) MiniaturasDeReferencia(ids, legenda = "Vão como referência na próxima geração")
     val aoMudar = frameId?.let { estado.mudancasPendentesDePrompt[it] }
     val promptsAgora = frameId?.let { (estado.prompts[it] as? PromptsDoFrame.Pronto)?.lista?.size }
     if (aoMudar != null && aoMudar == promptsAgora) {
@@ -88,21 +90,21 @@ internal fun LinhaDoSeletorDeElementos(
 
 /**
  * As **miniaturas das imagens de referência** (EV14): uma fileira pequena, com a [legenda] em cima, para o usuário ver quais imagens
- * vão (ou foram) junto da geração, sem abrir o seletor. [esmaecidas] quando o modelo em uso não as usa (W10). Só mostra; não toca.
+ * vão (ou foram) junto da geração, sem abrir o seletor. **No tom original** (sem esmaecer nem fundo preto: o Allan achou escuro);
+     * quando o modelo em uso não as usa, quem avisa é a linha de cima (W10). Só mostra; não toca.
  */
 @Composable
-internal fun MiniaturasDeReferencia(ids: List<Int>, legenda: String, esmaecidas: Boolean = false) {
+internal fun MiniaturasDeReferencia(ids: List<Int>, legenda: String, corDaLegenda: Color = Color.Unspecified) {
     val urlBase = urlDoServidorEmUso() ?: return
     androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(legenda, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(legenda, style = MaterialTheme.typography.labelSmall, color = if (corDaLegenda != Color.Unspecified) corDaLegenda else MaterialTheme.colorScheme.onSurfaceVariant)
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ids.forEach { id ->
                 AsyncImage(
                     model = enderecoDaImagem(urlBase, id, "miniatura"),
                     contentDescription = "Imagem de referência",
-                    contentScale = ContentScale.Fit,
-                    alpha = if (esmaecidas) 0.4f else 1f,
-                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(6.dp)),
                 )
             }
         }

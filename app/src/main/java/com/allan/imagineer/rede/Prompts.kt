@@ -79,6 +79,8 @@ data class ImagemDoPrompt(
     val sem_filtro_de_seguranca: Boolean = false,
     /** É a imagem canônica do frame dela: a que o capítulo mostra (CAN5). */
     val canonica: Boolean = false,
+    /** As imagens enviadas como referência quando **esta** imagem foi gerada (RS2); vazia = nenhuma, ou importada. */
+    val imagens_de_referencia: List<Int> = emptyList(),
     val data_importacao: String = "",
 )
 

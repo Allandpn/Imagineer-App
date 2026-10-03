@@ -189,6 +189,57 @@ class MontarBlocosTest {
     }
 
     @Test
+    fun `I13 dois retratos no mesmo paragrafo - o segundo abre o seu bloco com o texto que vem a seguir`() {
+        val a = comImagem("RETRATO", 5)
+        val b = comImagem("RETRATO", 6)
+
+        // Parágrafos de 5 linhas (100 px) e quadro de 200 px: o bloco de `a` consome o 0 e parte do 1; o de `b` começa no 2.
+        val blocos = montar(5, mapOf(0 to listOf(a, b)), altura = 200f) { linhas(5) }
+
+        val primeiro = blocos[0] as BlocoDoTexto.ComRetrato
+        assertEquals(a, primeiro.retrato)
+        assertEquals(listOf(0, 1), primeiro.fatias.map { it.indice })
+        val segundo = blocos[1] as BlocoDoTexto.ComRetrato
+        assertEquals("o segundo retrato tem texto ao lado, e nada de vazio", b, segundo.retrato)
+        assertTrue(segundo.fatias.isNotEmpty() && segundo.fatias.first().indice >= 2)
+        assertEquals(emptyList<Artefato>(), primeiro.retratosExtras + segundo.retratosExtras)
+    }
+
+    @Test
+    fun `I13 o retrato de um paragrafo consumido espera na fila e abre o seu bloco depois`() {
+        val a = comImagem("RETRATO", 5)
+        val b = comImagem("RETRATO", 6)
+
+        // Parágrafo 0 curto (1 linha) com `a`; o 1 (com `b`) é consumido pelo bloco de `a` e o retrato dele espera.
+        val blocos = montar(6, mapOf(0 to listOf(a), 1 to listOf(b)), altura = 300f) { linhas(8) }
+
+        val primeiro = blocos[0] as BlocoDoTexto.ComRetrato
+        assertEquals(a, primeiro.retrato)
+        val segundo = blocos[1] as BlocoDoTexto.ComRetrato
+        assertEquals(b, segundo.retrato)
+        // Nenhum parágrafo se perde nem se repete, em ordem.
+        val fatias = blocos.flatMap {
+            when (it) {
+                is BlocoDoTexto.Comum -> listOf(it.fatia)
+                is BlocoDoTexto.ComRetrato -> it.fatias + listOfNotNull(it.resto)
+            }
+        }
+        assertEquals((0 until 6).toList(), fatias.map { it.indice }.distinct())
+    }
+
+    @Test
+    fun `I13 sem mais texto os retratos que sobraram na fila vao depois do ultimo quadro`() {
+        val a = comImagem("RETRATO", 5)
+        val b = comImagem("RETRATO", 6)
+        val c = comImagem("RETRATO", 7)
+
+        val blocos = montar(1, mapOf(0 to listOf(a, b, c)), altura = 1000f) { linhas(2) }
+
+        val bloco = blocos.single() as BlocoDoTexto.ComRetrato
+        assertEquals(listOf(b, c), bloco.retratosExtras)
+    }
+
+    @Test
     fun `todo paragrafo aparece uma vez so, em ordem, sem perder nem repetir texto`() {
         val retrato = comImagem("RETRATO", 5)
 

@@ -290,6 +290,7 @@ private fun LeitorPaginado(
         aoUsarSeletor = painel::usarSeletor,
         aoFecharSeletor = painel::fecharSeletor,
         aoCarregarVinculados = painel::carregarVinculados,
+        aoCarregarReferenciasGuardadas = painel::carregarReferenciasGuardadas,
         aoEditarPrompt = painel::editarPrompt,
         aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,
         aoPedirExcluirImagem = painel::pedirExcluirImagem,

@@ -366,6 +366,67 @@ class SeletorNoPainelTest {
     }
 
     @Test
+    fun `RS1 usar com imagens guarda a escolha no servidor, e usar de novo sem mudar nao regrava`() = runTest {
+        val (vm, repositorio, _) = montar()
+        vm.abrirSeletorDaCena(70); advanceUntilIdle()
+        vm.alternarImagemDoSeletor(31)
+        vm.usarSeletor(); advanceUntilIdle()
+        assertEquals(listOf(70 to listOf(31)), repositorio.referenciasGuardadas)
+
+        vm.abrirSeletorDaCena(70); advanceUntilIdle() // a escolha volta marcada
+        vm.usarSeletor(); advanceUntilIdle()
+
+        assertEquals("a mesma escolha não vai de novo", 1, repositorio.referenciasGuardadas.size)
+    }
+
+    @Test
+    fun `RS1 tirar todas as imagens guarda a lista vazia no servidor`() = runTest {
+        val (vm, repositorio, _) = montar()
+        vm.abrirSeletorDaCena(70); advanceUntilIdle()
+        vm.alternarImagemDoSeletor(11)
+        vm.usarSeletor(); advanceUntilIdle()
+        vm.abrirSeletorDaCena(70); advanceUntilIdle()
+        vm.alternarImagemDoSeletor(11)
+        vm.usarSeletor(); advanceUntilIdle()
+
+        assertEquals(listOf(70 to listOf(11), 70 to emptyList<Int>()), repositorio.referenciasGuardadas)
+    }
+
+    @Test
+    fun `RS1 ao abrir o frame le uma vez as referencias guardadas no servidor`() = runTest {
+        val (vm, repositorio, _) = montar()
+        repositorio.referenciasNoServidor[70] = listOf(31, 11)
+
+        vm.carregarReferenciasGuardadas(70); advanceUntilIdle()
+        vm.carregarReferenciasGuardadas(70); advanceUntilIdle()
+
+        assertEquals(mapOf(70 to listOf(31, 11)), vm.estado.value.referenciasEscolhidas)
+        assertEquals("lê uma vez só", listOf(70), repositorio.leiturasDeReferencias)
+    }
+
+    @Test
+    fun `RS1 o que o servidor guardou nao sobrescreve a escolha que o usuario acabou de fazer`() = runTest {
+        val (vm, repositorio, _) = montar()
+        vm.abrirSeletorDaCena(70); advanceUntilIdle()
+        vm.alternarImagemDoSeletor(11)
+        vm.usarSeletor(); advanceUntilIdle()
+        repositorio.referenciasNoServidor[70] = listOf(99)
+
+        vm.carregarReferenciasGuardadas(70); advanceUntilIdle()
+
+        assertEquals(mapOf(70 to listOf(11)), vm.estado.value.referenciasEscolhidas)
+    }
+
+    @Test
+    fun `RS1 sem nada guardado no servidor a escolha continua vazia`() = runTest {
+        val (vm, _, _) = montar()
+
+        vm.carregarReferenciasGuardadas(70); advanceUntilIdle()
+
+        assertTrue(vm.estado.value.referenciasEscolhidas.isEmpty())
+    }
+
+    @Test
     fun `EV8 le uma vez os nomes dos vinculados de um retrato que ja existe`() = runTest {
         val (vm, repositorio, _) = montar()
         repositorio.vinculosNoServidor = ResultadoDaChamada.Sucesso(listOf(VinculadoDoFrame(estado_id = 200, nome = "Prato")))

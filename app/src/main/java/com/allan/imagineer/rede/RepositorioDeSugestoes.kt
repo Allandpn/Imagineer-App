@@ -52,6 +52,12 @@ interface RepositorioDeSugestoes {
     /** `GET /frames/{id}`: os elementos vinculados ao sujeito do retrato (V4). Nunca gasta IA. */
     suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>>
 
+    /** `GET /frames/{id}`: as imagens escolhidas como referência, guardadas no servidor (RS1); valem em qualquer aparelho. */
+    suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>>
+
+    /** `PUT /frames/{id}/referencias`: guarda a escolha (até 4 imagens; vazia limpa). Não gasta IA. */
+    suspend fun guardarReferencias(frameId: Int, imagensIds: List<Int>): ResultadoDaChamada<Unit>
+
     /** `PUT /frames/{id}/vinculos`: **substitui** os vinculados do retrato (V4). Lista vazia tira todos. 422 = regra de personagem individual. */
     suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<VinculadoDoFrame>>
 }
@@ -105,6 +111,17 @@ class RepositorioDeSugestoesPeloRetrofit(
     override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.frame(frameId).vinculados }
+    }
+
+    override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.frame(frameId).imagens_de_referencia }
+    }
+
+    override suspend fun guardarReferencias(frameId: Int, imagensIds: List<Int>): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("imagens_ids", buildJsonArray { imagensIds.forEach { add(JsonPrimitive(it)) } }) }
+        return chamarApi { api.definirReferencias(frameId, corpo); Unit }
     }
 
     override suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<VinculadoDoFrame>> {
