@@ -61,6 +61,12 @@ interface RepositorioDeSugestoes {
     /** `PUT /sugestoes-elemento|cena/{id}/posicao` (PM1): põe o artefato no parágrafo que começa em [posicao] (UTF-16); nulo tira. Não gasta IA. */
     suspend fun posicionarArtefato(ehCena: Boolean, sugestaoId: Int, posicao: Int?): ResultadoDaChamada<Unit>
 
+    /** `PATCH /frames/{id}` (PM3): muda a posição de um frame **sem sugestão** (a cena de um trecho) no texto; nulo tira. Não gasta IA. */
+    suspend fun posicionarFrame(frameId: Int, posicao: Int?): ResultadoDaChamada<Unit>
+
+    /** `DELETE /frames/{id}`: apaga o frame com os prompts e as imagens dele. **Não tem volta.** */
+    suspend fun apagarFrame(frameId: Int): ResultadoDaChamada<Unit>
+
     /** `GET /frames/{id}`: as imagens escolhidas como referência, guardadas no servidor (RS1); valem em qualquer aparelho. */
     suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>>
 
@@ -140,6 +146,17 @@ class RepositorioDeSugestoesPeloRetrofit(
         val api = provedor.obter() ?: return provedor.semServidor()
         val corpo: JsonObject = buildJsonObject { if (posicao != null) put("posicao_no_texto", posicao) else put("posicao_no_texto", kotlinx.serialization.json.JsonNull) }
         return chamarApi { if (ehCena) api.posicionarCena(sugestaoId, corpo) else api.posicionarElemento(sugestaoId, corpo); Unit }
+    }
+
+    override suspend fun posicionarFrame(frameId: Int, posicao: Int?): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { if (posicao != null) put("posicao_no_texto", posicao) else put("posicao_no_texto", kotlinx.serialization.json.JsonNull) }
+        return chamarApi { api.ajustarFrame(frameId, corpo); Unit }
+    }
+
+    override suspend fun apagarFrame(frameId: Int): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.apagarFrame(frameId); Unit }
     }
 
     override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {

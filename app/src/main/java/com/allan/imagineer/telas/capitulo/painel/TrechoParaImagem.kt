@@ -202,10 +202,40 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(rotulo, style = MaterialTheme.typography.titleLarge)
+            // PM3: reposicionar, tirar a posição; e apagar a cena (só frames sem sugestão chegam a este modal).
+            Row {
+                TextButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) }) { Text(ROTULO_POSICIONAR) }
+                TextButton(onClick = { acoes.aoTirarPosicao(true, null, frameId) }) { Text(ROTULO_TIRAR_POSICAO) }
+                TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, rotulo) }) { Text("Apagar a cena", color = MaterialTheme.colorScheme.error) }
+            }
+            estado.mensagensDePrompt[frameId]?.takeIf { it.ehErro }?.let { Text(it.texto, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             BlocoDePrompts(
                 frameId, rotulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true,
                 aoEscolherElementos = { acoes.aoAbrirSeletorDaCena(frameId) },
             )
         }
     }
+}
+
+/**
+ * "Apagar esta cena?": o frame **e os prompts e as imagens dele** somem, **sem volta** (a lixeira ainda é só de imagens avulsas).
+ * A recusa do servidor fica no próprio diálogo.
+ */
+@Composable
+internal fun DialogoApagarFrame(alvo: ApagandoFrame, acoes: AcoesDoPainel) {
+    AlertDialog(
+        onDismissRequest = acoes.aoCancelarApagarFrame,
+        title = { Text("Apagar esta cena?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("«${alvo.rotulo}» será apagada com os prompts e as imagens dela. Não tem volta.", style = MaterialTheme.typography.bodyMedium)
+                alvo.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                if (alvo.apagando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = acoes.aoConfirmarApagarFrame, enabled = !alvo.apagando) { Text("Apagar", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = { TextButton(onClick = acoes.aoCancelarApagarFrame, enabled = !alvo.apagando) { Text("Cancelar") } },
+    )
 }

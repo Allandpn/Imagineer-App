@@ -36,10 +36,16 @@ class RegrasDoTrechoTest {
     }
 
     @Test
-    fun `TR4 trecho que atravessa paragrafos, vazio ou ausente nao tem posicao`() {
-        assertNull(paragrafoDoTrecho(paragrafos, "Abertura calma. Ned ergueu"))
+    fun `TR4 trecho que atravessa paragrafos vale o primeiro, onde ele comeca`() {
+        assertEquals(0, paragrafoDoTrecho(paragrafos, "Abertura calma. Ned ergueu a espada."))
+        assertEquals(17, paragrafoDoTrecho(paragrafos, "Ned ergueu a espada. O vento soprou forte. Depois, no pátio"))
+    }
+
+    @Test
+    fun `TR4 trecho vazio, ausente ou com comeco curto demais nao tem posicao`() {
         assertNull(paragrafoDoTrecho(paragrafos, "   "))
-        assertNull(paragrafoDoTrecho(paragrafos, "Arya correu"))
+        assertNull(paragrafoDoTrecho(paragrafos, "Arya correu pelo bosque"))
+        assertNull(paragrafoDoTrecho(paragrafos, "Ned zzz yyy")) // "Ned" sozinho é curto demais para valer
     }
 
     @Test

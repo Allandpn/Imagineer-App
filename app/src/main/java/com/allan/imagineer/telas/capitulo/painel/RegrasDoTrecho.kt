@@ -15,14 +15,27 @@ data class OpcaoDeElementoDoTrecho(val estadoId: Int, val nome: String)
 
 /**
  * O parágrafo em que o [trecho] selecionado está: o início dele, em UTF-16, que é a posição que o servidor guarda (TR4). Compara sem
- * ligar para quebras de linha nem espaços repetidos (a seleção do Android os traz diferentes do texto). `null` se o trecho não está em
- * nenhum parágrafo (a seleção atravessou parágrafos, por exemplo): a cena nasce sem posição e cai na faixa "Sem posição no texto".
+ * ligar para quebras de linha nem espaços repetidos (a seleção do Android os traz diferentes do texto). Seleção que **atravessa** parágrafos
+ * vale o **primeiro** (onde ela começa). `null` só se nem o começo é achado: a cena nasce sem posição, na faixa "Sem posição no texto".
  */
 fun paragrafoDoTrecho(paragrafos: List<ParagrafoDoTexto>, trecho: String): Int? {
     val procurado = espacosColapsados(trecho)
     if (procurado.isEmpty()) return null
-    return paragrafos.firstOrNull { espacosColapsados(it.texto).contains(procurado) }?.inicio
+    val normalizados = paragrafos.map { espacosColapsados(it.texto) }
+    normalizados.indexOfFirst { it.contains(procurado) }.takeIf { it >= 0 }?.let { return paragrafos[it].inicio }
+    // A seleção atravessa parágrafos: vale o **primeiro**, onde ela começa. Procura o começo dela, tirando palavras do fim, até achar
+    // (com no mínimo MINIMO_DO_COMECO_DO_TRECHO caracteres, para um "A" solto não casar com qualquer parágrafo).
+    val palavras = procurado.split(" ")
+    for (quantas in palavras.size - 1 downTo 1) {
+        val comeco = palavras.take(quantas).joinToString(" ")
+        if (comeco.length < MINIMO_DO_COMECO_DO_TRECHO) break
+        normalizados.indexOfFirst { it.contains(comeco) }.takeIf { it >= 0 }?.let { return paragrafos[it].inicio }
+    }
+    return null
 }
+
+/** O menor começo de trecho que ainda vale para achar o parágrafo de uma seleção que atravessa vários (TR4). */
+const val MINIMO_DO_COMECO_DO_TRECHO = 12
 
 private fun espacosColapsados(texto: String): String = texto.trim().replace(Regex("\\s+"), " ")
 

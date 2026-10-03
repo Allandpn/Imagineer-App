@@ -305,6 +305,14 @@ interface ApiImagineer {
     @PUT("sugestoes-cena/{id}/posicao")
     suspend fun posicionarCena(@Path("id") sugestaoId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `PATCH /frames/{id}` — muda a posição do frame no texto (`posicao_no_texto`, nulo tira); só esse campo é mandado (PM3). */
+    @PATCH("frames/{id}")
+    suspend fun ajustarFrame(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
+
+    /** `DELETE /frames/{id}` — apaga o frame e os prompts e imagens dele (204). Não tem volta. */
+    @DELETE("frames/{id}")
+    suspend fun apagarFrame(@Path("id") frameId: Int)
+
     /** `PUT /frames/{id}/imagem-oculta` — oculta (ou volta a mostrar) a imagem do frame no capítulo, sem apagar nada (OC1 a OC3). */
     @PUT("frames/{id}/imagem-oculta")
     suspend fun definirImagemOculta(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject

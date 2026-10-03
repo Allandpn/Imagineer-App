@@ -151,6 +151,11 @@ class AcoesDoPainel(
     val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
     val aoDefinirImagemOculta: (frameId: Int, oculta: Boolean) -> Unit,
     val aoIniciarPosicionamento: (ehCena: Boolean, sugestaoId: Int, rotulo: String) -> Unit,
+    val aoIniciarPosicionamentoDeFrame: (ehCena: Boolean, frameId: Int, rotulo: String) -> Unit,
+    val aoTirarPosicao: (ehCena: Boolean, sugestaoId: Int?, frameId: Int?) -> Unit,
+    val aoPedirApagarFrame: (frameId: Int, rotulo: String) -> Unit,
+    val aoCancelarApagarFrame: () -> Unit,
+    val aoConfirmarApagarFrame: () -> Unit,
     val aoFecharTrecho: () -> Unit,
     val aoAlterarDescricaoDoTrecho: (String) -> Unit,
     val aoAlternarElementoDoTrecho: (estadoId: Int) -> Unit,
@@ -206,6 +211,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
     estado.usandoImagemExistente?.let { DialogoDeImagemExistente(it, estado.capituloAtualId, acoes) }
     estado.trechoParaImagem?.let { DialogoDoTrecho(it, estado, acoes) }
+    estado.apagandoFrame?.let { DialogoApagarFrame(it, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -270,7 +276,10 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
                 elemento.descartada -> CartaoDeElementoDescartado(elemento, estado, acoes)
                 else -> {
                     // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
-                    TextButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }) { Text(ROTULO_POSICIONAR) }
+                    Row {
+                        TextButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }) { Text(ROTULO_POSICIONAR) }
+                        TextButton(onClick = { acoes.aoTirarPosicao(false, elemento.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
+                    }
                     CartaoDeElemento(
                         elemento = elemento,
                         cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
@@ -1311,7 +1320,10 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
     }
     // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
-    TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
+    Row {
+        TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
+        TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
+    }
     CorpoDaCena(cena, estado, acoes)
 }
 

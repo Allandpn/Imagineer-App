@@ -76,7 +76,10 @@ data class TrechoParaImagem(
  * O modo **"toque no parágrafo"** (PM1): o artefato [rotulo] de [sugestaoId] (cena se [ehCena]) vai para o parágrafo que a pessoa tocar
  * no texto. [erro] é a recusa do servidor; o modo continua até a pessoa tocar de novo ou cancelar.
  */
-data class PosicionandoArtefato(val ehCena: Boolean, val sugestaoId: Int, val rotulo: String, val erro: String? = null)
+data class PosicionandoArtefato(val ehCena: Boolean, val sugestaoId: Int?, val rotulo: String, val erro: String? = null, val frameId: Int? = null)
+
+/** O diálogo "Apagar esta cena?" (a cena de um trecho): o frame, o nome, se está apagando e a recusa do servidor. */
+data class ApagandoFrame(val frameId: Int, val rotulo: String, val apagando: Boolean = false, val erro: String? = null)
 
 /** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
 sealed interface CargaPorCapitulo {
@@ -147,6 +150,8 @@ sealed interface DialogoDeElemento {
 data class EstadoDoPainel(
     /** O capítulo aberto: o seletor por capítulo o mostra primeiro (VM2). */
     val capituloAtualId: Int? = null,
+    /** O diálogo de apagar a cena de um trecho está aberto; `null` = fechado. */
+    val apagandoFrame: ApagandoFrame? = null,
     /** O diálogo de gerar imagem de um trecho está aberto (TR2); `null` = fechado. */
     val trechoParaImagem: TrechoParaImagem? = null,
     /** O modo de posicionar um artefato à mão está ligado (PM1); `null` = desligado. */
@@ -1686,15 +1691,83 @@ class PainelDeIaViewModel(
         _estado.update { it.copy(posicionando = PosicionandoArtefato(ehCena, sugestaoId, rotulo), modais = emptyList()) }
     }
 
+    /** O mesmo modo, para um frame **sem sugestão** (a cena de um trecho): a posição se grava no próprio frame (PM3). */
+    fun iniciarPosicionamentoDeFrame(ehCena: Boolean, frameId: Int, rotulo: String) {
+        _estado.update { it.copy(posicionando = PosicionandoArtefato(ehCena, null, rotulo, frameId = frameId), modais = emptyList()) }
+    }
+
     fun cancelarPosicionamento() {
         _estado.update { it.copy(posicionando = null) }
+    }
+
+    /**
+     * **"Tirar a posição"** (PM3): o artefato volta a ser posicionado sozinho (pelo nome ou pela citação) ou, se não achar, à faixa
+     * "Sem posição no texto". Vale para sugestão ([sugestaoId]) ou para um frame sem sugestão ([frameId]). Falha: o recado do item.
+     */
+    fun tirarPosicao(ehCena: Boolean, sugestaoId: Int?, frameId: Int?) {
+        viewModelScope.launch {
+            val resultado = when {
+                frameId != null -> sugestoes.posicionarFrame(frameId, null)
+                sugestaoId != null -> sugestoes.posicionarArtefato(ehCena, sugestaoId, null)
+                else -> return@launch
+            }
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> _estado.update { it.copy(versaoDosFrames = it.versaoDosFrames + 1) }
+                is ResultadoDaChamada.Falha -> _estado.update {
+                    val recado = MensagemDoElemento(resultado.motivo, ehErro = true)
+                    when {
+                        frameId != null -> it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to recado))
+                        ehCena -> it.copy(mensagensDeCena = it.mensagensDeCena + (sugestaoId!! to recado))
+                        else -> it.copy(mensagens = it.mensagens + (sugestaoId!! to recado))
+                    }
+                }
+            }
+        }
+    }
+
+    // --- Apagar a cena de um trecho ---------------------------------------- //
+
+    fun pedirApagarFrame(frameId: Int, rotulo: String) {
+        _estado.update { it.copy(apagandoFrame = ApagandoFrame(frameId, rotulo)) }
+    }
+
+    fun cancelarApagarFrame() {
+        if (_estado.value.apagandoFrame?.apagando == true) return
+        _estado.update { it.copy(apagandoFrame = null) }
+    }
+
+    /** Apaga o frame (e os prompts e imagens dele, **sem volta**), fecha o modal dele e manda a tela reler os artefatos. */
+    fun confirmarApagarFrame() {
+        val alvo = _estado.value.apagandoFrame ?: return
+        if (alvo.apagando) return
+        _estado.update { it.copy(apagandoFrame = alvo.copy(apagando = true, erro = null)) }
+        viewModelScope.launch {
+            when (val resultado = sugestoes.apagarFrame(alvo.frameId)) {
+                is ResultadoDaChamada.Sucesso -> _estado.update {
+                    it.copy(
+                        apagandoFrame = null,
+                        modais = it.modais.filterNot { m -> m is ModalAberto.DeFrame && m.frameId == alvo.frameId },
+                        prompts = it.prompts - alvo.frameId,
+                        versaoDosFrames = it.versaoDosFrames + 1,
+                    )
+                }
+                is ResultadoDaChamada.Falha -> _estado.update { atual ->
+                    atual.copy(apagandoFrame = atual.apagandoFrame?.copy(apagando = false, erro = resultado.motivo))
+                }
+            }
+        }
     }
 
     /** A pessoa tocou num parágrafo, que começa em [posicao] (UTF-16): grava no servidor e manda a tela reler os artefatos. */
     fun escolherParagrafo(posicao: Int) {
         val alvo = _estado.value.posicionando ?: return
         viewModelScope.launch {
-            when (val resultado = sugestoes.posicionarArtefato(alvo.ehCena, alvo.sugestaoId, posicao)) {
+            val resultado = if (alvo.frameId != null) {
+                sugestoes.posicionarFrame(alvo.frameId, posicao)
+            } else {
+                sugestoes.posicionarArtefato(alvo.ehCena, alvo.sugestaoId ?: return@launch, posicao)
+            }
+            when (resultado) {
                 is ResultadoDaChamada.Sucesso ->
                     _estado.update { it.copy(posicionando = null, versaoDosFrames = it.versaoDosFrames + 1) }
                 is ResultadoDaChamada.Falha ->

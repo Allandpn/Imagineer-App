@@ -139,7 +139,7 @@ internal fun DialogoDoSeletorDeElementos(escolha: EscolhaDeElementos, acoes: Aco
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        if (candidatos.dados.identificados.isEmpty() && candidatos.dados.outros.isEmpty()) {
+                        if (todosOsElementos(candidatos.dados).isEmpty()) {
                             Text(
                                 if (escolha.ehCena) "Não há elementos para escolher neste capítulo." else "Não há outros elementos neste capítulo.",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -147,6 +147,8 @@ internal fun DialogoDoSeletorDeElementos(escolha: EscolhaDeElementos, acoes: Aco
                         }
                         SecaoDoSeletor("Identificados neste capítulo", candidatos.dados.identificados, escolha, acoes)
                         SecaoDoSeletor("Outros elementos deste capítulo", candidatos.dados.outros, escolha, acoes)
+                        // VM7: os do resto do livro; marcar um usa o estado dele até este capítulo (ou o primeiro, se só aparece depois).
+                        SecaoDoSeletor("De outros capítulos", candidatos.dados.de_outros_capitulos, escolha, acoes)
                     }
                 }
                 escolha.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }

@@ -145,6 +145,8 @@ data class ElementoParaVincular(
 data class ElementosParaVincular(
     val identificados: List<ElementoParaVincular> = emptyList(),
     val outros: List<ElementoParaVincular> = emptyList(),
+    /** Os demais elementos do livro, sem estado neste capítulo (VM7): cada um traz o estado vigente até aqui, ou o primeiro que tem. */
+    val de_outros_capitulos: List<ElementoParaVincular> = emptyList(),
 )
 
 /** O que o modal de referências mostra (W2, W9). */

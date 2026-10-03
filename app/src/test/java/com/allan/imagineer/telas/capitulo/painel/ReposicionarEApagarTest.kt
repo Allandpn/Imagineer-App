@@ -1,0 +1,156 @@
+package com.allan.imagineer.telas.capitulo.painel
+
+import com.allan.imagineer.rede.ElementoParaVincular
+import com.allan.imagineer.rede.ElementosParaVincular
+import com.allan.imagineer.rede.ResultadoDaChamada
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+private fun candidato(id: Int, nome: String) = ElementoParaVincular(elemento_id = id, estado_id = id * 10, nome = nome)
+
+/** O seletor de elementos e imagens com os de outros capítulos (VM7). */
+class SeletorComOutrosCapitulosTest {
+
+    @Test
+    fun `VM7 todos os elementos inclui os de outros capitulos, para a selecao e as imagens existirem`() {
+        val dados = ElementosParaVincular(
+            identificados = listOf(candidato(1, "Jon")),
+            outros = listOf(candidato(2, "Prato")),
+            de_outros_capitulos = listOf(candidato(3, "Escudo")),
+        )
+
+        assertEquals(listOf("Jon", "Prato", "Escudo"), todosOsElementos(dados).map { it.nome })
+    }
+
+    @Test
+    fun `VM7 a selecao inicial reconhece as imagens dos elementos de outros capitulos`() {
+        val dados = ElementosParaVincular(
+            de_outros_capitulos = listOf(candidato(3, "Escudo").copy(imagens = listOf(com.allan.imagineer.rede.ImagemCandidata(id = 77)))),
+        )
+
+        assertEquals(listOf(77), selecaoInicial(dados, imagensEscolhidas = listOf(77, 99)).imagens.toList())
+    }
+}
+
+/** Reposicionar, tirar a posição e apagar a cena de um trecho (PM3). */
+@OptIn(ExperimentalCoroutinesApi::class)
+class ReposicionarEApagarNoPainelTest {
+
+    private val agendador = StandardTestDispatcher()
+
+    @Before
+    fun preparar() {
+        Dispatchers.setMain(agendador)
+    }
+
+    @After
+    fun limpar() {
+        Dispatchers.resetMain()
+    }
+
+    private fun vm(repositorio: SugestoesFalso = SugestoesFalso()) = PainelDeIaViewModel(5, repositorio, ElementosFalso())
+
+    @Test
+    fun `PM3 um frame sem sugestao se posiciona pelo proprio frame`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.iniciarPosicionamentoDeFrame(ehCena = true, frameId = 70, rotulo = "O vento")
+
+        vm.escolherParagrafo(120); advanceUntilIdle()
+
+        assertEquals(listOf(70 to (120 as Int?)), repositorio.posicoesDeFramePedidas)
+        assertTrue(repositorio.posicoesPedidas.isEmpty())
+        assertNull(vm.estado.value.posicionando)
+    }
+
+    @Test
+    fun `PM3 tirar a posicao de uma sugestao manda nulo e manda reler os artefatos`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        val versaoAntes = vm.estado.value.versaoDosFrames
+
+        vm.tirarPosicao(ehCena = false, sugestaoId = 3, frameId = null); advanceUntilIdle()
+
+        assertEquals(listOf(Triple(false, 3, null as Int?)), repositorio.posicoesPedidas)
+        assertEquals(versaoAntes + 1, vm.estado.value.versaoDosFrames)
+    }
+
+    @Test
+    fun `PM3 tirar a posicao de um frame sem sugestao usa o frame`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+
+        vm.tirarPosicao(ehCena = true, sugestaoId = null, frameId = 70); advanceUntilIdle()
+
+        assertEquals(listOf(70 to (null as Int?)), repositorio.posicoesDeFramePedidas)
+    }
+
+    @Test
+    fun `PM3 a recusa de tirar a posicao vira recado do item`() = runTest {
+        val repositorio = SugestoesFalso().also { it.resultadoDePosicionar = ResultadoDaChamada.Falha("Sem conexão.") }
+        val vm = vm(repositorio)
+
+        vm.tirarPosicao(ehCena = true, sugestaoId = 8, frameId = null); advanceUntilIdle()
+
+        assertEquals("Sem conexão.", vm.estado.value.mensagensDeCena[8]?.texto)
+    }
+
+    @Test
+    fun `apagar a cena pede confirmacao, apaga o frame, fecha o modal dele e manda reler os artefatos`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.abrirModalDeFrame(70, "O vento")
+        val versaoAntes = vm.estado.value.versaoDosFrames
+
+        vm.pedirApagarFrame(70, "O vento")
+        assertEquals(ApagandoFrame(70, "O vento"), vm.estado.value.apagandoFrame)
+        assertTrue(repositorio.framesApagados.isEmpty()) // pedir não apaga
+
+        vm.confirmarApagarFrame(); advanceUntilIdle()
+
+        assertEquals(listOf(70), repositorio.framesApagados)
+        assertNull(vm.estado.value.apagandoFrame)
+        assertTrue(vm.estado.value.modais.isEmpty())
+        assertEquals(versaoAntes + 1, vm.estado.value.versaoDosFrames)
+    }
+
+    @Test
+    fun `apagar a cena cancelar nao apaga nada`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.pedirApagarFrame(70, "O vento")
+
+        vm.cancelarApagarFrame()
+
+        assertNull(vm.estado.value.apagandoFrame)
+        assertTrue(repositorio.framesApagados.isEmpty())
+    }
+
+    @Test
+    fun `apagar a cena a recusa do servidor fica no dialogo, que continua aberto`() = runTest {
+        val repositorio = SugestoesFalso().also { it.resultadoDeApagarFrame = ResultadoDaChamada.Falha("Frame não encontrado.") }
+        val vm = vm(repositorio)
+        vm.abrirModalDeFrame(70, "O vento")
+        vm.pedirApagarFrame(70, "O vento")
+
+        vm.confirmarApagarFrame(); advanceUntilIdle()
+
+        val alvo = vm.estado.value.apagandoFrame
+        assertNotNull(alvo)
+        assertEquals("Frame não encontrado.", alvo!!.erro)
+        assertEquals(false, alvo.apagando)
+        assertEquals(1, vm.estado.value.modais.size) // o modal continua
+    }
+}

@@ -311,6 +311,11 @@ private fun LeitorPaginado(
         aoDefinirImagemCanonica = painel::definirImagemCanonica,
         aoDefinirImagemOculta = painel::definirImagemOculta,
         aoIniciarPosicionamento = painel::iniciarPosicionamento,
+        aoIniciarPosicionamentoDeFrame = painel::iniciarPosicionamentoDeFrame,
+        aoTirarPosicao = painel::tirarPosicao,
+        aoPedirApagarFrame = painel::pedirApagarFrame,
+        aoCancelarApagarFrame = painel::cancelarApagarFrame,
+        aoConfirmarApagarFrame = painel::confirmarApagarFrame,
         aoFecharTrecho = painel::fecharTrecho,
         aoAlterarDescricaoDoTrecho = painel::alterarDescricaoDoTrecho,
         aoAlternarElementoDoTrecho = painel::alternarElementoDoTrecho,
@@ -409,7 +414,12 @@ private fun LeitorPaginado(
                             aoOcultarImagem = { frameId -> painel.definirImagemOculta(frameId, true) },
                             posicionando = estadoDoPainel.posicionando,
                             aoIniciarPosicionamento = { artefato ->
-                                artefato.sugestao_id?.let { painel.iniciarPosicionamento(artefato.tipo == "CENA", it, artefato.rotulo) }
+                                val sugestaoId = artefato.sugestao_id
+                                if (sugestaoId != null) {
+                                    painel.iniciarPosicionamento(artefato.tipo == "CENA", sugestaoId, artefato.rotulo)
+                                } else if (artefato.frame_id != null) {
+                                    painel.iniciarPosicionamentoDeFrame(artefato.tipo == "CENA", artefato.frame_id, artefato.rotulo)
+                                }
                             },
                             aoEscolherParagrafo = painel::escolherParagrafo,
                             aoGerarImagemDoTrecho = painel::abrirTrecho,
@@ -647,8 +657,8 @@ private fun LeitorDeTexto(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconeDoArtefato(artefato, aoTocarArtefato)
                                     Text(artefato.rotulo, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
-                                    // PM1: só quem veio de uma sugestão pode ser posicionado por aqui (é a sugestão que guarda a posição).
-                                    if (artefato.sugestao_id != null) {
+                                    // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele.
+                                    if (artefato.sugestao_id != null || artefato.frame_id != null) {
                                         TextButton(onClick = { aoIniciarPosicionamento(artefato) }) { Text(ROTULO_POSICIONAR, maxLines = 1, softWrap = false) }
                                     }
                                 }

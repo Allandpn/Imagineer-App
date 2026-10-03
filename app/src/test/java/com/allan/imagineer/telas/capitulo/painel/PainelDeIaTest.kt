@@ -105,6 +105,22 @@ internal class SugestoesFalso(
         return resultadoDeDefinirEstados
     }
 
+    /** As posições de frame pedidas (frame, posição), os frames apagados e as respostas a dar. */
+    val posicoesDeFramePedidas = mutableListOf<Pair<Int, Int?>>()
+    val framesApagados = mutableListOf<Int>()
+    var resultadoDePosicionarFrame: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    var resultadoDeApagarFrame: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun posicionarFrame(frameId: Int, posicao: Int?): ResultadoDaChamada<Unit> {
+        posicoesDeFramePedidas += frameId to posicao
+        return resultadoDePosicionarFrame
+    }
+
+    override suspend fun apagarFrame(frameId: Int): ResultadoDaChamada<Unit> {
+        framesApagados += frameId
+        return resultadoDeApagarFrame
+    }
+
     /** As cenas de trecho pedidas e a resposta a dar (TR3). */
     class CenaDeTrechoPedida(val titulo: String, val descricao: String, val posicao: Int?, val estadosIds: List<Int>)
     val cenasDeTrechoPedidas = mutableListOf<CenaDeTrechoPedida>()

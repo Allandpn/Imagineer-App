@@ -590,6 +590,9 @@ fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítu
 /** O botão que liga o modo de posicionar o artefato à mão (PM1). */
 const val ROTULO_POSICIONAR = "Posicionar no texto"
 
+/** O botão que tira a posição posta à mão: o artefato volta ao lugar achado sozinho, ou à faixa "Sem posição" (PM3). */
+const val ROTULO_TIRAR_POSICAO = "Tirar a posição"
+
 /** O aviso fixo do modo de posicionar (PM1): diz o que tocar. */
 fun avisoDePosicionar(rotulo: String): String = "Toque no parágrafo onde «$rotulo» deve ficar."
 
@@ -758,7 +761,7 @@ const val AVISO_ELEMENTOS_MUDARAM = "Os elementos mudaram: gere um Novo prompt p
 data class SelecaoNoSeletor(val elementos: Set<Int> = emptySet(), val imagens: Set<Int> = emptySet())
 
 /** Todos os elementos do seletor, das duas seções (EV2). */
-fun todosOsElementos(dados: ElementosParaVincular): List<ElementoParaVincular> = dados.identificados + dados.outros
+fun todosOsElementos(dados: ElementosParaVincular): List<ElementoParaVincular> = dados.identificados + dados.outros + dados.de_outros_capitulos
 
 /** O participante da cena que veio da sugestão: está no frame e **não** sai por este seletor (EV5). */
 fun elementoFixo(elemento: ElementoParaVincular): Boolean = elemento.no_frame && !elemento.removivel
