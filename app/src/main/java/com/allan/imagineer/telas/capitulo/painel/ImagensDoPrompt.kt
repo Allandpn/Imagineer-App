@@ -132,7 +132,7 @@ internal fun SecaoDaImagemDoFrame(
         Button(
             onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
             enabled = !ocupado,
-        ) { Text(rotuloDoBotao, maxLines = 1, softWrap = false) }
+        ) { Text(rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(lista, it.id) }), maxLines = 1, softWrap = false) }
         // T1: um só botão por frame; a imagem vai para o prompt mais recente. Sem prompt não há para onde importar.
         // O seletor não abre aqui: mora na tela do capítulo (J2).
         if (maisRecente != null) {

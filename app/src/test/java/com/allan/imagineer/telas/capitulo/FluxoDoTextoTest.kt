@@ -124,15 +124,29 @@ class MontarBlocosTest {
     }
 
     @Test
-    fun `o retrato nao consome um paragrafo que tem imagem propria`() {
+    fun `I12 o retrato consome tambem o paragrafo que tem uma paisagem, que desce para o fim do bloco`() {
         val retrato = comImagem("RETRATO", 5)
         val outra = comImagem("PAISAGEM", 6)
 
+        // Quadro de 500 px e parágrafos de 40 px: o texto não enche o quadro, então nenhum parágrafo fica de fora.
         val blocos = montar(4, mapOf(0 to listOf(retrato), 2 to listOf(outra)), altura = 500f) { linhas(2) }
 
-        val primeiro = blocos[0] as BlocoDoTexto.ComRetrato
-        assertEquals("só o 0 e o 1: o 2 tem imagem própria", listOf(0, 1), primeiro.fatias.map { it.indice })
-        assertEquals(BlocoDoTexto.Comum(FatiaDeParagrafo(2), listOf(outra)), blocos[1])
+        val primeiro = blocos.single() as BlocoDoTexto.ComRetrato
+        assertEquals(listOf(0, 1, 2, 3), primeiro.fatias.map { it.indice })
+        assertEquals(listOf(outra), primeiro.paisagensDepois)
+        assertEquals(emptyList<Artefato>(), primeiro.paisagens)
+    }
+
+    @Test
+    fun `I12 a conta para quando o quadro enche e o paragrafo seguinte com paisagem abre o seu bloco`() {
+        val retrato = comImagem("RETRATO", 5)
+        val outra = comImagem("PAISAGEM", 6)
+
+        // Cada parágrafo tem 5 linhas (100 px): o 0 já enche o quadro de 100 px.
+        val blocos = montar(2, mapOf(0 to listOf(retrato), 1 to listOf(outra)), altura = 100f) { linhas(5) }
+
+        assertEquals(listOf(0), (blocos[0] as BlocoDoTexto.ComRetrato).fatias.map { it.indice })
+        assertEquals(BlocoDoTexto.Comum(FatiaDeParagrafo(1), listOf(outra)), blocos[1])
     }
 
     @Test

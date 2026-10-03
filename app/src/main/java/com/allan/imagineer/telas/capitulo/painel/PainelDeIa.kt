@@ -974,6 +974,7 @@ private fun BlocoDePrompts(
                 conteudo.lista.forEach { prompt ->
                     CartaoDePrompt(
                         prompt,
+                        numero = numeroDoPrompt(conteudo.lista, prompt.id) ?: 0,
                         frameId = frameId,
                         estado = estado,
                         acoes = acoes,
@@ -1031,6 +1032,7 @@ private fun compartilharTexto(contexto: Context, texto: String) {
 @Composable
 private fun CartaoDePrompt(
     prompt: PromptDeFrame,
+    numero: Int,
     frameId: Int,
     estado: EstadoDoPainel,
     acoes: AcoesDoPainel,
@@ -1042,6 +1044,8 @@ private fun CartaoDePrompt(
     var copiado by remember(prompt.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // PN1: o número do prompt dentro do frame (1 = o mais antigo), para o botão de gerar poder citá-lo.
+            Text("Prompt $numero", style = MaterialTheme.typography.titleSmall)
             EtiquetasDoPrompt(prompt)
             SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
@@ -1059,7 +1063,7 @@ private fun CartaoDePrompt(
                 OutlinedButton(
                     onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
-                ) { Text("Gerar imagem", maxLines = 1, softWrap = false) }
+                ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
                 OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
             }

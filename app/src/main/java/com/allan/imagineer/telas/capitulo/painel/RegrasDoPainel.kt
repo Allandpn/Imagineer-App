@@ -475,6 +475,16 @@ const val LIMITE_DO_AJUSTE_DO_PROMPT = 2000
 /** O rótulo do botão (G3): "Gerar prompt" na primeira vez, "Gerar outro prompt" depois. */
 fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "Novo prompt" else "Gerar prompt"
 
+/**
+ * O número de um prompt dentro do frame (PN1): **1 é o mais antigo**, na ordem em que foram gerados. [lista] vem do mais novo para o
+ * mais antigo (como o painel a guarda); `null` se o prompt não está nela.
+ */
+fun numeroDoPrompt(lista: List<PromptDeFrame>, promptId: Int): Int? =
+    lista.indexOfFirst { it.id == promptId }.takeIf { it >= 0 }?.let { lista.size - it }
+
+/** O rótulo de um botão de gerar imagem que diz de qual prompt ele gera (PN2): "Gerar imagem (prompt 3)". Sem número, o rótulo puro. */
+fun rotuloDeGerarComNumero(rotulo: String, numero: Int?): String = if (numero == null) rotulo else "$rotulo (prompt $numero)"
+
 /** O rótulo da ação do visualizador de imagens (CAN6): escolher a canônica ou, se já é, tirar a escolha. */
 fun rotuloDaAcaoCanonica(jaECanonica: Boolean): String = if (jaECanonica) "Tirar a escolha de canônica" else "Definir como canônica"
 

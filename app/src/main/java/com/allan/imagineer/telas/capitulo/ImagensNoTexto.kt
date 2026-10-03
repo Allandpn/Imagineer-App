@@ -168,6 +168,8 @@ internal fun BlocoDoTextoNaTela(
                         QuadroDaImagemNoTexto(it, urlBase, Modifier.width(larguraDoQuadro)) { aoAmpliar(it) }
                     }
                 }
+                // I12: as paisagens dos parágrafos consumidos pelo retrato vêm por último, na largura inteira.
+                if (urlBase != null) bloco.paisagensDepois.forEach { QuadroDaImagemNoTexto(it, urlBase, Modifier.fillMaxWidth()) { aoAmpliar(it) } }
             }
         }
     }
