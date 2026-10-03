@@ -270,7 +270,7 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
 
 /**
  * A imagem em **tela cheia**, no tamanho normal (J4), sobre fundo preto, com **zoom por pinça** e arrastar. Embaixo, as
- * ações (U): **Compartilhar**, **Salvar na galeria** e **Excluir**. O botão de fechar e o de voltar do Android fecham.
+ * ações (U): **Compartilhar**, **Salvar na galeria** e **Para a lixeira**. O botão de fechar e o de voltar do Android fecham.
  */
 @Composable
 internal fun ImagemEmTelaCheia(
@@ -383,7 +383,7 @@ internal fun ImagemEmTelaCheia(
                 ) { Text("Salvar na galeria", color = Color.White) }
                 acaoExtra?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
-                if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Excluir", color = Color(0xFFFF8A80)) }
+                if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Para a lixeira", color = Color(0xFFFF8A80)) }
             }
             if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }

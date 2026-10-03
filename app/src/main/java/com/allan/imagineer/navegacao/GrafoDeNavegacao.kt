@@ -30,6 +30,7 @@ import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
+import com.allan.imagineer.telas.lixeira.TelaLixeira
 import com.allan.imagineer.telas.elementos.TelaElementos
 import com.allan.imagineer.telas.elementos.TelaFichaDoElemento
 import com.allan.imagineer.telas.livro.TelaCapitulosArquivados
@@ -85,7 +86,11 @@ fun GrafoDeNavegacao() {
                 aoAbrirLivro = { livroId -> controle.navigate(Livro(livroId)) },
                 aoAbrirConfiguracao = { controle.navigate(Configuracao) },
                 aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
+                aoAbrirLixeira = { controle.navigate(Lixeira) },
             )
+        }
+        composable<Lixeira> {
+            TelaLixeira(aoVoltar = { controle.popBackStack() })
         }
         composable<Livro> { entrada ->
             val destino = entrada.toRoute<Livro>()

@@ -16,6 +16,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
+import com.allan.imagineer.rede.RepositorioDaLixeira
+import com.allan.imagineer.rede.RepositorioDaLixeiraPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeCapitulos
 import com.allan.imagineer.rede.RepositorioDeCapitulosPeloRetrofit
 import com.allan.imagineer.rede.RepositorioDeElementos
@@ -89,6 +91,10 @@ class ImagineerApp : Application() {
 
     val repositorioDeElementos: RepositorioDeElementos by lazy {
         RepositorioDeElementosPeloRetrofit(provedorDeApi)
+    }
+
+    val repositorioDaLixeira: RepositorioDaLixeira by lazy {
+        RepositorioDaLixeiraPeloRetrofit(provedorDeApi)
     }
 
     val repositorioDePerfis: RepositorioDePerfis by lazy {

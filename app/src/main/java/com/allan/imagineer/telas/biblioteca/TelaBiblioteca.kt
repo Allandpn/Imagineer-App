@@ -70,6 +70,7 @@ fun TelaBiblioteca(
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoAbrirConfiguracao: () -> Unit,
     aoAbrirPerfis: () -> Unit,
+    aoAbrirLixeira: () -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: BibliotecaViewModel = viewModel(
@@ -122,6 +123,7 @@ fun TelaBiblioteca(
         aoAbrirLivro = aoAbrirLivro,
         aoAbrirConfiguracao = aoAbrirConfiguracao,
         aoAbrirPerfis = aoAbrirPerfis,
+        aoAbrirLixeira = aoAbrirLixeira,
         aoPedirRemocao = viewModel::pedirRemocao,
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
@@ -151,6 +153,7 @@ fun ConteudoDaBiblioteca(
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoAbrirConfiguracao: () -> Unit,
     aoAbrirPerfis: () -> Unit,
+    aoAbrirLixeira: () -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
@@ -174,6 +177,7 @@ fun ConteudoDaBiblioteca(
                     // Texto, e não ícone: o conjunto básico de ícones do Material não tem
                     // um apropriado (item 7.3a, incremento 4).
                     TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
+                    TextButton(onClick = aoAbrirLixeira) { Text("Lixeira") }
                     IconButton(onClick = aoAbrirConfiguracao) {
                         Icon(Icons.Filled.Settings, contentDescription = "Configuração")
                     }

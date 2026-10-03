@@ -61,6 +61,10 @@ object PerfisDeRenderizacao
 @Serializable
 data class CapitulosArquivados(val livroId: Int)
 
+/** A lixeira de imagens (item 7.5b, LX8): o que foi apagado e ainda não foi apagado de vez. */
+@Serializable
+object Lixeira
+
 /** Configuração do app: endereço do servidor, chave própria, modelos (item 7.10). */
 @Serializable
 object Configuracao

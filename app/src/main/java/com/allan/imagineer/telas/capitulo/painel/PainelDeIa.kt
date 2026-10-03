@@ -1091,14 +1091,14 @@ private fun EtiquetasDoPrompt(prompt: PromptDeFrame) {
     }
 }
 
-/** U3: excluir apaga a imagem **para sempre** (inclusive o arquivo no servidor), então pede confirmação. */
+/** U3, LX8: excluir **move a imagem para a lixeira** (dá para recuperar), mas ainda pede confirmação. */
 @Composable
 private fun DialogoExcluirImagem(acoes: AcoesDoPainel) {
     AlertDialog(
         onDismissRequest = acoes.aoCancelarExclusaoDeImagem,
-        title = { Text("Excluir esta imagem?") },
-        text = { Text("A imagem será apagada para sempre, inclusive do servidor. O prompt continua.") },
-        confirmButton = { TextButton(onClick = acoes.aoConfirmarExclusaoDeImagem) { Text("Excluir") } },
+        title = { Text("Mover esta imagem para a lixeira?") },
+        text = { Text("A imagem sai do prompt e do capítulo, mas fica na Lixeira (menu da Biblioteca), de onde você pode restaurá-la ou apagá-la de vez. O prompt continua.") },
+        confirmButton = { TextButton(onClick = acoes.aoConfirmarExclusaoDeImagem) { Text("Mover para a lixeira") } },
         dismissButton = { TextButton(onClick = acoes.aoCancelarExclusaoDeImagem) { Text("Cancelar") } },
     )
 }

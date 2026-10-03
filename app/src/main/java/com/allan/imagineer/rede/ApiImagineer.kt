@@ -234,7 +234,23 @@ interface ApiImagineer {
     @GET("imagens/{id}/arquivo")
     suspend fun baixarImagem(@Path("id") imagemId: Int, @Query("tamanho") tamanho: String = "original"): ResponseBody
 
-    /** `DELETE /imagens/{id}` — remove a imagem do catálogo e o arquivo do disco (204; item 6.6). */
+    /** `GET /lixeira/imagens` — as imagens apagadas, com o contexto e o espaço que ocupam (LX5). Só leitura. */
+    @GET("lixeira/imagens")
+    suspend fun lixeira(): Lixeira
+
+    /** `POST /lixeira/imagens/{id}/restaurar` — tira a imagem da lixeira (LX5). */
+    @POST("lixeira/imagens/{id}/restaurar")
+    suspend fun restaurarImagem(@Path("id") imagemId: Int): ImagemNaLixeira
+
+    /** `DELETE /lixeira/imagens/{id}` — apaga de vez uma imagem da lixeira (204). Não tem volta. */
+    @DELETE("lixeira/imagens/{id}")
+    suspend fun apagarImagemDeVez(@Path("id") imagemId: Int)
+
+    /** `DELETE /lixeira/imagens` — esvazia a lixeira inteira (LX5). Não tem volta. */
+    @DELETE("lixeira/imagens")
+    suspend fun esvaziarALixeira(): LixeiraEsvaziada
+
+    /** `DELETE /imagens/{id}` — **move a imagem para a lixeira** (LX4); o arquivo fica no servidor até apagar de vez. — remove a imagem do catálogo e o arquivo do disco (204; item 6.6). */
     @DELETE("imagens/{id}")
     suspend fun removerImagem(@Path("id") imagemId: Int)
 
