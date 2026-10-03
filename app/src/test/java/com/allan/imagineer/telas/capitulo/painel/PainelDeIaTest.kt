@@ -105,6 +105,19 @@ internal class SugestoesFalso(
         return resultadoDeDefinirEstados
     }
 
+    /** As cenas de trecho pedidas e a resposta a dar (TR3). */
+    class CenaDeTrechoPedida(val titulo: String, val descricao: String, val posicao: Int?, val estadosIds: List<Int>)
+    val cenasDeTrechoPedidas = mutableListOf<CenaDeTrechoPedida>()
+    var resultadoDaCenaDeTrecho: ResultadoDaChamada<com.allan.imagineer.rede.FrameCriado> =
+        ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.FrameCriado(id = 500, titulo = "cena"))
+
+    override suspend fun criarCenaDoTrecho(
+        capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>,
+    ): ResultadoDaChamada<com.allan.imagineer.rede.FrameCriado> {
+        cenasDeTrechoPedidas += CenaDeTrechoPedida(titulo, descricao, posicao, estadosIds)
+        return resultadoDaCenaDeTrecho
+    }
+
     /** As posições postas à mão (cena?, sugestão, posição) e a resposta a dar (PM1). */
     val posicoesPedidas = mutableListOf<Triple<Boolean, Int, Int?>>()
     var resultadoDePosicionar: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)

@@ -151,6 +151,11 @@ class AcoesDoPainel(
     val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
     val aoDefinirImagemOculta: (frameId: Int, oculta: Boolean) -> Unit,
     val aoIniciarPosicionamento: (ehCena: Boolean, sugestaoId: Int, rotulo: String) -> Unit,
+    val aoFecharTrecho: () -> Unit,
+    val aoAlterarDescricaoDoTrecho: (String) -> Unit,
+    val aoAlternarElementoDoTrecho: (estadoId: Int) -> Unit,
+    val aoCriarCenaDoTrecho: () -> Unit,
+    val aoFecharModalDoFrame: () -> Unit,
     val aoAbrirImagemExistente: (ElementoSugerido, frameId: Int?) -> Unit,
     val aoFecharImagemExistente: () -> Unit,
     val aoUsarImagemExistente: (imagemId: Int) -> Unit,
@@ -200,6 +205,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
     estado.usandoImagemExistente?.let { DialogoDeImagemExistente(it, estado.capituloAtualId, acoes) }
+    estado.trechoParaImagem?.let { DialogoDoTrecho(it, estado, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -222,6 +228,7 @@ fun ModaisDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<I
             when (modal) {
                 is ModalAberto.DeElemento -> ModalDaSugestao(estado, acoes, modal.sugestaoId, retratos)
                 is ModalAberto.DeCena -> ModalDaCena(estado, acoes, modal.cenaId)
+                is ModalAberto.DeFrame -> ModalDoFrame(estado, acoes, modal.frameId, modal.rotulo)
             }
         }
     }
@@ -935,7 +942,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
  * do botão principal. Ler a lista não custa (G2).
  */
 @Composable
-private fun BlocoDePrompts(
+internal fun BlocoDePrompts(
     frameId: Int,
     rotulo: String,
     estado: EstadoDoPainel,

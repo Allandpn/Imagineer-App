@@ -46,6 +46,12 @@ interface RepositorioDeSugestoes {
      */
     suspend fun criarRetrato(capituloId: Int, estadoId: Int, vinculadosIds: List<Int> = emptyList()): ResultadoDaChamada<FrameCriado>
 
+    /**
+     * `POST /capitulos/{id}/frames` (tipo `CENA`): a cena **avulsa** de um trecho selecionado (TR3), com a descrição da pessoa e o trecho,
+     * a [posicao] do parágrafo e os [estadosIds] escolhidos. Não gasta IA; a análise e o prompt vêm depois, no botão de gerar.
+     */
+    suspend fun criarCenaDoTrecho(capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>): ResultadoDaChamada<FrameCriado>
+
     /** `PUT /frames/{id}/estados`: **substitui** os participantes de um frame, a cena (EV7). Não gasta IA. */
     suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit>
 
@@ -101,6 +107,20 @@ class RepositorioDeSugestoesPeloRetrofit(
             put("estados_ids", buildJsonArray { add(JsonPrimitive(estadoId)) })
             // V4: os elementos vinculados que a pessoa escolheu antes de o retrato existir; sem escolha o campo nem vai.
             if (vinculadosIds.isNotEmpty()) put("estados_vinculados_ids", buildJsonArray { vinculadosIds.forEach { add(JsonPrimitive(it)) } })
+        }
+        return chamarApi { api.criarRetrato(capituloId, corpo) }
+    }
+
+    override suspend fun criarCenaDoTrecho(
+        capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>,
+    ): ResultadoDaChamada<FrameCriado> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject {
+            put("tipo", "CENA")
+            put("titulo", titulo)
+            put("descricao", descricao)
+            if (posicao != null) put("posicao_no_texto", posicao)
+            put("estados_ids", buildJsonArray { estadosIds.forEach { add(JsonPrimitive(it)) } })
         }
         return chamarApi { api.criarRetrato(capituloId, corpo) }
     }

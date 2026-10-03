@@ -79,6 +79,8 @@ import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.telas.capitulo.painel.ComAcaoDeGerarImagemDoTrecho
+import com.allan.imagineer.telas.capitulo.painel.paragrafoDoTrecho
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -309,6 +311,11 @@ private fun LeitorPaginado(
         aoDefinirImagemCanonica = painel::definirImagemCanonica,
         aoDefinirImagemOculta = painel::definirImagemOculta,
         aoIniciarPosicionamento = painel::iniciarPosicionamento,
+        aoFecharTrecho = painel::fecharTrecho,
+        aoAlterarDescricaoDoTrecho = painel::alterarDescricaoDoTrecho,
+        aoAlternarElementoDoTrecho = painel::alternarElementoDoTrecho,
+        aoCriarCenaDoTrecho = painel::criarCenaDoTrecho,
+        aoFecharModalDoFrame = painel::fecharModalDoFrame,
         aoAbrirImagemExistente = painel::abrirImagemExistente,
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
@@ -391,8 +398,12 @@ private fun LeitorPaginado(
                             ehAtual = pagina == estadoDoPager.currentPage,
                             aoTocarArtefato = { artefato ->
                                 // C1: o id de uma cena e o de um elemento são de tabelas diferentes; cada um abre o seu modal.
-                                artefato.sugestao_id?.let { id ->
-                                    if (artefato.tipo == "CENA") painel.abrirModalDeCena(id) else painel.abrirModal(id)
+                                val sugestaoId = artefato.sugestao_id
+                                if (sugestaoId != null) {
+                                    if (artefato.tipo == "CENA") painel.abrirModalDeCena(sugestaoId) else painel.abrirModal(sugestaoId)
+                                } else if (artefato.frame_id != null) {
+                                    // TR4: a cena de um trecho (ou o retrato sem sugestão) não tem sugestão por trás: abre o modal do frame.
+                                    painel.abrirModalDeFrame(artefato.frame_id, artefato.rotulo)
                                 }
                             },
                             aoOcultarImagem = { frameId -> painel.definirImagemOculta(frameId, true) },
@@ -401,6 +412,7 @@ private fun LeitorPaginado(
                                 artefato.sugestao_id?.let { painel.iniciarPosicionamento(artefato.tipo == "CENA", it, artefato.rotulo) }
                             },
                             aoEscolherParagrafo = painel::escolherParagrafo,
+                            aoGerarImagemDoTrecho = painel::abrirTrecho,
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
@@ -467,6 +479,7 @@ private fun PaginaDoCapitulo(
     aoIniciarPosicionamento: (Artefato) -> Unit,
     aoEscolherParagrafo: (posicao: Int) -> Unit,
     aoCancelarPosicionamento: () -> Unit,
+    aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
@@ -509,6 +522,7 @@ private fun PaginaDoCapitulo(
                 aoIniciarPosicionamento = aoIniciarPosicionamento,
                 aoEscolherParagrafo = aoEscolherParagrafo,
                 aoCancelarPosicionamento = aoCancelarPosicionamento,
+                aoGerarImagemDoTrecho = { trecho, posicao -> if (ehAtual) aoGerarImagemDoTrecho(trecho, posicao) },
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -532,6 +546,7 @@ private fun LeitorDeTexto(
     aoIniciarPosicionamento: (Artefato) -> Unit,
     aoEscolherParagrafo: (posicao: Int) -> Unit,
     aoCancelarPosicionamento: () -> Unit,
+    aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -600,6 +615,7 @@ private fun LeitorDeTexto(
 
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
         // (cada um é um item da lista), mas dentro de um funciona.
+        ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) }) {
         SelectionContainer(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().nestedScroll(ouvinte)) {
             LazyColumn(
                 state = listaDeParagrafos,
@@ -666,6 +682,7 @@ private fun LeitorDeTexto(
                     }
                 }
             }
+        }
         }
     }
     // PM1: o aviso fixo do modo de posicionar, com o Cancelar; fica à vista mesmo com o texto rolado.

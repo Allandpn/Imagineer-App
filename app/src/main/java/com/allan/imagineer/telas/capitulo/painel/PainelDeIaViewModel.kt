@@ -60,6 +60,19 @@ sealed interface ListaParaVincular {
 }
 
 /**
+ * O que a pessoa está montando a partir de um **trecho selecionado** (TR1 a TR3): o [trecho], o [posicao] do parágrafo dele (nulo se a
+ * seleção não coube num parágrafo), o que ela quer ver ([descricao]) e os elementos que a cena leva ([estadosEscolhidos]).
+ */
+data class TrechoParaImagem(
+    val trecho: String,
+    val posicao: Int?,
+    val descricao: String = "",
+    val estadosEscolhidos: Set<Int> = emptySet(),
+    val criando: Boolean = false,
+    val erro: String? = null,
+)
+
+/**
  * O modo **"toque no parágrafo"** (PM1): o artefato [rotulo] de [sugestaoId] (cena se [ehCena]) vai para o parágrafo que a pessoa tocar
  * no texto. [erro] é a recusa do servidor; o modo continua até a pessoa tocar de novo ou cancelar.
  */
@@ -134,6 +147,8 @@ sealed interface DialogoDeElemento {
 data class EstadoDoPainel(
     /** O capítulo aberto: o seletor por capítulo o mostra primeiro (VM2). */
     val capituloAtualId: Int? = null,
+    /** O diálogo de gerar imagem de um trecho está aberto (TR2); `null` = fechado. */
+    val trechoParaImagem: TrechoParaImagem? = null,
     /** O modo de posicionar um artefato à mão está ligado (PM1); `null` = desligado. */
     val posicionando: PosicionandoArtefato? = null,
     /** O seletor de "usar imagem existente" está aberto (VM3); `null` = fechado. */
@@ -242,7 +257,13 @@ data class EstadoDoPainel(
 sealed interface ModalAberto {
     data class DeElemento(val sugestaoId: Int) : ModalAberto
     data class DeCena(val cenaId: Int) : ModalAberto
+
+    /** Um frame **sem sugestão por trás** (a cena de um trecho, TR4): só os prompts e as imagens dele. */
+    data class DeFrame(val frameId: Int, val rotulo: String) : ModalAberto
 }
+
+/** Quanto a pessoa pode escrever do que quer ver na cena de um trecho (TR2). */
+const val LIMITE_DA_DESCRICAO_DO_TRECHO = 1000
 
 const val AVISO_ESTADO_RASCUNHO =
     "Estado registrado. A descrição é um rascunho: a IA a refaz quando você gerar um prompt."
@@ -1585,6 +1606,77 @@ class PainelDeIaViewModel(
                     _estado.update { it.copy(dialogo = dialogo.copy(salvando = false, erro = resultado.motivo)) }
             }
         }
+    }
+
+    // --- Imagem de um trecho selecionado (TR1 a TR7) ---------------------- //
+
+    /**
+     * A pessoa escolheu **"Gerar imagem deste trecho"** na barra de seleção: abre o diálogo com o [trecho]. Já marca os elementos
+     * confirmados cujos nomes aparecem nele (TR2). Se o painel nunca foi aberto, lê as sugestões (só leitura) para ter os elementos.
+     */
+    fun abrirTrecho(trecho: String, posicao: Int?) {
+        val limpo = trecho.trim()
+        if (limpo.isEmpty()) return
+        val opcoes = opcoesDeElementosDoTrecho((_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.elementos.orEmpty())
+        _estado.update { it.copy(trechoParaImagem = TrechoParaImagem(limpo, posicao, estadosEscolhidos = estadosCitadosNoTrecho(opcoes, limpo))) }
+        if (_estado.value.conteudo is ConteudoDoPainel.NaoCarregado) aoAbrirPainel()
+    }
+
+    fun fecharTrecho() {
+        if (_estado.value.trechoParaImagem?.criando == true) return
+        _estado.update { it.copy(trechoParaImagem = null) }
+    }
+
+    fun alterarDescricaoDoTrecho(texto: String) {
+        _estado.update { atual -> atual.trechoParaImagem?.let { atual.copy(trechoParaImagem = it.copy(descricao = texto.take(LIMITE_DA_DESCRICAO_DO_TRECHO))) } ?: atual }
+    }
+
+    fun alternarElementoDoTrecho(estadoId: Int) {
+        _estado.update { atual ->
+            atual.trechoParaImagem?.let {
+                val novos = if (estadoId in it.estadosEscolhidos) it.estadosEscolhidos - estadoId else it.estadosEscolhidos + estadoId
+                atual.copy(trechoParaImagem = it.copy(estadosEscolhidos = novos))
+            } ?: atual
+        }
+    }
+
+    /**
+     * **"Criar a cena"** (TR3): cria a cena avulsa do trecho, **sem IA**, no parágrafo dele (TR4). Sucesso: fecha o diálogo, manda a tela
+     * reler os artefatos e abre o modal da cena nova, onde ficam **Gerar imagem** e **Só o prompt** (aí sim gasta IA: a análise barata e
+     * depois o modelo de prompt, TR5). Falha: a mensagem do servidor no diálogo, que continua aberto.
+     */
+    fun criarCenaDoTrecho() {
+        val trecho = _estado.value.trechoParaImagem ?: return
+        if (trecho.criando) return
+        _estado.update { it.copy(trechoParaImagem = trecho.copy(criando = true, erro = null)) }
+        viewModelScope.launch {
+            val titulo = tituloDaCenaDoTrecho(trecho.descricao, trecho.trecho)
+            val resultado = sugestoes.criarCenaDoTrecho(
+                capituloId, titulo, descricaoDaCenaDoTrecho(trecho.descricao, trecho.trecho), trecho.posicao, trecho.estadosEscolhidos.toList().sorted(),
+            )
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> _estado.update {
+                    it.copy(
+                        trechoParaImagem = null,
+                        versaoDosFrames = it.versaoDosFrames + 1,
+                        modais = listOf(ModalAberto.DeFrame(resultado.dado.id, titulo)),
+                        rotulosDeFrame = it.rotulosDeFrame + (resultado.dado.id to titulo),
+                    )
+                }
+                is ResultadoDaChamada.Falha -> _estado.update { atual ->
+                    atual.copy(trechoParaImagem = atual.trechoParaImagem?.copy(criando = false, erro = resultado.motivo))
+                }
+            }
+        }
+    }
+
+    /** Tocou no ícone de um frame **sem sugestão** (a cena de um trecho): abre o modal dele. */
+    fun abrirModalDeFrame(frameId: Int, rotulo: String) {
+        _estado.update { it.copy(modais = listOf(ModalAberto.DeFrame(frameId, rotulo))) }
+    }
+
+    fun fecharModalDoFrame() {
+        _estado.update { it.copy(modais = it.modais.filterNot { m -> m is ModalAberto.DeFrame }) }
     }
 
     // --- Posicionar à mão (PM1 a PM4) ------------------------------------- //
