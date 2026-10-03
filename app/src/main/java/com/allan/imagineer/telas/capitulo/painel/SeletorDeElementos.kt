@@ -76,10 +76,36 @@ internal fun LinhaDoSeletorDeElementos(
         )
         TextButton(onClick = aoEscolher, enabled = !ocupado) { Text("Escolher", maxLines = 1, softWrap = false) }
     }
+    // EV14: as miniaturas das imagens que vão como referência (esmaecidas se o modelo em uso não as usa).
+    val ids = frameId?.let { estado.referenciasEscolhidas[it] }.orEmpty()
+    if (ids.isNotEmpty()) MiniaturasDeReferencia(ids, legenda = "Vão como referência na próxima geração", esmaecidas = !aceita)
     val aoMudar = frameId?.let { estado.mudancasPendentesDePrompt[it] }
     val promptsAgora = frameId?.let { (estado.prompts[it] as? PromptsDoFrame.Pronto)?.lista?.size }
     if (aoMudar != null && aoMudar == promptsAgora) {
         Text(AVISO_ELEMENTOS_MUDARAM, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+    }
+}
+
+/**
+ * As **miniaturas das imagens de referência** (EV14): uma fileira pequena, com a [legenda] em cima, para o usuário ver quais imagens
+ * vão (ou foram) junto da geração, sem abrir o seletor. [esmaecidas] quando o modelo em uso não as usa (W10). Só mostra; não toca.
+ */
+@Composable
+internal fun MiniaturasDeReferencia(ids: List<Int>, legenda: String, esmaecidas: Boolean = false) {
+    val urlBase = urlDoServidorEmUso() ?: return
+    androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(legenda, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ids.forEach { id ->
+                AsyncImage(
+                    model = enderecoDaImagem(urlBase, id, "miniatura"),
+                    contentDescription = "Imagem de referência",
+                    contentScale = ContentScale.Fit,
+                    alpha = if (esmaecidas) 0.4f else 1f,
+                    modifier = Modifier.size(52.dp).clip(RoundedCornerShape(6.dp)).background(Color.Black),
+                )
+            }
+        }
     }
 }
 

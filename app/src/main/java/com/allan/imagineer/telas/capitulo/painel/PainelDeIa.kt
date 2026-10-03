@@ -1048,6 +1048,8 @@ private fun CartaoDePrompt(
             Text("Prompt $numero", style = MaterialTheme.typography.titleSmall)
             EtiquetasDoPrompt(prompt)
             SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
+            // EV14: as imagens que foram de referência na geração deste prompt.
+            if (prompt.imagens_de_referencia.isNotEmpty()) MiniaturasDeReferencia(prompt.imagens_de_referencia, legenda = "Referências enviadas")
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             }
