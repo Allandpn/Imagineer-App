@@ -59,6 +59,12 @@ sealed interface ListaParaVincular {
     data class Erro(val motivo: String) : ListaParaVincular
 }
 
+/**
+ * O modo **"toque no parágrafo"** (PM1): o artefato [rotulo] de [sugestaoId] (cena se [ehCena]) vai para o parágrafo que a pessoa tocar
+ * no texto. [erro] é a recusa do servidor; o modo continua até a pessoa tocar de novo ou cancelar.
+ */
+data class PosicionandoArtefato(val ehCena: Boolean, val sugestaoId: Int, val rotulo: String, val erro: String? = null)
+
 /** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
 sealed interface CargaPorCapitulo {
     data object Carregando : CargaPorCapitulo
@@ -128,6 +134,8 @@ sealed interface DialogoDeElemento {
 data class EstadoDoPainel(
     /** O capítulo aberto: o seletor por capítulo o mostra primeiro (VM2). */
     val capituloAtualId: Int? = null,
+    /** O modo de posicionar um artefato à mão está ligado (PM1); `null` = desligado. */
+    val posicionando: PosicionandoArtefato? = null,
     /** O seletor de "usar imagem existente" está aberto (VM3); `null` = fechado. */
     val usandoImagemExistente: UsoDeImagemExistente? = null,
     val conteudo: ConteudoDoPainel = ConteudoDoPainel.NaoCarregado,
@@ -1575,6 +1583,30 @@ class PainelDeIaViewModel(
                 }
                 is ResultadoDaChamada.Falha ->
                     _estado.update { it.copy(dialogo = dialogo.copy(salvando = false, erro = resultado.motivo)) }
+            }
+        }
+    }
+
+    // --- Posicionar à mão (PM1 a PM4) ------------------------------------- //
+
+    /** Liga o modo "toque no parágrafo" para o artefato e fecha os modais, para o texto ficar à vista. Não gasta IA. */
+    fun iniciarPosicionamento(ehCena: Boolean, sugestaoId: Int, rotulo: String) {
+        _estado.update { it.copy(posicionando = PosicionandoArtefato(ehCena, sugestaoId, rotulo), modais = emptyList()) }
+    }
+
+    fun cancelarPosicionamento() {
+        _estado.update { it.copy(posicionando = null) }
+    }
+
+    /** A pessoa tocou num parágrafo, que começa em [posicao] (UTF-16): grava no servidor e manda a tela reler os artefatos. */
+    fun escolherParagrafo(posicao: Int) {
+        val alvo = _estado.value.posicionando ?: return
+        viewModelScope.launch {
+            when (val resultado = sugestoes.posicionarArtefato(alvo.ehCena, alvo.sugestaoId, posicao)) {
+                is ResultadoDaChamada.Sucesso ->
+                    _estado.update { it.copy(posicionando = null, versaoDosFrames = it.versaoDosFrames + 1) }
+                is ResultadoDaChamada.Falha ->
+                    _estado.update { atual -> atual.copy(posicionando = atual.posicionando?.copy(erro = resultado.motivo)) }
             }
         }
     }

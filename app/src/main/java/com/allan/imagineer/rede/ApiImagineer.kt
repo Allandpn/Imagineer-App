@@ -297,6 +297,14 @@ interface ApiImagineer {
     @GET("livros/{id}/elementos-por-capitulo")
     suspend fun elementosPorCapitulo(@Path("id") livroId: Int): ElementosPorCapitulo
 
+    /** `PUT /sugestoes-elemento/{id}/posicao` — põe o artefato do elemento num parágrafo, à mão (PM1); `posicao_no_texto` nulo tira. */
+    @PUT("sugestoes-elemento/{id}/posicao")
+    suspend fun posicionarElemento(@Path("id") sugestaoId: Int, @Body corpo: JsonObject): JsonObject
+
+    /** `PUT /sugestoes-cena/{id}/posicao` — o mesmo, para o artefato de uma cena (PM1). */
+    @PUT("sugestoes-cena/{id}/posicao")
+    suspend fun posicionarCena(@Path("id") sugestaoId: Int, @Body corpo: JsonObject): JsonObject
+
     /** `PUT /frames/{id}/imagem-oculta` — oculta (ou volta a mostrar) a imagem do frame no capítulo, sem apagar nada (OC1 a OC3). */
     @PUT("frames/{id}/imagem-oculta")
     suspend fun definirImagemOculta(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject

@@ -79,6 +79,15 @@ import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.enderecoDaImagem
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import com.allan.imagineer.telas.capitulo.painel.PosicionandoArtefato
+import com.allan.imagineer.telas.capitulo.painel.ROTULO_POSICIONAR
+import com.allan.imagineer.telas.capitulo.painel.avisoDePosicionar
+import com.allan.imagineer.telas.capitulo.painel.indiceInicialDoBloco
 import com.allan.imagineer.telas.capitulo.painel.ROTULO_OCULTAR_DO_CAPITULO
 import com.allan.imagineer.telas.capitulo.painel.ImagemEmTelaCheia
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
@@ -299,6 +308,7 @@ private fun LeitorPaginado(
         aoPedirExcluirImagem = painel::pedirExcluirImagem,
         aoDefinirImagemCanonica = painel::definirImagemCanonica,
         aoDefinirImagemOculta = painel::definirImagemOculta,
+        aoIniciarPosicionamento = painel::iniciarPosicionamento,
         aoAbrirImagemExistente = painel::abrirImagemExistente,
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
@@ -386,6 +396,12 @@ private fun LeitorPaginado(
                                 }
                             },
                             aoOcultarImagem = { frameId -> painel.definirImagemOculta(frameId, true) },
+                            posicionando = estadoDoPainel.posicionando,
+                            aoIniciarPosicionamento = { artefato ->
+                                artefato.sugestao_id?.let { painel.iniciarPosicionamento(artefato.tipo == "CENA", it, artefato.rotulo) }
+                            },
+                            aoEscolherParagrafo = painel::escolherParagrafo,
+                            aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -447,6 +463,10 @@ private fun PaginaDoCapitulo(
     ehAtual: Boolean,
     aoTocarArtefato: (Artefato) -> Unit,
     aoOcultarImagem: (frameId: Int) -> Unit,
+    posicionando: PosicionandoArtefato?,
+    aoIniciarPosicionamento: (Artefato) -> Unit,
+    aoEscolherParagrafo: (posicao: Int) -> Unit,
+    aoCancelarPosicionamento: () -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
@@ -485,6 +505,10 @@ private fun PaginaDoCapitulo(
                 artefatos = artefatos,
                 aoTocarArtefato = { if (ehAtual) aoTocarArtefato(it) },
                 aoOcultarImagem = aoOcultarImagem,
+                posicionando = if (ehAtual) posicionando else null,
+                aoIniciarPosicionamento = aoIniciarPosicionamento,
+                aoEscolherParagrafo = aoEscolherParagrafo,
+                aoCancelarPosicionamento = aoCancelarPosicionamento,
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -504,6 +528,10 @@ private fun LeitorDeTexto(
     artefatos: List<Artefato>,
     aoTocarArtefato: (Artefato) -> Unit,
     aoOcultarImagem: (frameId: Int) -> Unit,
+    posicionando: PosicionandoArtefato?,
+    aoIniciarPosicionamento: (Artefato) -> Unit,
+    aoEscolherParagrafo: (posicao: Int) -> Unit,
+    aoCancelarPosicionamento: () -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -593,28 +621,68 @@ private fun LeitorDeTexto(
                 // Os sem posição (o nome não foi achado no texto) ficam numa faixa no começo.
                 if (distribuidos.semPosicao.isNotEmpty()) {
                     item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
                                 "Sem posição no texto",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            distribuidos.semPosicao.forEach { IconeDoArtefato(it, aoTocarArtefato) }
+                            distribuidos.semPosicao.forEach { artefato ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconeDoArtefato(artefato, aoTocarArtefato)
+                                    Text(artefato.rotulo, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
+                                    // PM1: só quem veio de uma sugestão pode ser posicionado por aqui (é a sugestão que guarda a posição).
+                                    if (artefato.sugestao_id != null) {
+                                        TextButton(onClick = { aoIniciarPosicionamento(artefato) }) { Text(ROTULO_POSICIONAR, maxLines = 1, softWrap = false) }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
 
                 items(blocos) { bloco ->
-                    BlocoDoTextoNaTela(
-                        bloco = bloco,
-                        textoDe = { trechos[it].texto },
-                        artefatosDo = artefatosDo,
-                        urlBase = urlBase,
-                        larguraDoQuadro = larguraDoQuadro,
-                        estilo = estiloDoParagrafo,
-                        aoTocarArtefato = aoTocarArtefato,
-                        aoAmpliar = { ampliada = it },
-                    )
+                    // PM1: no modo "toque no parágrafo", cada bloco é um alvo; tocar grava a posição do parágrafo em que ele começa.
+                    val inicio = if (posicionando != null) indiceInicialDoBloco(bloco)?.let { trechos.getOrNull(it)?.inicio } else null
+                    Box(
+                        modifier = if (posicionando != null && inicio != null) {
+                            Modifier
+                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .clickable { aoEscolherParagrafo(inicio) }
+                        } else {
+                            Modifier
+                        },
+                    ) {
+                        BlocoDoTextoNaTela(
+                            bloco = bloco,
+                            textoDe = { trechos[it].texto },
+                            artefatosDo = artefatosDo,
+                            urlBase = urlBase,
+                            larguraDoQuadro = larguraDoQuadro,
+                            estilo = estiloDoParagrafo,
+                            aoTocarArtefato = aoTocarArtefato,
+                            aoAmpliar = { ampliada = it },
+                        )
+                    }
+                }
+            }
+        }
+    }
+    // PM1: o aviso fixo do modo de posicionar, com o Cancelar; fica à vista mesmo com o texto rolado.
+    posicionando?.let { alvo ->
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Surface(
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.padding(12.dp).widthIn(max = 600.dp).fillMaxWidth(),
+            ) {
+                Row(modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(avisoDePosicionar(alvo.rotulo), style = MaterialTheme.typography.bodyMedium)
+                        alvo.erro?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    }
+                    TextButton(onClick = aoCancelarPosicionamento) { Text("Cancelar") }
                 }
             }
         }

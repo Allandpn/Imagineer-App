@@ -587,6 +587,18 @@ const val ROTULO_OCULTAR_DO_CAPITULO = "Ocultar do capítulo"
 /** O rótulo da ação de ocultar no painel: mostra de novo se já está oculta (OC1, OC3). */
 fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítulo" else ROTULO_OCULTAR_DO_CAPITULO
 
+/** O botão que liga o modo de posicionar o artefato à mão (PM1). */
+const val ROTULO_POSICIONAR = "Posicionar no texto"
+
+/** O aviso fixo do modo de posicionar (PM1): diz o que tocar. */
+fun avisoDePosicionar(rotulo: String): String = "Toque no parágrafo onde «$rotulo» deve ficar."
+
+/** O início do parágrafo de um bloco do texto: o que o servidor guarda como a posição (PM4). */
+fun indiceInicialDoBloco(bloco: com.allan.imagineer.telas.capitulo.BlocoDoTexto): Int? = when (bloco) {
+    is com.allan.imagineer.telas.capitulo.BlocoDoTexto.Comum -> bloco.fatia.indice
+    is com.allan.imagineer.telas.capitulo.BlocoDoTexto.ComRetrato -> bloco.fatias.firstOrNull()?.indice
+}
+
 /** O botão que aponta, para o retrato, uma imagem que o elemento já tem (VM3). */
 const val ROTULO_USAR_IMAGEM_EXISTENTE = "Usar imagem existente"
 

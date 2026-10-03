@@ -105,6 +105,15 @@ internal class SugestoesFalso(
         return resultadoDeDefinirEstados
     }
 
+    /** As posições postas à mão (cena?, sugestão, posição) e a resposta a dar (PM1). */
+    val posicoesPedidas = mutableListOf<Triple<Boolean, Int, Int?>>()
+    var resultadoDePosicionar: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun posicionarArtefato(ehCena: Boolean, sugestaoId: Int, posicao: Int?): ResultadoDaChamada<Unit> {
+        posicoesPedidas += Triple(ehCena, sugestaoId, posicao)
+        return resultadoDePosicionar
+    }
+
     /** As referências que o "servidor" guarda por frame (RS1), as leituras e as gravações pedidas. */
     val referenciasNoServidor = mutableMapOf<Int, List<Int>>()
     val leiturasDeReferencias = mutableListOf<Int>()

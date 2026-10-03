@@ -52,6 +52,9 @@ interface RepositorioDeSugestoes {
     /** `GET /frames/{id}`: os elementos vinculados ao sujeito do retrato (V4). Nunca gasta IA. */
     suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>>
 
+    /** `PUT /sugestoes-elemento|cena/{id}/posicao` (PM1): põe o artefato no parágrafo que começa em [posicao] (UTF-16); nulo tira. Não gasta IA. */
+    suspend fun posicionarArtefato(ehCena: Boolean, sugestaoId: Int, posicao: Int?): ResultadoDaChamada<Unit>
+
     /** `GET /frames/{id}`: as imagens escolhidas como referência, guardadas no servidor (RS1); valem em qualquer aparelho. */
     suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>>
 
@@ -111,6 +114,12 @@ class RepositorioDeSugestoesPeloRetrofit(
     override suspend fun vinculosDoFrame(frameId: Int): ResultadoDaChamada<List<VinculadoDoFrame>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.frame(frameId).vinculados }
+    }
+
+    override suspend fun posicionarArtefato(ehCena: Boolean, sugestaoId: Int, posicao: Int?): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { if (posicao != null) put("posicao_no_texto", posicao) else put("posicao_no_texto", kotlinx.serialization.json.JsonNull) }
+        return chamarApi { if (ehCena) api.posicionarCena(sugestaoId, corpo) else api.posicionarElemento(sugestaoId, corpo); Unit }
     }
 
     override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {

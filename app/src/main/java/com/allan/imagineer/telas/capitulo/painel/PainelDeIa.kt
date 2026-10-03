@@ -150,6 +150,7 @@ class AcoesDoPainel(
     // A imagem canônica do frame (CAN6): `imagemId` nulo tira a escolha.
     val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
     val aoDefinirImagemOculta: (frameId: Int, oculta: Boolean) -> Unit,
+    val aoIniciarPosicionamento: (ehCena: Boolean, sugestaoId: Int, rotulo: String) -> Unit,
     val aoAbrirImagemExistente: (ElementoSugerido, frameId: Int?) -> Unit,
     val aoFecharImagemExistente: () -> Unit,
     val aoUsarImagemExistente: (imagemId: Int) -> Unit,
@@ -261,6 +262,8 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
                 )
                 elemento.descartada -> CartaoDeElementoDescartado(elemento, estado, acoes)
                 else -> {
+                    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
+                    TextButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }) { Text(ROTULO_POSICIONAR) }
                     CartaoDeElemento(
                         elemento = elemento,
                         cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
@@ -1300,6 +1303,8 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
     }
+    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
+    TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
     CorpoDaCena(cena, estado, acoes)
 }
 
