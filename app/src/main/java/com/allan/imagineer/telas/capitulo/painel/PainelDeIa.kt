@@ -297,7 +297,10 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
         Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        BlocoDePrompts(frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false)
+        BlocoDePrompts(
+            frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false,
+            aoEscolherElementos = if (aceitaVinculos(elemento)) ({ acoes.aoAbrirSeletorDoRetrato(elemento, frameId) }) else null,
+        )
     }
 }
 
@@ -933,6 +936,7 @@ private fun BlocoDePrompts(
     chaveDoFluxo: String,
     rotuloDoBotao: String,
     ehCena: Boolean,
+    aoEscolherElementos: (() -> Unit)? = null,
 ) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
     // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
@@ -971,6 +975,8 @@ private fun BlocoDePrompts(
                         frameId = frameId,
                         estado = estado,
                         acoes = acoes,
+                        ehCena = ehCena,
+                        aoEscolherElementos = aoEscolherElementos,
                         aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
                         aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
                     )
@@ -1026,6 +1032,8 @@ private fun CartaoDePrompt(
     frameId: Int,
     estado: EstadoDoPainel,
     acoes: AcoesDoPainel,
+    ehCena: Boolean,
+    aoEscolherElementos: (() -> Unit)?,
     aoCopiar: () -> Unit,
     aoCompartilhar: () -> Unit,
 ) {
@@ -1038,7 +1046,10 @@ private fun CartaoDePrompt(
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
             }
             // Z12: o modelo que este "Gerar imagem" vai usar, com a troca, à vista em todo cartão.
-            ModeloDeImagemEmUso(estado, acoes, ocupado = prompt.id in estado.gerandoImagem || prompt.id in estado.importandoImagem)
+            val ocupado = prompt.id in estado.gerandoImagem || prompt.id in estado.importandoImagem
+            ModeloDeImagemEmUso(estado, acoes, ocupado)
+            // As imagens de referência são do frame, mas valem para qualquer prompt: a escolha também fica à vista aqui.
+            aoEscolherElementos?.let { LinhaDoSeletorDeElementos(frameId, ehCena, estado, acoes, aoEscolher = it, ocupado = ocupado) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
@@ -1335,7 +1346,7 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
     // G1: o bloco de prompts só existe para a cena que já virou frame.
-    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true) }
+    cena.frame_id?.let { frameId -> BlocoDePrompts(frameId, cena.titulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true, aoEscolherElementos = { acoes.aoAbrirSeletorDaCena(frameId) }) }
 
     val acoesDaCena = acoesDaCena(cena)
     if (acoesDaCena.isNotEmpty()) {
