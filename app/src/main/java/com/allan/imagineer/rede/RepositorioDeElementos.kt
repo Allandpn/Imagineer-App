@@ -175,6 +175,9 @@ interface RepositorioDeElementos {
      */
     suspend fun definirImagemCanonica(frameId: Int, imagemId: Int?): ResultadoDaChamada<Unit>
 
+    /** `PUT /frames/{id}/imagem-oculta` (OC1): o capítulo deixa de mostrar a imagem do frame ([oculta]) ou volta a mostrar. Não apaga nada. */
+    suspend fun definirImagemOculta(frameId: Int, oculta: Boolean): ResultadoDaChamada<Unit>
+
     /** `POST /elementos/{id}/estados`: um estado novo **neste** capítulo (E14). */
     suspend fun criarEstado(elementoId: Int, capituloId: Int, descricao: String): ResultadoDaChamada<Unit>
 
@@ -285,6 +288,11 @@ class RepositorioDeElementosPeloRetrofit(
         val api = provedor.obter() ?: return provedor.semServidor()
         val corpo = buildJsonObject { if (imagemId != null) put("imagem_id", imagemId) else put("imagem_id", JsonNull) }
         return chamarApi { api.definirImagemCanonica(frameId, corpo); Unit }
+    }
+
+    override suspend fun definirImagemOculta(frameId: Int, oculta: Boolean): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.definirImagemOculta(frameId, buildJsonObject { put("oculta", oculta) }); Unit }
     }
 
     override suspend fun criarEstado(elementoId: Int, capituloId: Int, descricao: String): ResultadoDaChamada<Unit> {

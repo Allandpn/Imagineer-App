@@ -106,6 +106,15 @@ internal class ElementosFalso : RepositorioDeElementos {
         return respostaADefinirCanonica
     }
 
+    /** As ocultações pedidas (frame, oculta) e a resposta a dar (OC1). */
+    val ocultacoesPedidas = mutableListOf<Pair<Int, Boolean>>()
+    var respostaADefinirOculta: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun definirImagemOculta(frameId: Int, oculta: Boolean): ResultadoDaChamada<Unit> {
+        ocultacoesPedidas += frameId to oculta
+        return respostaADefinirOculta
+    }
+
     override suspend fun galeria(elementoId: Int): ResultadoDaChamada<com.allan.imagineer.rede.GaleriaDoElemento> {
         leiturasDaGaleria++
         return galeriaDoElemento

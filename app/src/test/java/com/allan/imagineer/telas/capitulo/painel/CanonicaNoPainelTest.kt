@@ -88,4 +88,44 @@ class CanonicaNoPainelTest {
         assertTrue(vm.estado.value.mensagensDePrompt[70]!!.ehErro)
         assertEquals(versaoAntes, vm.estado.value.versaoDosFrames)
     }
+
+    @Test
+    fun `OC1 o rotulo diz ocultar, ou mostrar de novo se ja esta oculta`() {
+        assertEquals("Ocultar do capítulo", rotuloDaOcultacao(false))
+        assertEquals("Mostrar no capítulo", rotuloDaOcultacao(true))
+    }
+
+    @Test
+    fun `OC1 ocultar faz o PUT, relê os prompts e manda reler os artefatos`() = runTest {
+        val elementos = ElementosFalso()
+        val vm = PainelDeIaViewModel(5, SugestoesFalso(), elementos, prompts = PromptsFalso())
+        val versaoAntes = vm.estado.value.versaoDosFrames
+
+        vm.definirImagemOculta(70, true); advanceUntilIdle()
+
+        assertEquals(listOf(70 to true), elementos.ocultacoesPedidas)
+        assertEquals(versaoAntes + 1, vm.estado.value.versaoDosFrames)
+    }
+
+    @Test
+    fun `OC3 mostrar de novo manda oculta falso`() = runTest {
+        val elementos = ElementosFalso()
+        val vm = PainelDeIaViewModel(5, SugestoesFalso(), elementos, prompts = PromptsFalso())
+
+        vm.definirImagemOculta(70, false); advanceUntilIdle()
+
+        assertEquals(listOf(70 to false), elementos.ocultacoesPedidas)
+    }
+
+    @Test
+    fun `OC1 a recusa do servidor vira recado do frame e nada muda`() = runTest {
+        val elementos = ElementosFalso().also { it.respostaADefinirOculta = ResultadoDaChamada.Falha("Frame não encontrado.") }
+        val vm = PainelDeIaViewModel(5, SugestoesFalso(), elementos, prompts = PromptsFalso())
+        val versaoAntes = vm.estado.value.versaoDosFrames
+
+        vm.definirImagemOculta(70, true); advanceUntilIdle()
+
+        assertEquals("Frame não encontrado.", vm.estado.value.mensagensDePrompt[70]?.texto)
+        assertEquals(versaoAntes, vm.estado.value.versaoDosFrames)
+    }
 }

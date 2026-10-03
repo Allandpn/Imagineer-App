@@ -143,6 +143,45 @@ class UmToqueNoPainelTest {
     }
 
     @Test
+    fun `GP2 so o prompt do frame gera o prompt e nao gasta imagem`() = runTest {
+        val prompts = PromptsFalso().also { it.geracao = ResultadoDaChamada.Sucesso(umPromptDoFrame(99, frame = 70)) }
+        val vm = vm(SugestoesFalso(), prompts)
+
+        vm.gerarSoOPromptDoFrame(chaveDoFluxoDoFrame(70), 70, "A partida")
+        advanceUntilIdle()
+
+        assertEquals(listOf(70 to null), prompts.geracoes)
+        assertTrue("não gera imagem", prompts.geracoesDeImagem.isEmpty())
+        assertTrue("a etapa termina", vm.estado.value.etapasDeImagem.isEmpty())
+    }
+
+    @Test
+    fun `GP2 so o prompt do retrato cria o frame e o prompt, sem imagem`() = runTest {
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(sugestoes))
+        val prompts = PromptsFalso()
+        val vm = vm(repositorio, prompts)
+
+        vm.gerarSoOPromptDoRetrato(jon)
+        advanceUntilIdle()
+
+        assertEquals(1, repositorio.retratosPedidos.size)
+        assertEquals(1, prompts.geracoes.size)
+        assertTrue("não gera imagem", prompts.geracoesDeImagem.isEmpty())
+    }
+
+    @Test
+    fun `GP2 so o prompt, com prompt ja existente, nao gasta IA nenhuma`() = runTest {
+        val prompts = PromptsFalso().also { it.lista = ResultadoDaChamada.Sucesso(listOf(umPromptDoFrame(8, 70))) }
+        val vm = vm(SugestoesFalso(), prompts)
+
+        vm.gerarSoOPromptDoFrame(chaveDoFluxoDoFrame(70), 70, "A partida")
+        advanceUntilIdle()
+
+        assertTrue(prompts.geracoes.isEmpty())
+        assertTrue(prompts.geracoesDeImagem.isEmpty())
+    }
+
+    @Test
     fun `K6 ao final a lista de prompts e relida`() = runTest {
         val prompts = PromptsFalso().also { it.lista = ResultadoDaChamada.Sucesso(listOf(umPromptDoFrame(8, 70))) }
         val vm = vm(SugestoesFalso(), prompts)

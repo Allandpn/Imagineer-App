@@ -435,16 +435,26 @@ class PainelDeIaViewModel(
      * O botão **"Gerar retrato"** de um elemento sem frame (Q1): cria o frame, gera o prompt e gera a imagem, **só o que
      * falta** (Q2). Se o retrato já foi criado nesta sessão, continua dele.
      */
-    fun gerarRetrato(elemento: ElementoSugerido) {
+    fun gerarRetrato(elemento: ElementoSugerido) = gerarRetrato(elemento, apenasPrompt = false)
+
+    /** **"Só o prompt"** do retrato (GP2): cria o frame, se falta, e gera o prompt; **não gasta imagem**, para usar o prompt em outro app. */
+    fun gerarSoOPromptDoRetrato(elemento: ElementoSugerido) = gerarRetrato(elemento, apenasPrompt = true)
+
+    private fun gerarRetrato(elemento: ElementoSugerido, apenasPrompt: Boolean) {
         if (!podeTerRetrato(elemento)) return
-        iniciarFluxoDeImagem(chaveDoFluxoDoRetrato(elemento.id), rotuloDoRetrato(elemento), _estado.value.retratosCriados[elemento.id]) {
+        iniciarFluxoDeImagem(chaveDoFluxoDoRetrato(elemento.id), rotuloDoRetrato(elemento), _estado.value.retratosCriados[elemento.id], apenasPrompt) {
             reservarRetrato(elemento)?.let { concluirCriacaoDoRetrato(elemento, it) }
         }
     }
 
     /** O botão principal de um frame que já existe (a cena, ou o retrato com frame): gera o prompt, se não há, e a imagem (Q2, Q6). */
     fun gerarImagemDoFrame(chave: String, frameId: Int, rotulo: String) {
-        iniciarFluxoDeImagem(chave, rotulo, frameId, null)
+        iniciarFluxoDeImagem(chave, rotulo, frameId, false, null)
+    }
+
+    /** **"Só o prompt"** de um frame (GP2): gera o prompt, se não há nenhum, e para aí; **não gasta imagem**. */
+    fun gerarSoOPromptDoFrame(chave: String, frameId: Int, rotulo: String) {
+        iniciarFluxoDeImagem(chave, rotulo, frameId, true, null)
     }
 
     /**
@@ -452,7 +462,7 @@ class PainelDeIaViewModel(
      * frame não tem nenhum**; (c) gera a imagem do prompt **mais recente**. Uma etapa que falha deixa as anteriores
      * gravadas e mostra a mensagem do servidor; tocar de novo **continua de onde parou** (Q5). Um toque por chave de cada vez.
      */
-    private fun iniciarFluxoDeImagem(chave: String, rotulo: String, frameInicial: Int?, criarFrame: (suspend () -> Int?)?) {
+    private fun iniciarFluxoDeImagem(chave: String, rotulo: String, frameInicial: Int?, apenasPrompt: Boolean, criarFrame: (suspend () -> Int?)?) {
         if (chave in _estado.value.etapasDeImagem) return
         definirEtapa(chave, if (frameInicial == null) EtapaDaImagem.CRIANDO_O_RETRATO else EtapaDaImagem.GERANDO_A_IMAGEM)
         viewModelScope.launch {
@@ -471,6 +481,7 @@ class PainelDeIaViewModel(
                     definirEtapa(chave, EtapaDaImagem.MONTANDO_O_PROMPT)
                     gerarPromptDoFluxo(frameId, rotulo) ?: return@launch
                 }
+                if (apenasPrompt) return@launch // GP2: o prompt já está gravado; a imagem fica para quando o usuário quiser
                 definirEtapa(chave, EtapaDaImagem.GERANDO_A_IMAGEM)
                 if (reservarGeracaoDeImagem(prompt.id)) concluirGeracaoDeImagem(frameId, prompt.id, null, _estado.value.modeloEscolhido)
             } finally {
@@ -544,20 +555,35 @@ class PainelDeIaViewModel(
      */
     fun definirImagemCanonica(frameId: Int, imagemId: Int?) {
         viewModelScope.launch {
-            when (val resultado = elementos.definirImagemCanonica(frameId, imagemId)) {
-                is ResultadoDaChamada.Sucesso -> {
-                    val lista = (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado
-                    _estado.update { atual ->
-                        atual.copy(
-                            prompts = if (lista != null) atual.prompts + (frameId to PromptsDoFrame.Pronto(comAsImagensLidas(lista))) else atual.prompts,
-                            mensagensDePrompt = atual.mensagensDePrompt - frameId,
-                            versaoDosFrames = atual.versaoDosFrames + 1,
-                        )
-                    }
+            aplicarMudancaDeImagemDoFrame(frameId, elementos.definirImagemCanonica(frameId, imagemId))
+        }
+    }
+
+    /**
+     * **Ocultar do capítulo** (OC1) ou **mostrar de novo** (OC3): o capítulo deixa de mostrar a imagem do frame, sem apagar nada. Depois
+     * relê os prompts do frame e manda a tela reler os artefatos, como na canônica.
+     */
+    fun definirImagemOculta(frameId: Int, oculta: Boolean) {
+        viewModelScope.launch {
+            aplicarMudancaDeImagemDoFrame(frameId, elementos.definirImagemOculta(frameId, oculta))
+        }
+    }
+
+    /** O que vem depois de uma mudança na imagem do frame (canônica ou oculta): relê os prompts sem piscar e a tela relê os artefatos. */
+    private suspend fun aplicarMudancaDeImagemDoFrame(frameId: Int, resultado: ResultadoDaChamada<Unit>) {
+        when (resultado) {
+            is ResultadoDaChamada.Sucesso -> {
+                val lista = (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado
+                _estado.update { atual ->
+                    atual.copy(
+                        prompts = if (lista != null) atual.prompts + (frameId to PromptsDoFrame.Pronto(comAsImagensLidas(lista))) else atual.prompts,
+                        mensagensDePrompt = atual.mensagensDePrompt - frameId,
+                        versaoDosFrames = atual.versaoDosFrames + 1,
+                    )
                 }
-                is ResultadoDaChamada.Falha ->
-                    _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true))) }
             }
+            is ResultadoDaChamada.Falha ->
+                _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true))) }
         }
     }
 

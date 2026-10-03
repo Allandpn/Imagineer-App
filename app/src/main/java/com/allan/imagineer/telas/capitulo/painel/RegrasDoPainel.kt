@@ -541,6 +541,15 @@ fun chaveDoFluxoDoRetrato(elementoId: Int): String = "retrato:$elementoId"
 /** A chave do fluxo de um toque de um **frame** (a cena). */
 fun chaveDoFluxoDoFrame(frameId: Int): String = "frame:$frameId"
 
+/** O botão do visualizador do capítulo que tira a imagem do capítulo sem apagar (OC1). */
+const val ROTULO_OCULTAR_DO_CAPITULO = "Ocultar do capítulo"
+
+/** O rótulo da ação de ocultar no painel: mostra de novo se já está oculta (OC1, OC3). */
+fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítulo" else ROTULO_OCULTAR_DO_CAPITULO
+
+/** O botão que gera só o prompt, sem a imagem (GP1). */
+const val ROTULO_SO_O_PROMPT = "Só o prompt"
+
 /** A linha fixa sob o botão principal (Q3): diz o que o toque faz e que gasta IA. */
 fun avisoDoBotaoPrincipal(jaTemPrompt: Boolean): String =
     if (jaTemPrompt) "Gera a imagem (gasta IA)." else "Gera o prompt e a imagem (gasta IA)."

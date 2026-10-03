@@ -106,6 +106,8 @@ class AcoesDoPainel(
     val aoPedirGerarPrompt: (frameId: Int, rotulo: String) -> Unit,
     // Gerar a imagem em um toque (Q1 a Q9): o retrato de um elemento sem frame, e o botão principal de um frame.
     val aoGerarRetrato: (ElementoSugerido) -> Unit,
+    val aoGerarSoOPromptDoRetrato: (ElementoSugerido) -> Unit,
+    val aoGerarSoOPromptDoFrame: (chave: String, frameId: Int, rotulo: String) -> Unit,
     val aoGerarImagemDoFrame: (chave: String, frameId: Int, rotulo: String) -> Unit,
     val aoCancelarGerarPrompt: () -> Unit,
     val aoGerarPrompt: (frameId: Int, ajuste: String) -> Unit,
@@ -147,6 +149,7 @@ class AcoesDoPainel(
     val aoPedirExcluirImagem: (frameId: Int, promptId: Int, imagemId: Int, origem: String) -> Unit,
     // A imagem canônica do frame (CAN6): `imagemId` nulo tira a escolha.
     val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
+    val aoDefinirImagemOculta: (frameId: Int, oculta: Boolean) -> Unit,
     val aoConfirmarExclusaoDeImagem: () -> Unit,
     val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
@@ -276,6 +279,7 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
  * em destaque, as importadas e os prompts recolhidos.
  */
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     val chave = chaveDoFluxoDoRetrato(elemento.id)
     Text("Retrato", style = MaterialTheme.typography.titleSmall)
@@ -298,7 +302,11 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
                 Text(descreverEtapa(etapa ?: EtapaDaImagem.CRIANDO_O_RETRATO), style = MaterialTheme.typography.bodySmall)
             }
         }
-        Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
+            // GP1: só o prompt, para usar em outro app de geração de imagem.
+            OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoRetrato(elemento) }, enabled = !ocupado) { Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false) }
+        }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         BlocoDePrompts(
@@ -1327,7 +1335,13 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
         val ocupado = elemento != null && elemento.id in estado.ocupados
         val pendente = situacaoDele.precisaRevisar || situacaoDele.acaoRapida != null
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${rotuloDoTipo(participante.tipo)}: ${participante.nome}", style = MaterialTheme.typography.bodyMedium)
+            // PP1: tocar no nome abre o modal do elemento (retrato e botão de gerar), sempre, não só quando há pendência.
+            Text(
+                "${rotuloDoTipo(participante.tipo)}: ${participante.nome}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable(enabled = !ocupado) { acoes.aoRevisarParticipante(participante.sugestao_elemento_id) },
+            )
             Text(
                 situacaoDele.texto,
                 style = MaterialTheme.typography.labelMedium,

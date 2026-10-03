@@ -133,6 +133,12 @@ internal fun SecaoDaImagemDoFrame(
             onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
             enabled = !ocupado,
         ) { Text(rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(lista, it.id) }), maxLines = 1, softWrap = false) }
+        // GP1: sem nenhum prompt ainda, "Só o prompt" gera o prompt e para (com prompt, o "Novo prompt" abaixo já faz isso).
+        if (maisRecente == null) {
+            OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoFrame(chave, frameId, rotulo) }, enabled = !ocupado) {
+                Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false)
+            }
+        }
         // T1: um só botão por frame; a imagem vai para o prompt mais recente. Sem prompt não há para onde importar.
         // O seletor não abre aqui: mora na tela do capítulo (J2).
         if (maisRecente != null) {
@@ -147,7 +153,7 @@ internal fun SecaoDaImagemDoFrame(
             }
         }
     }
-    Text(avisoDoBotaoPrincipal(lista.isNotEmpty()), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(avisoDoBotaoPrincipal(lista.isNotEmpty()) + if (lista.isEmpty()) " \"$ROTULO_SO_O_PROMPT\" gasta só o prompt." else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /**
@@ -263,6 +269,8 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
                 aoFechar = { abertaId = null },
                 // CAN6: escolher a canônica (a que o capítulo mostra) ou, se já é, tirar a escolha.
                 acaoExtra = rotuloDaAcaoCanonica(imagem.canonica) to { acoes.aoDefinirImagemCanonica(frameId, if (imagem.canonica) null else imagem.id); abertaId = null },
+                // OC1, OC3: do frame todo (vale só no capítulo); a imagem fica no catálogo.
+                outraAcao = rotuloDaOcultacao(imagem.oculta_no_capitulo) to { acoes.aoDefinirImagemOculta(frameId, !imagem.oculta_no_capitulo); abertaId = null },
             )
         }
     }
@@ -281,6 +289,8 @@ internal fun ImagemEmTelaCheia(
     mostrarOrigem: Boolean = true,
     /** Uma ação a mais na barra de baixo ("Definir como canônica", CAN6): rótulo e o que fazer. */
     acaoExtra: Pair<String, () -> Unit>? = null,
+    /** Outra ação a mais ("Ocultar do capítulo", OC1): rótulo e o que fazer. */
+    outraAcao: Pair<String, () -> Unit>? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -385,6 +395,7 @@ internal fun ImagemEmTelaCheia(
                     enabled = !baixando,
                 ) { Text("Salvar na galeria", color = Color.White) }
                 acaoExtra?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
+                outraAcao?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
                 if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Para a lixeira", color = Color(0xFFFF8A80)) }
             }

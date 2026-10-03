@@ -293,6 +293,10 @@ interface ApiImagineer {
     @PUT("frames/{id}/imagem-canonica")
     suspend fun definirImagemCanonica(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `PUT /frames/{id}/imagem-oculta` — oculta (ou volta a mostrar) a imagem do frame no capítulo, sem apagar nada (OC1 a OC3). */
+    @PUT("frames/{id}/imagem-oculta")
+    suspend fun definirImagemOculta(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo

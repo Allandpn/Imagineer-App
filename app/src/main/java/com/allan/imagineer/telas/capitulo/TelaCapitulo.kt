@@ -79,6 +79,7 @@ import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.telas.capitulo.painel.ROTULO_OCULTAR_DO_CAPITULO
 import com.allan.imagineer.telas.capitulo.painel.ImagemEmTelaCheia
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
 import com.allan.imagineer.telas.capitulo.painel.AcoesDoPainel
@@ -270,6 +271,8 @@ private fun LeitorPaginado(
         aoRecarregarPrompts = painel::recarregarPrompts,
         aoPedirGerarPrompt = { frameId, rotulo -> painel.pedirGerarPrompt(frameId, rotulo) },
         aoGerarRetrato = painel::gerarRetrato,
+        aoGerarSoOPromptDoRetrato = painel::gerarSoOPromptDoRetrato,
+        aoGerarSoOPromptDoFrame = painel::gerarSoOPromptDoFrame,
         aoGerarImagemDoFrame = painel::gerarImagemDoFrame,
         aoImportarImagem = painel::importarImagem,
         aoEscolherImagem = { frameId, promptId ->
@@ -295,6 +298,7 @@ private fun LeitorPaginado(
         aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,
         aoPedirExcluirImagem = painel::pedirExcluirImagem,
         aoDefinirImagemCanonica = painel::definirImagemCanonica,
+        aoDefinirImagemOculta = painel::definirImagemOculta,
         aoConfirmarExclusaoDeImagem = painel::confirmarExclusaoDeImagem,
         aoCancelarExclusaoDeImagem = painel::cancelarExclusaoDeImagem,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
@@ -378,6 +382,7 @@ private fun LeitorPaginado(
                                     if (artefato.tipo == "CENA") painel.abrirModalDeCena(id) else painel.abrirModal(id)
                                 }
                             },
+                            aoOcultarImagem = { frameId -> painel.definirImagemOculta(frameId, true) },
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -438,6 +443,7 @@ private fun PaginaDoCapitulo(
     capituloId: Int,
     ehAtual: Boolean,
     aoTocarArtefato: (Artefato) -> Unit,
+    aoOcultarImagem: (frameId: Int) -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
@@ -475,6 +481,7 @@ private fun PaginaDoCapitulo(
                 estado = atual,
                 artefatos = artefatos,
                 aoTocarArtefato = { if (ehAtual) aoTocarArtefato(it) },
+                aoOcultarImagem = aoOcultarImagem,
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -493,6 +500,7 @@ private fun LeitorDeTexto(
     estado: EstadoDoCapitulo.Pronto,
     artefatos: List<Artefato>,
     aoTocarArtefato: (Artefato) -> Unit,
+    aoOcultarImagem: (frameId: Int) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -618,6 +626,8 @@ private fun LeitorDeTexto(
                 aoExcluir = null,
                 aoFechar = { ampliada = null },
                 mostrarOrigem = false,
+                // OC1: tirar a imagem do capítulo sem apagar (ela continua na galeria; "Mostrar no capítulo" volta pelo painel).
+                acaoExtra = artefato.frame_id?.let { frame -> ROTULO_OCULTAR_DO_CAPITULO to { aoOcultarImagem(frame); ampliada = null } },
             )
         }
     }
