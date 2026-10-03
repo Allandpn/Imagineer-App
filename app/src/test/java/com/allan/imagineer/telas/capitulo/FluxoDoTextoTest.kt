@@ -136,6 +136,33 @@ class MontarBlocosTest {
     }
 
     @Test
+    fun `dois retratos em sequencia com texto curto ao lado - o texto do segundo ocupa o vazio e o retrato dele desce`() {
+        val a = comImagem("RETRATO", 5)
+        val b = comImagem("RETRATO", 6)
+
+        // Cada parágrafo tem 2 linhas (40 px) e o quadro tem 150 px: o parágrafo 0 sozinho deixaria um vazio.
+        val blocos = montar(3, mapOf(0 to listOf(a), 1 to listOf(b)), altura = 150f) { linhas(2) }
+
+        val bloco = blocos[0] as BlocoDoTexto.ComRetrato
+        assertEquals(listOf(0, 1, 2), bloco.fatias.map { it.indice })
+        assertEquals(listOf(b), bloco.retratosExtras)
+        assertEquals(1, blocos.size)
+    }
+
+    @Test
+    fun `o retrato do paragrafo seguinte so desce se o texto dele foi mesmo consumido`() {
+        val a = comImagem("RETRATO", 5)
+        val b = comImagem("RETRATO", 6)
+
+        // O parágrafo 0 já enche o quadro: o 1 (com retrato) fica no seu próprio bloco.
+        val blocos = montar(2, mapOf(0 to listOf(a), 1 to listOf(b)), altura = 100f) { linhas(5) }
+
+        assertEquals(listOf(0), (blocos[0] as BlocoDoTexto.ComRetrato).fatias.map { it.indice })
+        assertEquals(emptyList<Artefato>(), (blocos[0] as BlocoDoTexto.ComRetrato).retratosExtras)
+        assertEquals(b, (blocos[1] as BlocoDoTexto.ComRetrato).retrato)
+    }
+
+    @Test
     fun `um segundo retrato no mesmo paragrafo vai como extra, e o resto da fatia nao se repete`() {
         val a = comImagem("RETRATO", 5)
         val b = comImagem("RETRATO", 6)

@@ -94,9 +94,11 @@ fun montarBlocos(
             continue
         }
 
-        // Os parágrafos que o retrato pode consumir: o da imagem e os seguintes que não têm imagem própria.
+        // Os parágrafos que o retrato pode consumir: o da imagem e os seguintes que não têm imagem própria **ou** só têm
+        // retrato (I11): se o texto ao lado é curto e o parágrafo seguinte tem outro retrato, o texto dele ocupa o vazio e o
+        // retrato dele desce para logo depois do quadro. Uma paisagem continua parando a contagem (ela vem antes do parágrafo).
         var limite = 1
-        while (i + limite < quantidade && imagensDoParagrafo(artefatosDo(i + limite)).isEmpty()) limite++
+        while (i + limite < quantidade && soTemRetrato(imagensDoParagrafo(artefatosDo(i + limite)))) limite++
         val divisao = dividirAoRedorDaImagem(alturaDoRetrato, espaco, limite) { linhas(i + it) }
 
         val fatias = mutableListOf<FatiaDeParagrafo>()
@@ -113,8 +115,14 @@ fun montarBlocos(
             fatias += FatiaDeParagrafo(i)
             proximo = i + 1
         }
-        blocos += BlocoDoTexto.ComRetrato(retratos.first(), fatias, resto, paisagens, retratos.drop(1))
+        // Os retratos dos parágrafos seguintes que foram consumidos (I11) descem para depois do quadro, na ordem do texto.
+        val consumidos = (i + 1) until proximo
+        val deOutros = consumidos.flatMap { k -> imagensDoParagrafo(artefatosDo(k)) }
+        blocos += BlocoDoTexto.ComRetrato(retratos.first(), fatias, resto, paisagens, retratos.drop(1) + deOutros)
         i = proximo
     }
     return blocos
 }
+
+/** Sem imagem nenhuma, ou só com retratos (I11): o parágrafo pode ser consumido por um retrato anterior. */
+private fun soTemRetrato(imagens: List<Artefato>): Boolean = imagens.all { quadroDaImagem(it.imagem_orientacao) == QuadroDaImagem.RETRATO }
