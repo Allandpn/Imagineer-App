@@ -76,7 +76,7 @@ class AnaliseSobreviveATelaTest {
         val vm = PainelDeIaViewModel(5, repositorio, ElementosFalso(), servico = servico)
         advanceUntilIdle()
 
-        assertEquals(EstadoDoPainel(), vm.estado.value)
+        assertEquals(EstadoDoPainel(capituloAtualId = 5), vm.estado.value)
     }
 
     @Test

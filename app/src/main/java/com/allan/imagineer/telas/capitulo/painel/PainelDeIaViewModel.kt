@@ -6,6 +6,7 @@ import com.allan.imagineer.analise.ServicoDeAnalises
 import com.allan.imagineer.analise.rotuloDoCapituloNoAviso
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.VinculadoDoFrame
+import com.allan.imagineer.rede.CapituloComElementos
 import com.allan.imagineer.rede.ElementosParaVincular
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
@@ -53,9 +54,29 @@ data class MensagemDoElemento(val texto: String, val ehErro: Boolean)
 /** A lista de elementos do livro, dentro do diálogo de "vincular" (E3). */
 sealed interface ListaParaVincular {
     data object Carregando : ListaParaVincular
-    data class Pronta(val elementos: List<ElementoDoLivro>) : ListaParaVincular
+    /** [capitulos]: os elementos por capítulo, com as miniaturas (VM2); vazio se não deu para ler (aí a lista cai em "Sem capítulo"). */
+    data class Pronta(val elementos: List<ElementoDoLivro>, val capitulos: List<CapituloComElementos> = emptyList()) : ListaParaVincular
     data class Erro(val motivo: String) : ListaParaVincular
 }
+
+/** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
+sealed interface CargaPorCapitulo {
+    data object Carregando : CargaPorCapitulo
+    data class Pronta(val capitulos: List<CapituloComElementos>) : CargaPorCapitulo
+    data class Erro(val motivo: String) : CargaPorCapitulo
+}
+
+/**
+ * "Usar imagem existente" (VM3, VM4): o seletor das imagens que **o elemento** já tem, de qualquer capítulo, para o retrato dele
+ * apontar uma (a canônica) sem gerar nada. [frameId] nulo = o retrato ainda não existe: é criado ao escolher.
+ */
+data class UsoDeImagemExistente(
+    val elemento: ElementoSugerido,
+    val frameId: Int?,
+    val carga: CargaPorCapitulo,
+    val aplicando: Boolean = false,
+    val erro: String? = null,
+)
 
 /** Um diálogo aberto sobre uma sugestão de elemento (E2, E3, E5, E15, E27). */
 sealed interface DialogoDeElemento {
@@ -105,6 +126,10 @@ sealed interface DialogoDeElemento {
  * falhar, o conteúdo de antes continua ali (P8).
  */
 data class EstadoDoPainel(
+    /** O capítulo aberto: o seletor por capítulo o mostra primeiro (VM2). */
+    val capituloAtualId: Int? = null,
+    /** O seletor de "usar imagem existente" está aberto (VM3); `null` = fechado. */
+    val usandoImagemExistente: UsoDeImagemExistente? = null,
     val conteudo: ConteudoDoPainel = ConteudoDoPainel.NaoCarregado,
     val analisando: Boolean = false,
     /** A falha da última análise, já na mensagem da API; some ao começar outra. */
@@ -273,7 +298,7 @@ class PainelDeIaViewModel(
     ),
 ) : ViewModel() {
 
-    private val _estado = MutableStateFlow(EstadoDoPainel())
+    private val _estado = MutableStateFlow(EstadoDoPainel(capituloAtualId = capituloId))
     val estado: StateFlow<EstadoDoPainel> = _estado.asStateFlow()
 
     /** De qual livro é o capítulo: a tela o informa quando o capítulo carrega. */
@@ -292,6 +317,7 @@ class PainelDeIaViewModel(
 
     /** Os elementos do livro, buscados uma vez para o diálogo de vincular (E3). */
     private var elementosDoLivro: List<ElementoDoLivro>? = null
+    private var elementosPorCapitulo: List<CapituloComElementos>? = null
 
     fun definirLivro(id: Int) {
         livroId = id
@@ -347,6 +373,7 @@ class PainelDeIaViewModel(
     /** Esquece a lista de elementos do livro: algo mudou. */
     private fun esquecerFichas() {
         elementosDoLivro = null
+        elementosPorCapitulo = null
     }
 
     /**
@@ -1473,7 +1500,7 @@ class PainelDeIaViewModel(
                 dialogo = DialogoDeElemento.Vinculando(
                     sugestao = elemento,
                     trocando = trocando,
-                    lista = if (conhecidos != null) ListaParaVincular.Pronta(conhecidos) else ListaParaVincular.Carregando,
+                    lista = if (conhecidos != null) ListaParaVincular.Pronta(conhecidos, elementosPorCapitulo.orEmpty()) else ListaParaVincular.Carregando,
                 ),
             )
         }
@@ -1497,7 +1524,10 @@ class PainelDeIaViewModel(
             when (val resultado = elementos.listar(livro)) {
                 is ResultadoDaChamada.Sucesso -> {
                     elementosDoLivro = resultado.dado
-                    atualizarLista(ListaParaVincular.Pronta(resultado.dado))
+                    // VM2: por capítulo, com as miniaturas; se não deu para ler, a lista cai em "Sem capítulo" e continua útil.
+                    val porCapitulo = (elementos.elementosPorCapitulo(livro) as? ResultadoDaChamada.Sucesso)?.dado
+                    elementosPorCapitulo = porCapitulo
+                    atualizarLista(ListaParaVincular.Pronta(resultado.dado, porCapitulo.orEmpty()))
                 }
                 is ResultadoDaChamada.Falha -> atualizarLista(ListaParaVincular.Erro(resultado.motivo))
             }
@@ -1546,6 +1576,69 @@ class PainelDeIaViewModel(
                 is ResultadoDaChamada.Falha ->
                     _estado.update { it.copy(dialogo = dialogo.copy(salvando = false, erro = resultado.motivo)) }
             }
+        }
+    }
+
+    // --- Usar uma imagem que já existe (VM3, VM4) ------------------------- //
+
+    /** Abre o seletor das imagens do [elemento] por capítulo; [frameId] nulo = o retrato ainda não existe. Não gasta IA. */
+    fun abrirImagemExistente(elemento: ElementoSugerido, frameId: Int?) {
+        val conhecidas = elementosPorCapitulo
+        _estado.update {
+            it.copy(
+                usandoImagemExistente = UsoDeImagemExistente(
+                    elemento, frameId, if (conhecidas != null) CargaPorCapitulo.Pronta(conhecidas) else CargaPorCapitulo.Carregando,
+                ),
+            )
+        }
+        if (conhecidas != null) return
+        val livro = livroId
+        if (livro == null) {
+            atualizarUsoDeImagem { it.copy(carga = CargaPorCapitulo.Erro(ERRO_LIVRO_NAO_CARREGADO)) }
+            return
+        }
+        viewModelScope.launch {
+            when (val resultado = elementos.elementosPorCapitulo(livro)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    elementosPorCapitulo = resultado.dado
+                    atualizarUsoDeImagem { it.copy(carga = CargaPorCapitulo.Pronta(resultado.dado)) }
+                }
+                is ResultadoDaChamada.Falha -> atualizarUsoDeImagem { it.copy(carga = CargaPorCapitulo.Erro(resultado.motivo)) }
+            }
+        }
+    }
+
+    fun fecharImagemExistente() {
+        if (_estado.value.usandoImagemExistente?.aplicando == true) return
+        _estado.update { it.copy(usandoImagemExistente = null) }
+    }
+
+    private fun atualizarUsoDeImagem(mudar: (UsoDeImagemExistente) -> UsoDeImagemExistente) {
+        _estado.update { atual -> atual.usandoImagemExistente?.let { atual.copy(usandoImagemExistente = mudar(it)) } ?: atual }
+    }
+
+    /**
+     * Escolheu uma imagem: o retrato do elemento a **aponta como canônica** (CAN, VM3), sem gerar nada. Se o retrato ainda não existe,
+     * é criado antes (N2, sem IA). Falha: a mensagem do servidor no próprio seletor, que continua aberto.
+     */
+    fun usarImagemExistente(imagemId: Int) {
+        val uso = _estado.value.usandoImagemExistente ?: return
+        if (uso.aplicando) return
+        atualizarUsoDeImagem { it.copy(aplicando = true, erro = null) }
+        viewModelScope.launch {
+            val frame = uso.frameId ?: _estado.value.retratosCriados[uso.elemento.id]
+                ?: reservarRetrato(uso.elemento)?.let { concluirCriacaoDoRetrato(uso.elemento, it) }
+            if (frame == null) {
+                atualizarUsoDeImagem { it.copy(aplicando = false, erro = _estado.value.mensagensDeRetrato[uso.elemento.id]?.texto ?: "Não consegui criar o retrato.") }
+                return@launch
+            }
+            val resultado = elementos.definirImagemCanonica(frame, imagemId)
+            if (resultado is ResultadoDaChamada.Falha) {
+                atualizarUsoDeImagem { it.copy(aplicando = false, erro = resultado.motivo) }
+                return@launch
+            }
+            _estado.update { it.copy(usandoImagemExistente = null) }
+            aplicarMudancaDeImagemDoFrame(frame, resultado)
         }
     }
 

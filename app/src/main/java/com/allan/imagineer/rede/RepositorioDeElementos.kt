@@ -25,6 +25,30 @@ data class ElementoDoLivro(
     val imagem_de_capa_id: Int? = null,
 )
 
+/** Um elemento numa lista **por capítulo** (VM2): as imagens do retrato dele **naquele** capítulo. */
+@Serializable
+@Suppress("PropertyName")
+data class ElementoDoCapitulo(
+    val elemento_id: Int,
+    val nome: String,
+    val tipo: String = "",
+    val imagens: List<ImagemCandidata> = emptyList(),
+)
+
+/** Um capítulo e os elementos que aparecem nele (com estado ou retrato), para o seletor navegável (VM2). */
+@Serializable
+@Suppress("PropertyName")
+data class CapituloComElementos(
+    val capitulo_id: Int,
+    val ordem: Int,
+    val titulo: String? = null,
+    val elementos: List<ElementoDoCapitulo> = emptyList(),
+)
+
+/** O livro inteiro por capítulo (VM1, VM2). */
+@Serializable
+data class ElementosPorCapitulo(val capitulos: List<CapituloComElementos> = emptyList())
+
 /** Uma imagem de um retrato do elemento, na ficha dele (FI2). [ancora] = a referência principal. */
 @Serializable
 @Suppress("PropertyName")
@@ -133,6 +157,9 @@ interface RepositorioDeElementos {
     /** `GET /livros/{id}/elementos`: para a lista de "vincular a um existente". */
     suspend fun listar(livroId: Int): ResultadoDaChamada<List<ElementoDoLivro>>
 
+    /** `GET /livros/{id}/elementos-por-capitulo` (VM2): os elementos do livro capítulo a capítulo, com as imagens dos retratos. Não gasta IA. */
+    suspend fun elementosPorCapitulo(livroId: Int): ResultadoDaChamada<List<CapituloComElementos>>
+
     /** `GET /elementos/{id}`: a identidade e o histórico, para o usuário conferir (E13, E14). */
     suspend fun detalhar(elementoId: Int): ResultadoDaChamada<DetalheDoElemento>
 
@@ -214,6 +241,11 @@ class RepositorioDeElementosPeloRetrofit(
     override suspend fun listar(livroId: Int): ResultadoDaChamada<List<ElementoDoLivro>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.elementosDoLivro(livroId) }
+    }
+
+    override suspend fun elementosPorCapitulo(livroId: Int): ResultadoDaChamada<List<CapituloComElementos>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.elementosPorCapitulo(livroId).capitulos }
     }
 
     override suspend fun detalhar(elementoId: Int): ResultadoDaChamada<DetalheDoElemento> {

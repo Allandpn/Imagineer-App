@@ -541,11 +541,54 @@ fun chaveDoFluxoDoRetrato(elementoId: Int): String = "retrato:$elementoId"
 /** A chave do fluxo de um toque de um **frame** (a cena). */
 fun chaveDoFluxoDoFrame(frameId: Int): String = "frame:$frameId"
 
+/** Uma seção do seletor por capítulo (VM2): o título e os elementos que cabem no filtro. */
+data class SecaoPorCapitulo(val titulo: String, val ehAtual: Boolean, val elementos: List<com.allan.imagineer.rede.ElementoDoCapitulo>)
+
+/**
+ * Organiza o seletor único de vínculo (VM1, VM2): **este capítulo primeiro**, depois os outros na ordem do livro, cada um com os
+ * elementos e as miniaturas das imagens dele ali. Filtra pela busca (sem ligar para maiúsculas nem acentos), por [apenasElementoId]
+ * (o "usar imagem existente" de um elemento só) e pelo tipo ([tipoDaSugestao], salvo [incluirOutrosTipos]); com tipo, os do mesmo tipo
+ * vêm primeiro. Elementos do livro que **não aparecem em nenhum capítulo** da lista (sem estado nem retrato) caem numa última seção
+ * "Sem capítulo", para nenhum sumir. Seção vazia não aparece.
+ */
+fun organizarPorCapitulo(
+    capitulos: List<com.allan.imagineer.rede.CapituloComElementos>,
+    capituloAtualId: Int?,
+    elementosDoLivro: List<ElementoDoLivro>,
+    tipoDaSugestao: String? = null,
+    busca: String = "",
+    incluirOutrosTipos: Boolean = false,
+    apenasElementoId: Int? = null,
+): List<SecaoPorCapitulo> {
+    val termo = semAcentos(busca.trim())
+    fun cabe(elemento: com.allan.imagineer.rede.ElementoDoCapitulo) =
+        (apenasElementoId == null || elemento.elemento_id == apenasElementoId) &&
+            (tipoDaSugestao == null || incluirOutrosTipos || elemento.tipo == tipoDaSugestao) &&
+            (termo.isEmpty() || semAcentos(elemento.nome).contains(termo))
+    fun ordenados(lista: List<com.allan.imagineer.rede.ElementoDoCapitulo>) =
+        lista.filter(::cabe).sortedWith(compareBy({ tipoDaSugestao != null && it.tipo != tipoDaSugestao }, { semAcentos(it.nome) }))
+
+    val ordemDasSecoes = capitulos.sortedWith(compareBy({ it.capitulo_id != capituloAtualId }, { it.ordem }))
+    val secoes = ordemDasSecoes.map { capitulo ->
+        val atual = capitulo.capitulo_id == capituloAtualId
+        val nome = "Capítulo ${capitulo.ordem}" + (capitulo.titulo?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
+        SecaoPorCapitulo(if (atual) "$nome (este capítulo)" else nome, atual, ordenados(capitulo.elementos))
+    }
+    val vistos = capitulos.flatMap { it.elementos }.map { it.elemento_id }.toSet()
+    val soltos = ordenados(
+        elementosDoLivro.filter { it.id !in vistos }.map { com.allan.imagineer.rede.ElementoDoCapitulo(it.id, it.nome, it.tipo) },
+    )
+    return (secoes + SecaoPorCapitulo("Sem capítulo", false, soltos)).filter { it.elementos.isNotEmpty() }
+}
+
 /** O botão do visualizador do capítulo que tira a imagem do capítulo sem apagar (OC1). */
 const val ROTULO_OCULTAR_DO_CAPITULO = "Ocultar do capítulo"
 
 /** O rótulo da ação de ocultar no painel: mostra de novo se já está oculta (OC1, OC3). */
 fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítulo" else ROTULO_OCULTAR_DO_CAPITULO
+
+/** O botão que aponta, para o retrato, uma imagem que o elemento já tem (VM3). */
+const val ROTULO_USAR_IMAGEM_EXISTENTE = "Usar imagem existente"
 
 /** O botão que gera só o prompt, sem a imagem (GP1). */
 const val ROTULO_SO_O_PROMPT = "Só o prompt"

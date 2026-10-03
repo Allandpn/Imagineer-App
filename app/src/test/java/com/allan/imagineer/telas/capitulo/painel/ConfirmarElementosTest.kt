@@ -106,6 +106,15 @@ internal class ElementosFalso : RepositorioDeElementos {
         return respostaADefinirCanonica
     }
 
+    /** O livro por capítulo que o "servidor" devolve (VM2) e quantas leituras foram pedidas. */
+    var porCapitulo: ResultadoDaChamada<List<com.allan.imagineer.rede.CapituloComElementos>> = ResultadoDaChamada.Sucesso(emptyList())
+    var leiturasPorCapitulo = 0
+
+    override suspend fun elementosPorCapitulo(livroId: Int): ResultadoDaChamada<List<com.allan.imagineer.rede.CapituloComElementos>> {
+        leiturasPorCapitulo++
+        return porCapitulo
+    }
+
     /** As ocultações pedidas (frame, oculta) e a resposta a dar (OC1). */
     val ocultacoesPedidas = mutableListOf<Pair<Int, Boolean>>()
     var respostaADefinirOculta: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)

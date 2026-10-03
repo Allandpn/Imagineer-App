@@ -358,7 +358,7 @@ class PainelDeIaViewModelTest {
         val vm = vm(repositorio)
         advanceUntilIdle()
 
-        assertEquals(EstadoDoPainel(), vm.estado.value)
+        assertEquals(EstadoDoPainel(capituloAtualId = 5), vm.estado.value)
         assertEquals(0, repositorio.leituras)
         assertTrue(repositorio.analises.isEmpty())
     }

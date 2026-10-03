@@ -150,6 +150,9 @@ class AcoesDoPainel(
     // A imagem canônica do frame (CAN6): `imagemId` nulo tira a escolha.
     val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
     val aoDefinirImagemOculta: (frameId: Int, oculta: Boolean) -> Unit,
+    val aoAbrirImagemExistente: (ElementoSugerido, frameId: Int?) -> Unit,
+    val aoFecharImagemExistente: () -> Unit,
+    val aoUsarImagemExistente: (imagemId: Int) -> Unit,
     val aoConfirmarExclusaoDeImagem: () -> Unit,
     val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
@@ -195,11 +198,12 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
+    estado.usandoImagemExistente?.let { DialogoDeImagemExistente(it, estado.capituloAtualId, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
-        is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, acoes)
+        is DialogoDeElemento.Vinculando -> DialogoVincularElemento(dialogo, estado.capituloAtualId, acoes)
         is DialogoDeElemento.Desfazendo -> DialogoDesfazer(dialogo, acoes)
         is DialogoDeElemento.DescartandoEmCenas -> DialogoDescartarEmCenas(dialogo, acoes)
         null -> Unit
@@ -306,6 +310,8 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
             Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
             // GP1: só o prompt, para usar em outro app de geração de imagem.
             OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoRetrato(elemento) }, enabled = !ocupado) { Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false) }
+            // VM3, VM4: usar uma imagem que o elemento já tem (de qualquer capítulo), sem gerar nada.
+            OutlinedButton(onClick = { acoes.aoAbrirImagemExistente(elemento, null) }, enabled = !ocupado) { Text(ROTULO_USAR_IMAGEM_EXISTENTE, maxLines = 1, softWrap = false) }
         }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
@@ -313,6 +319,7 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
             frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false,
             aoEscolherElementos = if (aceitaVinculos(elemento)) ({ acoes.aoAbrirSeletorDoRetrato(elemento, frameId) }) else null,
         )
+        TextButton(onClick = { acoes.aoAbrirImagemExistente(elemento, frameId) }) { Text(ROTULO_USAR_IMAGEM_EXISTENTE, maxLines = 1, softWrap = false) }
     }
 }
 
@@ -754,7 +761,7 @@ private fun SeletorDeTipo(tipo: String, aoEscolher: (String) -> Unit) {
  * a ficha por cima; ao voltar, este diálogo reaparece como estava — e "Usar este".
  */
 @Composable
-private fun DialogoVincularElemento(dialogo: DialogoDeElemento.Vinculando, acoes: AcoesDoPainel) {
+private fun DialogoVincularElemento(dialogo: DialogoDeElemento.Vinculando, estadoCapituloAtual: Int?, acoes: AcoesDoPainel) {
     var busca by rememberSaveable { mutableStateOf("") }
     var outrosTipos by rememberSaveable { mutableStateOf(false) }
 
@@ -789,19 +796,25 @@ private fun DialogoVincularElemento(dialogo: DialogoDeElemento.Vinculando, acoes
                         Button(onClick = acoes.aoRecarregarLista) { Text("Tentar de novo") }
                     }
                     is ListaParaVincular.Pronta -> {
-                        val filtrados = filtrarParaVincular(lista.elementos, dialogo.sugestao.tipo, busca, outrosTipos)
-                        if (filtrados.isEmpty()) {
+                        // VM1, VM2, VM5: os elementos deste capítulo e dos outros, capítulo a capítulo, com as miniaturas das imagens.
+                        val secoes = organizarPorCapitulo(
+                            lista.capitulos, estadoCapituloAtual, lista.elementos, dialogo.sugestao.tipo, busca, outrosTipos,
+                        )
+                        if (secoes.isEmpty()) {
                             Text(
                                 if (outrosTipos) "Nenhum elemento encontrado."
                                 else "Nenhum elemento de ${rotuloDoTipo(dialogo.sugestao.tipo).lowercase()} encontrado.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
-                        LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                            items(filtrados, key = { it.id }) { elemento ->
-                                ElementoDaLista(elemento, dialogo.salvando, acoes)
-                            }
-                        }
+                        ListaPorCapitulo(
+                            secoes = secoes,
+                            desativado = dialogo.salvando,
+                            rotuloDoElemento = "Usar este",
+                            aoEscolher = { elementoId, _ -> acoes.aoEscolherElemento(elementoId) },
+                            aoVerFicha = { acoes.aoAbrirFicha(it, false) },
+                            modifier = Modifier.heightIn(max = 420.dp),
+                        )
                     }
                 }
             }
@@ -811,27 +824,6 @@ private fun DialogoVincularElemento(dialogo: DialogoDeElemento.Vinculando, acoes
             TextButton(onClick = acoes.aoCancelarDialogo, enabled = !dialogo.salvando) { Text("Cancelar") }
         },
     )
-}
-
-/** O nome em linha própria (nunca espremido por botões) e as ações embaixo (E23). */
-@Composable
-private fun ElementoDaLista(elemento: ElementoDoLivro, salvando: Boolean, acoes: AcoesDoPainel) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-        Text(elemento.nome, style = MaterialTheme.typography.titleSmall)
-        Text(
-            rotuloDoTipo(elemento.tipo),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(onClick = { acoes.aoAbrirFicha(elemento.id, false) }) { Text("Ver ficha") }
-            Button(onClick = { acoes.aoEscolherElemento(elemento.id) }, enabled = !salvando) { Text("Usar este") }
-        }
-    }
 }
 
 /** E15: desligar a sugestão do elemento, com a escolha — nunca automática — de apagar o estado daqui. */
