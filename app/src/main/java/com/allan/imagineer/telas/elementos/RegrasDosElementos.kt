@@ -73,9 +73,13 @@ fun temEstadoNoCapitulo(detalhe: DetalheDoElemento, capituloId: Int): Boolean =
 // As imagens e as cenas na ficha (FI1 a FI9)
 // ---------------------------------------------------------------------------------------------
 
-/** A legenda de uma imagem da ficha (FI5): o capítulo de onde veio e, se for a principal, o selo. */
+/** A legenda de uma imagem da ficha (FI5, CAN6): o capítulo de onde veio e, se for a canônica, o selo (ou, só âncora, "referência principal"). */
 fun legendaDaImagemDoElemento(imagem: ImagemDoElemento): String =
-    rotuloDoCapitulo(imagem.titulo_do_capitulo, imagem.ordem_do_capitulo) + if (imagem.ancora) " · referência principal" else ""
+    rotuloDoCapitulo(imagem.titulo_do_capitulo, imagem.ordem_do_capitulo) + when {
+        imagem.canonica -> " · canônica"
+        imagem.ancora -> " · referência principal"
+        else -> ""
+    }
 
 /** "Com Prato, Manto" (FI5), ou `null` quando a cena só tem este elemento. */
 fun linhaDeParticipantes(cena: CenaDoElemento): String? =
@@ -92,5 +96,5 @@ fun situacaoDaImagemDaCena(cena: CenaDoElemento): String = when {
 fun resumoDaCena(cena: CenaDoElemento): String =
     rotuloDoCapitulo(cena.titulo_do_capitulo, cena.ordem_do_capitulo) + " · " + situacaoDaImagemDaCena(cena)
 
-/** Esta imagem da ficha pode virar a referência principal (FI6)? Só se ainda não é. */
-fun podeSerReferenciaPrincipal(imagem: ImagemDoElemento): Boolean = !imagem.ancora
+/** Esta imagem da ficha pode virar a canônica do retrato dela (CAN6)? Só se ainda não é. */
+fun podeSerCanonica(imagem: ImagemDoElemento): Boolean = !imagem.canonica

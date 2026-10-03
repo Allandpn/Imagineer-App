@@ -40,6 +40,8 @@ data class ImagemDoElemento(
     val origem: String = "IMPORTADA",
     val sem_filtro_de_seguranca: Boolean = false,
     val ancora: Boolean = false,
+    /** É a imagem canônica do retrato dela: a que o capítulo mostra (CAN5). */
+    val canonica: Boolean = false,
 )
 
 /** Uma cena em que o elemento participa, na ficha dele (FI3); [imagem_id] nulo = ainda sem imagem. */
@@ -167,6 +169,12 @@ interface RepositorioDeElementos {
         ancoraPadraoId: Int? = null,
     ): ResultadoDaChamada<Unit>
 
+    /**
+     * `PUT /frames/{id}/imagem-canonica` (CAN3): escolhe a imagem canônica do frame, a que o capítulo mostra; [imagemId] nulo tira a
+     * escolha. No retrato ela vira também a âncora do estado. Não gasta IA.
+     */
+    suspend fun definirImagemCanonica(frameId: Int, imagemId: Int?): ResultadoDaChamada<Unit>
+
     /** `POST /elementos/{id}/estados`: um estado novo **neste** capítulo (E14). */
     suspend fun criarEstado(elementoId: Int, capituloId: Int, descricao: String): ResultadoDaChamada<Unit>
 
@@ -271,6 +279,12 @@ class RepositorioDeElementosPeloRetrofit(
             ancoraPadraoId?.let { put("imagem_ancora_padrao_id", it) }
         }
         return chamarApi { api.ajustarElemento(elementoId, corpo); Unit }
+    }
+
+    override suspend fun definirImagemCanonica(frameId: Int, imagemId: Int?): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo = buildJsonObject { if (imagemId != null) put("imagem_id", imagemId) else put("imagem_id", JsonNull) }
+        return chamarApi { api.definirImagemCanonica(frameId, corpo); Unit }
     }
 
     override suspend fun criarEstado(elementoId: Int, capituloId: Int, descricao: String): ResultadoDaChamada<Unit> {

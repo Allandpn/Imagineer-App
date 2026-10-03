@@ -77,6 +77,8 @@ data class ImagemDoPrompt(
     val modelo: String? = null,
     /** A imagem foi gerada com o filtro de segurança do modelo desligado (F16). */
     val sem_filtro_de_seguranca: Boolean = false,
+    /** É a imagem canônica do frame dela: a que o capítulo mostra (CAN5). */
+    val canonica: Boolean = false,
     val data_importacao: String = "",
 )
 

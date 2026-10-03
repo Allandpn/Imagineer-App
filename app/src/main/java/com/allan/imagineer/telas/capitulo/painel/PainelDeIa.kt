@@ -143,6 +143,8 @@ class AcoesDoPainel(
     val aoFecharEdicaoDePrompt: () -> Unit,
     // Excluir a imagem (U3).
     val aoPedirExcluirImagem: (frameId: Int, promptId: Int, imagemId: Int, origem: String) -> Unit,
+    // A imagem canônica do frame (CAN6): `imagemId` nulo tira a escolha.
+    val aoDefinirImagemCanonica: (frameId: Int, imagemId: Int?) -> Unit,
     val aoConfirmarExclusaoDeImagem: () -> Unit,
     val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,

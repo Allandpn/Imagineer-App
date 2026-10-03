@@ -268,6 +268,10 @@ interface ApiImagineer {
     @PUT("frames/{id}/vinculos")
     suspend fun definirVinculos(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
 
+    /** `PUT /frames/{id}/imagem-canonica` — escolhe a imagem canônica do frame (`imagem_id` nulo tira a escolha, CAN3). Não gasta IA. */
+    @PUT("frames/{id}/imagem-canonica")
+    suspend fun definirImagemCanonica(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo

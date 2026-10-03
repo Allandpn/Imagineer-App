@@ -210,13 +210,14 @@ class FichaDoElementoViewModel(
     }
 
     /**
-     * **Usar como referência principal** (FI6): grava a imagem como a âncora padrão do elemento (`PATCH`) e relê a galeria, para o
-     * selo mudar de imagem. A recusa do servidor aparece como recado da galeria.
+     * **Definir como canônica** (CAN6, que substituiu o *Usar como referência principal* do FI6): escolhe a imagem como a canônica do
+     * retrato dela (`PUT /frames/{id}/imagem-canonica`), que é também a âncora do estado, e relê a galeria, para o selo mudar de
+     * imagem. A recusa do servidor aparece como recado da galeria.
      */
-    fun definirReferenciaPrincipal(imagemId: Int) {
+    fun definirImagemCanonica(frameId: Int, imagemId: Int) {
         _estado.update { it.copy(recadoDaGaleria = null) }
         viewModelScope.launch {
-            when (val resultado = elementos.ajustarElemento(elementoId, ancoraPadraoId = imagemId)) {
+            when (val resultado = elementos.definirImagemCanonica(frameId, imagemId)) {
                 is ResultadoDaChamada.Sucesso -> lerGaleria()
                 is ResultadoDaChamada.Falha -> _estado.update { it.copy(recadoDaGaleria = resultado.motivo) }
             }

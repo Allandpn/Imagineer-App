@@ -475,6 +475,9 @@ const val LIMITE_DO_AJUSTE_DO_PROMPT = 2000
 /** O rótulo do botão (G3): "Gerar prompt" na primeira vez, "Gerar outro prompt" depois. */
 fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "Novo prompt" else "Gerar prompt"
 
+/** O rótulo da ação do visualizador de imagens (CAN6): escolher a canônica ou, se já é, tirar a escolha. */
+fun rotuloDaAcaoCanonica(jaECanonica: Boolean): String = if (jaECanonica) "Tirar a escolha de canônica" else "Definir como canônica"
+
 /** O que o diálogo de confirmação diz (G3): que **gasta IA**, e o que o campo "Ajuste" faz. */
 const val TEXTO_DO_DIALOGO_DE_PROMPT =
     "Gerar o prompt gasta IA: ela relê o capítulo e monta o texto para você colar na ferramenta de imagem. " +

@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -234,16 +236,21 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
         // Do mais novo para o mais antigo (J4).
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             imagens.sortedByDescending { it.id }.forEach { imagem ->
-                AsyncImage(
-                    model = enderecoDaImagem(urlBase, imagem.id, "miniatura"),
-                    contentDescription = descricao,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .size(96.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black)
-                        .clickable { abertaId = imagem.id },
-                )
+                Column(modifier = Modifier.width(96.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    AsyncImage(
+                        model = enderecoDaImagem(urlBase, imagem.id, "miniatura"),
+                        contentDescription = if (imagem.canonica) "$descricao, canônica" else descricao,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black)
+                            .border(if (imagem.canonica) 3.dp else 0.dp, if (imagem.canonica) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+                            .clickable { abertaId = imagem.id },
+                    )
+                    // CAN6: o selo da imagem que o capítulo mostra.
+                    if (imagem.canonica) Text("Canônica", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
     }
@@ -254,6 +261,8 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
                 url = enderecoDaImagem(urlBase, imagem.id, "original"),
                 aoExcluir = { acoes.aoPedirExcluirImagem(frameId, imagem.prompt_id, imagem.id, imagem.origem) },
                 aoFechar = { abertaId = null },
+                // CAN6: escolher a canônica (a que o capítulo mostra) ou, se já é, tirar a escolha.
+                acaoExtra = rotuloDaAcaoCanonica(imagem.canonica) to { acoes.aoDefinirImagemCanonica(frameId, if (imagem.canonica) null else imagem.id); abertaId = null },
             )
         }
     }
@@ -270,7 +279,7 @@ internal fun ImagemEmTelaCheia(
     aoExcluir: (() -> Unit)?,
     aoFechar: () -> Unit,
     mostrarOrigem: Boolean = true,
-    /** Uma ação a mais na barra de baixo (a ficha põe "Usar como referência principal", FI6): rótulo e o que fazer. */
+    /** Uma ação a mais na barra de baixo ("Definir como canônica", CAN6): rótulo e o que fazer. */
     acaoExtra: Pair<String, () -> Unit>? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }

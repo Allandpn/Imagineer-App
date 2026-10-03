@@ -293,6 +293,7 @@ private fun LeitorPaginado(
         aoEditarPrompt = painel::editarPrompt,
         aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,
         aoPedirExcluirImagem = painel::pedirExcluirImagem,
+        aoDefinirImagemCanonica = painel::definirImagemCanonica,
         aoConfirmarExclusaoDeImagem = painel::confirmarExclusaoDeImagem,
         aoCancelarExclusaoDeImagem = painel::cancelarExclusaoDeImagem,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,

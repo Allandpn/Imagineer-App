@@ -538,6 +538,31 @@ class PainelDeIaViewModel(
      * A listagem do frame só diz **quantas** imagens cada prompt tem; as imagens vêm em `GET /prompts/{id}` (J5). Busca-se
      * só dos prompts que têm, e uma falha ali não derruba a lista: o prompt aparece sem as miniaturas.
      */
+    /**
+     * Escolhe (ou, com [imagemId] nulo, tira) a **imagem canônica** do frame (CAN6): a que o capítulo mostra. Relê os prompts do
+     * frame **sem piscar** para o selo mudar de miniatura e manda a tela reler os artefatos. A recusa vira recado do frame.
+     */
+    fun definirImagemCanonica(frameId: Int, imagemId: Int?) {
+        viewModelScope.launch {
+            when (val resultado = elementos.definirImagemCanonica(frameId, imagemId)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    val lista = (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado
+                    _estado.update { atual ->
+                        atual.copy(
+                            prompts = if (lista != null) atual.prompts + (frameId to PromptsDoFrame.Pronto(comAsImagensLidas(lista))) else atual.prompts,
+                            mensagensDePrompt = atual.mensagensDePrompt - frameId,
+                            versaoDosFrames = atual.versaoDosFrames + 1,
+                        )
+                    }
+                }
+                is ResultadoDaChamada.Falha ->
+                    _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(resultado.motivo, ehErro = true))) }
+            }
+        }
+    }
+
+    private suspend fun comAsImagensLidas(lista: List<PromptDeFrame>): List<PromptDeFrame> = comAsImagens(lista).reversed()
+
     private suspend fun comAsImagens(lista: List<PromptDeFrame>): List<PromptDeFrame> = lista.map { prompt ->
         if (prompt.total_de_imagens == 0) {
             prompt

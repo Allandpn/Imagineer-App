@@ -97,6 +97,15 @@ internal class ElementosFalso : RepositorioDeElementos {
     /** As âncoras padrão pedidas por `ajustarElemento` (FI6). */
     val ancorasPedidas = mutableListOf<Int>()
 
+    /** As escolhas de imagem canônica pedidas (frame, imagem), e a resposta a dar (CAN3). */
+    val canonicasPedidas = mutableListOf<Pair<Int, Int?>>()
+    var respostaADefinirCanonica: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+
+    override suspend fun definirImagemCanonica(frameId: Int, imagemId: Int?): ResultadoDaChamada<Unit> {
+        canonicasPedidas += frameId to imagemId
+        return respostaADefinirCanonica
+    }
+
     override suspend fun galeria(elementoId: Int): ResultadoDaChamada<com.allan.imagineer.rede.GaleriaDoElemento> {
         leiturasDaGaleria++
         return galeriaDoElemento

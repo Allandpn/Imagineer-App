@@ -172,7 +172,7 @@ private fun ConteudoDaFicha(
 
         // --- Imagens do elemento (FI5): logo no alto, porque é o que a pessoa quer ver primeiro ---------
         item {
-            SecaoDeImagensDaFicha(galeria, recadoDaGaleria, viewModel::tentarDeNovoAGaleria, viewModel::definirReferenciaPrincipal)
+            SecaoDeImagensDaFicha(galeria, recadoDaGaleria, viewModel::tentarDeNovoAGaleria, viewModel::definirImagemCanonica)
         }
 
         // --- Quem é: a identidade inicial mais o que cada capítulo acrescentou ---------------

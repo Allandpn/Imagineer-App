@@ -30,8 +30,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-private fun imagem(id: Int, ancora: Boolean = false, titulo: String? = "Capítulo VI", ordem: Int? = 6) =
-    ImagemDoElemento(id = id, titulo_do_capitulo = titulo, ordem_do_capitulo = ordem, ancora = ancora)
+private fun imagem(id: Int, ancora: Boolean = false, titulo: String? = "Capítulo VI", ordem: Int? = 6, canonica: Boolean = false) =
+    ImagemDoElemento(id = id, frame_id = 50, titulo_do_capitulo = titulo, ordem_do_capitulo = ordem, ancora = ancora, canonica = canonica)
 
 private fun livroQualquer() = LivroDetalhe(
     id = 4, titulo = "Livro", nome_arquivo = "l.epub", data_importacao = "2026-09-30T00:00:00",
@@ -51,6 +51,7 @@ class RegrasDaGaleriaTest {
     fun `FI5 a legenda diz o capitulo, e a principal leva o selo`() {
         assertEquals("Capítulo VI", legendaDaImagemDoElemento(imagem(1)))
         assertEquals("Capítulo VI · referência principal", legendaDaImagemDoElemento(imagem(1, ancora = true)))
+        assertEquals("Capítulo VI · canônica", legendaDaImagemDoElemento(imagem(1, ancora = true, canonica = true)))
         assertEquals("Capítulo 4", legendaDaImagemDoElemento(imagem(1, titulo = null, ordem = 4)))
     }
 
@@ -74,9 +75,10 @@ class RegrasDaGaleriaTest {
     }
 
     @Test
-    fun `FI6 so a que ainda nao e a principal pode virar a principal`() {
-        assertTrue(podeSerReferenciaPrincipal(imagem(1)))
-        assertFalse(podeSerReferenciaPrincipal(imagem(1, ancora = true)))
+    fun `CAN6 so a que ainda nao e a canonica pode virar a canonica`() {
+        assertTrue(podeSerCanonica(imagem(1)))
+        assertTrue(podeSerCanonica(imagem(1, ancora = true)))
+        assertFalse(podeSerCanonica(imagem(1, canonica = true)))
     }
 }
 
@@ -140,40 +142,40 @@ class GaleriaNaFichaTest {
         vm.carregar(); advanceUntilIdle()
 
         falso.galeriaDoElemento = ResultadoDaChamada.Falha("fora do ar")
-        vm.definirReferenciaPrincipal(1); advanceUntilIdle()
+        vm.definirImagemCanonica(50, 1); advanceUntilIdle()
 
         assertEquals(CargaDaGaleria.Pronta(galeria), vm.estado.value.galeria)
     }
 
     @Test
-    fun `FI6 usar como referencia principal faz o PATCH e relê a galeria para o selo mudar`() = runTest {
+    fun `CAN6 definir como canonica faz o PUT no frame da imagem e relê a galeria para o selo mudar`() = runTest {
         val falso = ElementosFalso().also { it.galeriaDoElemento = ResultadoDaChamada.Sucesso(galeria) }
         val (vm, _) = montar(falso)
         vm.carregar(); advanceUntilIdle()
         val leiturasAntes = falso.leiturasDaGaleria
 
-        falso.galeriaDoElemento = ResultadoDaChamada.Sucesso(GaleriaDoElemento(imagens = listOf(imagem(2), imagem(1, ancora = true))))
-        vm.definirReferenciaPrincipal(1); advanceUntilIdle()
+        falso.galeriaDoElemento = ResultadoDaChamada.Sucesso(GaleriaDoElemento(imagens = listOf(imagem(2), imagem(1, ancora = true, canonica = true))))
+        vm.definirImagemCanonica(50, 1); advanceUntilIdle()
 
-        assertEquals(listOf(1), falso.ancorasPedidas)
+        assertEquals(listOf(50 to 1), falso.canonicasPedidas)
         assertEquals(leiturasAntes + 1, falso.leiturasDaGaleria)
         val atual = (vm.estado.value.galeria as CargaDaGaleria.Pronta).galeria
-        assertEquals(listOf(1), atual.imagens.filter { it.ancora }.map { it.id })
+        assertEquals(listOf(1), atual.imagens.filter { it.canonica }.map { it.id })
         assertNull(vm.estado.value.recadoDaGaleria)
     }
 
     @Test
-    fun `FI6 a recusa do servidor aparece como recado, sem mudar a galeria`() = runTest {
+    fun `CAN6 a recusa do servidor aparece como recado, sem mudar a galeria`() = runTest {
         val falso = ElementosFalso().also {
             it.galeriaDoElemento = ResultadoDaChamada.Sucesso(galeria)
-            it.respostaAoAjustarElemento = ResultadoDaChamada.Falha("Não existe imagem com id 1")
+            it.respostaADefinirCanonica = ResultadoDaChamada.Falha("Essa imagem não é de um prompt deste frame.")
         }
         val (vm, _) = montar(falso)
         vm.carregar(); advanceUntilIdle()
 
-        vm.definirReferenciaPrincipal(1); advanceUntilIdle()
+        vm.definirImagemCanonica(50, 1); advanceUntilIdle()
 
-        assertEquals("Não existe imagem com id 1", vm.estado.value.recadoDaGaleria)
+        assertEquals("Essa imagem não é de um prompt deste frame.", vm.estado.value.recadoDaGaleria)
         assertEquals(CargaDaGaleria.Pronta(galeria), vm.estado.value.galeria)
     }
 }

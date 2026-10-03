@@ -46,7 +46,7 @@ private data class Ampliada(val imagemId: Int, val acao: Pair<String, () -> Unit
 
 /**
  * A seção **Imagens** da ficha (FI5): a grade de miniaturas dos retratos do elemento, a **âncora** com um selo e o capítulo na
- * legenda. **Tocar** abre a tela cheia (I4), onde, se a imagem ainda não é a principal, há **"Usar como referência principal"** (FI6).
+ * legenda. **Tocar** abre a tela cheia (I4), onde, se a imagem ainda não é a canônica, há **"Definir como canônica"** (CAN6).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -54,7 +54,7 @@ fun SecaoDeImagensDaFicha(
     carga: CargaDaGaleria,
     recado: String?,
     aoTentarDeNovo: () -> Unit,
-    aoDefinirReferencia: (Int) -> Unit,
+    aoDefinirCanonica: (frameId: Int, imagemId: Int) -> Unit,
 ) {
     val urlBase = urlDoServidorEmUso()
     var ampliada by remember { mutableStateOf<Ampliada?>(null) }
@@ -76,7 +76,7 @@ fun SecaoDeImagensDaFicha(
                         imagens.forEach { imagem -> MiniaturaDaFicha(imagem, urlBase) {
                             ampliada = Ampliada(
                                 imagem.id,
-                                if (podeSerReferenciaPrincipal(imagem)) "Usar como referência principal" to { aoDefinirReferencia(imagem.id) } else null,
+                                if (podeSerCanonica(imagem)) "Definir como canônica" to { aoDefinirCanonica(imagem.frame_id, imagem.id) } else null,
                             )
                         } }
                     }
@@ -111,7 +111,7 @@ private fun MiniaturaDaFicha(imagem: ImagemDoElemento, urlBase: String, aoTocar:
                 .size(112.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color.Black)
-                .border(if (imagem.ancora) 3.dp else 0.dp, if (imagem.ancora) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
+                .border(if (imagem.canonica) 3.dp else 0.dp, if (imagem.canonica) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
                 .clickable(onClickLabel = "Ampliar a imagem", onClick = aoTocar)
                 .semantics { contentDescription = "Imagem. $legenda. Toque para ampliar." },
         )
