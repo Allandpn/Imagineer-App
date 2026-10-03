@@ -16,7 +16,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.selection.selectable
@@ -50,6 +59,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
@@ -291,6 +301,8 @@ internal fun ImagemEmTelaCheia(
     acaoExtra: Pair<String, () -> Unit>? = null,
     /** Outra ação a mais ("Ocultar do capítulo", OC1): rótulo e o que fazer. */
     outraAcao: Pair<String, () -> Unit>? = null,
+    /** Abre o perfil do elemento (ou da cena) da imagem; `null` quando não se sabe de quem ela é. */
+    aoVerPerfil: (() -> Unit)? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -298,6 +310,7 @@ internal fun ImagemEmTelaCheia(
     val aplicacao = contexto.applicationContext as ImagineerApp
     val escopo = rememberCoroutineScope()
     var baixando by remember { mutableStateOf(false) }
+    var barraVisivel by remember { mutableStateOf(true) }
 
     /**
      * Baixa o original para o cache (U4) e entrega o arquivo já com a extensão certa à [acao]. **Nada daqui fecha o app**:
@@ -337,6 +350,7 @@ internal fun ImagemEmTelaCheia(
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures(onTap = { barraVisivel = !barraVisivel }) }
                     .pointerInput(Unit) {
                         detectTransformGestures { _, arraste, zoom, _ ->
                             escala = (escala * zoom).coerceIn(1f, 6f)
@@ -355,7 +369,7 @@ internal fun ImagemEmTelaCheia(
                 Icon(Icons.Filled.Close, contentDescription = "Fechar", tint = Color.White)
             }
             // Z8: quem gerou a imagem (no capítulo não se sabe, só o id: sem rótulo). RS2: e com quais referências.
-            if (mostrarOrigem) Column(
+            if (mostrarOrigem && barraVisivel) Column(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(16.dp)
@@ -368,38 +382,54 @@ internal fun ImagemEmTelaCheia(
                     MiniaturasDeReferencia(imagem.imagens_de_referencia, legenda = "Gerada com estas referências", corDaLegenda = Color.White)
                 }
             }
-            Row(
+            // Os ícones (sem texto; o rótulo é a descrição de acessibilidade). Tocar na imagem esconde ou mostra a barra.
+            if (barraVisivel) Row(
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = 0.55f)).padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(
-                    onClick = {
-                        baixarE("compartilhar") { arquivo, tipo ->
-                            if (!compartilharImagem(contexto, arquivo, tipo)) {
-                                Toast.makeText(contexto, "Não consegui compartilhar a imagem.", Toast.LENGTH_SHORT).show()
-                            }
+                IconeDaBarra(Icons.Filled.Share, "Compartilhar", enabled = !baixando) {
+                    baixarE("compartilhar") { arquivo, tipo ->
+                        if (!compartilharImagem(contexto, arquivo, tipo)) {
+                            Toast.makeText(contexto, "Não consegui compartilhar a imagem.", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    enabled = !baixando,
-                ) {
-                    Text("Compartilhar", color = Color.White)
+                    }
                 }
-                TextButton(
-                    onClick = {
-                        baixarE("salvar") { arquivo, tipo ->
-                            val salvou = salvarNaGaleria(contexto, arquivo, tipo)
-                            Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    enabled = !baixando,
-                ) { Text("Salvar na galeria", color = Color.White) }
-                acaoExtra?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
-                outraAcao?.let { (rotulo, aoTocar) -> TextButton(onClick = aoTocar) { Text(rotulo, color = Color.White) } }
+                IconeDaBarra(Icons.Filled.Download, "Salvar na galeria", enabled = !baixando) {
+                    baixarE("salvar") { arquivo, tipo ->
+                        val salvou = salvarNaGaleria(contexto, arquivo, tipo)
+                        Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
+                    }
+                }
+                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, onClick = aoTocar) }
+                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, onClick = aoTocar) }
+                // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
+                aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", onClick = it) }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
-                if (aoExcluir != null) TextButton(onClick = aoExcluir) { Text("Para a lixeira", color = Color(0xFFFF8A80)) }
+                if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)
             }
             if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
     }
+}
+
+/** Um ícone da barra do visualizador: o [rotulo] fica como descrição para quem usa leitor de tela. */
+@Composable
+private fun IconeDaBarra(
+    icone: androidx.compose.ui.graphics.vector.ImageVector,
+    rotulo: String,
+    enabled: Boolean = true,
+    cor: Color = Color.White,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
+}
+
+/** O ícone de cada ação extra do visualizador (a canônica, ocultar e mostrar no capítulo); o resto cai num ícone genérico. */
+internal fun iconeDaAcaoDaImagem(rotulo: String): androidx.compose.ui.graphics.vector.ImageVector = when (rotulo) {
+    rotuloDaAcaoCanonica(false) -> Icons.Filled.StarBorder
+    rotuloDaAcaoCanonica(true) -> Icons.Filled.Star
+    rotuloDaOcultacao(false) -> Icons.Filled.VisibilityOff
+    rotuloDaOcultacao(true) -> Icons.Filled.Visibility
+    else -> Icons.Filled.MoreHoriz
 }

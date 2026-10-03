@@ -1,5 +1,11 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import com.allan.imagineer.rede.ElementoParaVincular
 import com.allan.imagineer.rede.ElementosParaVincular
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -152,5 +158,51 @@ class ReposicionarEApagarNoPainelTest {
         assertEquals("Frame não encontrado.", alvo!!.erro)
         assertEquals(false, alvo.apagando)
         assertEquals(1, vm.estado.value.modais.size) // o modal continua
+    }
+
+    @Test
+    fun `apagar a cena de uma sugestao relê a lista para o modal refletir que ela voltou a pendente`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel(); advanceUntilIdle()
+        val leiturasAntes = repositorio.leituras
+
+        vm.pedirApagarFrame(70, "A partida", deSugestao = true)
+        assertEquals(true, vm.estado.value.apagandoFrame?.deSugestao)
+        vm.confirmarApagarFrame(); advanceUntilIdle()
+
+        assertEquals(listOf(70), repositorio.framesApagados)
+        assertTrue("releu as sugestões", repositorio.leituras > leiturasAntes)
+    }
+
+    @Test
+    fun `apagar o frame de um trecho nao relê as sugestoes`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.aoAbrirPainel(); advanceUntilIdle()
+        val leiturasAntes = repositorio.leituras
+
+        vm.pedirApagarFrame(70, "O vento")
+        vm.confirmarApagarFrame(); advanceUntilIdle()
+
+        assertEquals(leiturasAntes, repositorio.leituras)
+    }
+}
+
+/** Os rótulos e os ícones do visualizador de imagem (tela cheia). */
+class IconesDoVisualizadorTest {
+
+    @Test
+    fun `cada acao conhecida tem o seu icone, e a canonica e a ocultacao mudam com o estado`() {
+        assertEquals(Icons.Filled.StarBorder, iconeDaAcaoDaImagem(rotuloDaAcaoCanonica(false)))
+        assertEquals(Icons.Filled.Star, iconeDaAcaoDaImagem(rotuloDaAcaoCanonica(true)))
+        assertEquals(Icons.Filled.VisibilityOff, iconeDaAcaoDaImagem(rotuloDaOcultacao(false)))
+        assertEquals(Icons.Filled.Visibility, iconeDaAcaoDaImagem(rotuloDaOcultacao(true)))
+        assertEquals(Icons.Filled.MoreHoriz, iconeDaAcaoDaImagem("outra coisa"))
+    }
+
+    @Test
+    fun `o botao que tira a posicao diz o que faz`() {
+        assertEquals("Voltar à posição automática", ROTULO_TIRAR_POSICAO)
     }
 }

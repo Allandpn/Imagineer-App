@@ -79,6 +79,8 @@ import com.allan.imagineer.rede.CapituloDetalhe
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel
+import com.allan.imagineer.telas.capitulo.painel.EstadoDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ComAcaoDeGerarImagemDoTrecho
 import com.allan.imagineer.telas.capitulo.painel.paragrafoDoTrecho
 import androidx.compose.foundation.border
@@ -313,7 +315,7 @@ private fun LeitorPaginado(
         aoIniciarPosicionamento = painel::iniciarPosicionamento,
         aoIniciarPosicionamentoDeFrame = painel::iniciarPosicionamentoDeFrame,
         aoTirarPosicao = painel::tirarPosicao,
-        aoPedirApagarFrame = painel::pedirApagarFrame,
+        aoPedirApagarFrame = { frameId, rotulo, deSugestao -> painel.pedirApagarFrame(frameId, rotulo, deSugestao) },
         aoCancelarApagarFrame = painel::cancelarApagarFrame,
         aoConfirmarApagarFrame = painel::confirmarApagarFrame,
         aoFecharTrecho = painel::fecharTrecho,
@@ -423,6 +425,7 @@ private fun LeitorPaginado(
                             },
                             aoEscolherParagrafo = painel::escolherParagrafo,
                             aoGerarImagemDoTrecho = painel::abrirTrecho,
+                            aoVerPerfilDoArtefato = { artefato -> verPerfilDoArtefato(artefato, estadoDoPainel, painel, acoesDoPainel) },
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
@@ -490,6 +493,7 @@ private fun PaginaDoCapitulo(
     aoEscolherParagrafo: (posicao: Int) -> Unit,
     aoCancelarPosicionamento: () -> Unit,
     aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
+    aoVerPerfilDoArtefato: (Artefato) -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
@@ -533,6 +537,7 @@ private fun PaginaDoCapitulo(
                 aoEscolherParagrafo = aoEscolherParagrafo,
                 aoCancelarPosicionamento = aoCancelarPosicionamento,
                 aoGerarImagemDoTrecho = { trecho, posicao -> if (ehAtual) aoGerarImagemDoTrecho(trecho, posicao) },
+                aoVerPerfilDoArtefato = aoVerPerfilDoArtefato,
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -557,6 +562,7 @@ private fun LeitorDeTexto(
     aoEscolherParagrafo: (posicao: Int) -> Unit,
     aoCancelarPosicionamento: () -> Unit,
     aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
+    aoVerPerfilDoArtefato: (Artefato) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -726,7 +732,27 @@ private fun LeitorDeTexto(
                 mostrarOrigem = false,
                 // OC1: tirar a imagem do capítulo sem apagar (ela continua na galeria; "Mostrar no capítulo" volta pelo painel).
                 acaoExtra = artefato.frame_id?.let { frame -> ROTULO_OCULTAR_DO_CAPITULO to { aoOcultarImagem(frame); ampliada = null } },
+                // O perfil de quem a imagem ilustra: o elemento (ficha) ou a cena (o modal dela).
+                aoVerPerfil = if (artefato.sugestao_id != null || artefato.frame_id != null) ({ aoVerPerfilDoArtefato(artefato); ampliada = null }) else null,
             )
+        }
+    }
+}
+
+/**
+ * "Ver perfil" na imagem em tela cheia: o **elemento** abre a ficha dele; a **cena** abre o modal dela (que é o perfil da cena); um
+ * frame sem sugestão (a cena de um trecho) abre o modal do frame. Sem as sugestões lidas ainda, abre o modal da sugestão (que as lê).
+ */
+private fun verPerfilDoArtefato(artefato: Artefato, estado: EstadoDoPainel, painel: PainelDeIaViewModel, acoes: AcoesDoPainel) {
+    val sugestaoId = artefato.sugestao_id
+    val frameId = artefato.frame_id
+    when {
+        artefato.tipo == "CENA" && sugestaoId != null -> painel.abrirModalDeCena(sugestaoId)
+        sugestaoId == null && frameId != null -> painel.abrirModalDeFrame(frameId, artefato.rotulo)
+        sugestaoId != null -> {
+            val elementoId = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.elementos
+                ?.firstOrNull { it.id == sugestaoId }?.elemento_casado?.id
+            if (elementoId != null) acoes.aoAbrirFicha(elementoId, true) else painel.abrirModal(sugestaoId)
         }
     }
 }

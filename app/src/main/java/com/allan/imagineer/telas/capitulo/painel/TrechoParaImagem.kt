@@ -2,12 +2,14 @@ package com.allan.imagineer.telas.capitulo.painel
 
 import android.content.ClipboardManager
 import android.content.Context
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
+import android.view.KeyEvent
 import android.view.View
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,102 +27,59 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.TextToolbar
-import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.unit.dp
 
 /**
- * Dá à **barra de seleção de texto** do capítulo uma ação a mais, **"Gerar imagem deste trecho"** (TR1), mantendo **Copiar** e
- * **Selecionar tudo**: a seleção de texto continua sempre disponível (os dicionários do futuro dependem dela). A ação copia o trecho
- * selecionado, lê da área de transferência e o entrega a [aoGerarDoTrecho]; a barra normal do Android vai junto, só que com um item a mais.
+ * Dá ao **menu da seleção de texto** do capítulo um item a mais, **"Gerar imagem deste trecho"** (TR1), junto de Copiar e Selecionar
+ * tudo: a seleção continua intacta (os dicionários do futuro dependem dela). O Compose 1.10 usa o menu de texto **novo**
+ * (`appendTextContextMenuComponents`), que **não entrega o texto selecionado** ao item; por isso a ação aciona o atalho **Copiar** da
+ * própria seleção (Ctrl+C, que o `SelectionContainer` já trata), lê o trecho da área de transferência e o entrega a [aoGerarDoTrecho].
+ * Efeito colateral: o trecho fica copiado.
  */
 @Composable
 internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
-    val barra = remember(visao, contexto) { BarraDeSelecaoComTrecho(visao, contexto, aoGerarDoTrecho) }
-    barra.aoGerarDoTrecho = aoGerarDoTrecho
-    CompositionLocalProvider(LocalTextToolbar provides barra) { conteudo() }
+    val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
+    Box(
+        modifier = Modifier.appendTextContextMenuComponents {
+            separator()
+            item(key = ChaveDeGerarImagemDoTrecho, label = ROTULO_GERAR_IMAGEM_DO_TRECHO) {
+                close()
+                copiarSelecaoE(visao, contexto) { trecho -> aoGerar(trecho) }
+            }
+        },
+    ) { conteudo() }
 }
 
-/** A barra flutuante da seleção (um `ActionMode`) com Copiar, Selecionar tudo e **Gerar imagem deste trecho** (TR1). */
-private class BarraDeSelecaoComTrecho(
-    private val visao: View,
-    private val contexto: Context,
-    var aoGerarDoTrecho: (String) -> Unit,
-) : TextToolbar {
-    private var modo: ActionMode? = null
-    override var status: TextToolbarStatus = TextToolbarStatus.Hidden
-        private set
+private object ChaveDeGerarImagemDoTrecho
 
-    override fun showMenu(
-        rect: Rect,
-        onCopyRequested: (() -> Unit)?,
-        onPasteRequested: (() -> Unit)?,
-        onCutRequested: (() -> Unit)?,
-        onSelectAllRequested: (() -> Unit)?,
-    ) {
-        modo?.finish()
-        val retangulo = android.graphics.Rect(rect.left.toInt(), rect.top.toInt(), rect.right.toInt(), rect.bottom.toInt())
-        val chamadas = object : ActionMode.Callback2() {
-            override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
-                if (onCopyRequested != null) menu.add(Menu.NONE, ITEM_COPIAR, 0, android.R.string.copy).setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-                if (onSelectAllRequested != null) menu.add(Menu.NONE, ITEM_TODOS, 1, android.R.string.selectAll).setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
-                if (onCopyRequested != null) menu.add(Menu.NONE, ITEM_GERAR, 2, ROTULO_GERAR_IMAGEM_DO_TRECHO).setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
-                return true
-            }
-
-            override fun onPrepareActionMode(mode: ActionMode, menu: Menu) = false
-
-            override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
-                when (item.itemId) {
-                    ITEM_COPIAR -> onCopyRequested?.invoke()
-                    ITEM_TODOS -> onSelectAllRequested?.invoke()
-                    ITEM_GERAR -> {
-                        onCopyRequested?.invoke() // copia o trecho; a seleção é a fonte
-                        val area = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        val trecho = area?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString().orEmpty()
-                        if (trecho.isNotBlank()) aoGerarDoTrecho(trecho)
-                    }
-                    else -> return false
-                }
-                mode.finish()
-                return true
-            }
-
-            override fun onDestroyActionMode(mode: ActionMode) {
-                modo = null
-                status = TextToolbarStatus.Hidden
-            }
-
-            override fun onGetContentRect(mode: ActionMode, view: View, outRect: android.graphics.Rect) {
-                outRect.set(retangulo)
-            }
+/** Aciona o Copiar da seleção atual e entrega o texto copiado a [aoTerOTrecho]; sem texto, avisa o que fazer. */
+private fun copiarSelecaoE(visao: View, contexto: Context, aoTerOTrecho: (String) -> Unit) {
+    val agora = android.os.SystemClock.uptimeMillis()
+    val ctrl = KeyEvent.META_CTRL_ON
+    visao.dispatchKeyEvent(KeyEvent(agora, agora, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_C, 0, ctrl))
+    visao.dispatchKeyEvent(KeyEvent(agora, agora, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_C, 0, ctrl))
+    // A cópia é feita na hora; o post só dá a vez ao sistema antes de ler a área de transferência.
+    visao.post {
+        val area = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val trecho = area?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString().orEmpty()
+        if (trecho.isNotBlank()) {
+            aoTerOTrecho(trecho)
+        } else {
+            Toast.makeText(contexto, AVISO_TRECHO_NAO_COPIADO, Toast.LENGTH_LONG).show()
         }
-        modo = visao.startActionMode(chamadas, ActionMode.TYPE_FLOATING)
-        status = if (modo != null) TextToolbarStatus.Shown else TextToolbarStatus.Hidden
-    }
-
-    override fun hide() {
-        modo?.finish()
-        modo = null
-        status = TextToolbarStatus.Hidden
-    }
-
-    private companion object {
-        const val ITEM_COPIAR = 1
-        const val ITEM_TODOS = 2
-        const val ITEM_GERAR = 3
     }
 }
+
+/** O aviso quando a ação não conseguiu pegar o trecho selecionado: o caminho manual (Copiar) existe sempre. */
+const val AVISO_TRECHO_NAO_COPIADO = "Não consegui pegar o trecho. Toque em Copiar e depois em Gerar imagem deste trecho de novo."
 
 /**
  * O diálogo do **trecho selecionado** (TR2): o trecho, o campo **"O que você quer ver"** e os **elementos confirmados do capítulo** para a
@@ -206,7 +165,7 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             Row {
                 TextButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) }) { Text(ROTULO_POSICIONAR) }
                 TextButton(onClick = { acoes.aoTirarPosicao(true, null, frameId) }) { Text(ROTULO_TIRAR_POSICAO) }
-                TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, rotulo) }) { Text("Apagar a cena", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, rotulo, false) }) { Text(ROTULO_APAGAR_A_CENA, color = MaterialTheme.colorScheme.error) }
             }
             estado.mensagensDePrompt[frameId]?.takeIf { it.ehErro }?.let { Text(it.texto, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
             BlocoDePrompts(
@@ -228,7 +187,14 @@ internal fun DialogoApagarFrame(alvo: ApagandoFrame, acoes: AcoesDoPainel) {
         title = { Text("Apagar esta cena?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("«${alvo.rotulo}» será apagada com os prompts e as imagens dela. Não tem volta.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (alvo.deSugestao) {
+                        "Os prompts e as imagens de «${alvo.rotulo}» serão apagados, sem volta. A cena continua na lista, como pendente."
+                    } else {
+                        "«${alvo.rotulo}» será apagada com os prompts e as imagens dela. Não tem volta."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 alvo.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
                 if (alvo.apagando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }

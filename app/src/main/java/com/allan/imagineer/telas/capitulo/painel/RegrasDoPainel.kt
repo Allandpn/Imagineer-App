@@ -587,11 +587,14 @@ const val ROTULO_OCULTAR_DO_CAPITULO = "Ocultar do capítulo"
 /** O rótulo da ação de ocultar no painel: mostra de novo se já está oculta (OC1, OC3). */
 fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítulo" else ROTULO_OCULTAR_DO_CAPITULO
 
+/** O botão que apaga o frame da cena, com os prompts e as imagens dele. */
+const val ROTULO_APAGAR_A_CENA = "Apagar a cena"
+
 /** O botão que liga o modo de posicionar o artefato à mão (PM1). */
 const val ROTULO_POSICIONAR = "Posicionar no texto"
 
 /** O botão que tira a posição posta à mão: o artefato volta ao lugar achado sozinho, ou à faixa "Sem posição" (PM3). */
-const val ROTULO_TIRAR_POSICAO = "Tirar a posição"
+const val ROTULO_TIRAR_POSICAO = "Voltar à posição automática"
 
 /** O aviso fixo do modo de posicionar (PM1): diz o que tocar. */
 fun avisoDePosicionar(rotulo: String): String = "Toque no parágrafo onde «$rotulo» deve ficar."

@@ -79,7 +79,14 @@ data class TrechoParaImagem(
 data class PosicionandoArtefato(val ehCena: Boolean, val sugestaoId: Int?, val rotulo: String, val erro: String? = null, val frameId: Int? = null)
 
 /** O diálogo "Apagar esta cena?" (a cena de um trecho): o frame, o nome, se está apagando e a recusa do servidor. */
-data class ApagandoFrame(val frameId: Int, val rotulo: String, val apagando: Boolean = false, val erro: String? = null)
+data class ApagandoFrame(
+    val frameId: Int,
+    val rotulo: String,
+    val apagando: Boolean = false,
+    val erro: String? = null,
+    /** O frame é o de uma **sugestão de cena** (o modal da cena): depois de apagado, a sugestão continua na lista como pendente. */
+    val deSugestao: Boolean = false,
+)
 
 /** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
 sealed interface CargaPorCapitulo {
@@ -1727,8 +1734,8 @@ class PainelDeIaViewModel(
 
     // --- Apagar a cena de um trecho ---------------------------------------- //
 
-    fun pedirApagarFrame(frameId: Int, rotulo: String) {
-        _estado.update { it.copy(apagandoFrame = ApagandoFrame(frameId, rotulo)) }
+    fun pedirApagarFrame(frameId: Int, rotulo: String, deSugestao: Boolean = false) {
+        _estado.update { it.copy(apagandoFrame = ApagandoFrame(frameId, rotulo, deSugestao = deSugestao)) }
     }
 
     fun cancelarApagarFrame() {
@@ -1743,13 +1750,17 @@ class PainelDeIaViewModel(
         _estado.update { it.copy(apagandoFrame = alvo.copy(apagando = true, erro = null)) }
         viewModelScope.launch {
             when (val resultado = sugestoes.apagarFrame(alvo.frameId)) {
-                is ResultadoDaChamada.Sucesso -> _estado.update {
-                    it.copy(
-                        apagandoFrame = null,
-                        modais = it.modais.filterNot { m -> m is ModalAberto.DeFrame && m.frameId == alvo.frameId },
-                        prompts = it.prompts - alvo.frameId,
-                        versaoDosFrames = it.versaoDosFrames + 1,
-                    )
+                is ResultadoDaChamada.Sucesso -> {
+                    _estado.update {
+                        it.copy(
+                            apagandoFrame = null,
+                            modais = it.modais.filterNot { m -> m is ModalAberto.DeFrame && m.frameId == alvo.frameId },
+                            prompts = it.prompts - alvo.frameId,
+                            versaoDosFrames = it.versaoDosFrames + 1,
+                        )
+                    }
+                    // A cena de uma sugestão perde o frame (o servidor a devolve a pendente): relê a lista para o modal refletir.
+                    if (alvo.deSugestao) reler()
                 }
                 is ResultadoDaChamada.Falha -> _estado.update { atual ->
                     atual.copy(apagandoFrame = atual.apagandoFrame?.copy(apagando = false, erro = resultado.motivo))

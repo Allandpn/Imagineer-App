@@ -153,7 +153,7 @@ class AcoesDoPainel(
     val aoIniciarPosicionamento: (ehCena: Boolean, sugestaoId: Int, rotulo: String) -> Unit,
     val aoIniciarPosicionamentoDeFrame: (ehCena: Boolean, frameId: Int, rotulo: String) -> Unit,
     val aoTirarPosicao: (ehCena: Boolean, sugestaoId: Int?, frameId: Int?) -> Unit,
-    val aoPedirApagarFrame: (frameId: Int, rotulo: String) -> Unit,
+    val aoPedirApagarFrame: (frameId: Int, rotulo: String, deSugestao: Boolean) -> Unit,
     val aoCancelarApagarFrame: () -> Unit,
     val aoConfirmarApagarFrame: () -> Unit,
     val aoFecharTrecho: () -> Unit,
@@ -1325,6 +1325,12 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
     }
     CorpoDaCena(cena, estado, acoes)
+    // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.
+    cena.frame_id?.let { frameId ->
+        TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, cena.titulo, true) }) {
+            Text(ROTULO_APAGAR_A_CENA, color = MaterialTheme.colorScheme.error)
+        }
+    }
 }
 
 /**
