@@ -238,7 +238,10 @@ class RepositorioDePromptsPeloRetrofit(
                         destino.parentFile?.mkdirs()
                         corpo.byteStream().use { entrada -> destino.outputStream().use { saida -> entrada.copyTo(saida) } }
                     }
-                    ResultadoDaChamada.Sucesso(corpo.contentType()?.let { "${it.type}/${it.subtype}" } ?: "image/png")
+                    // O servidor já manda o tipo certo; o que não for image/* (um servidor antigo respondia octet-stream para .webp)
+                    // se descobre pelos primeiros bytes, porque o Android recusa salvar na galeria um tipo que não seja de imagem.
+                    val doServidor = corpo.contentType()?.let { "${it.type}/${it.subtype}" }
+                    ResultadoDaChamada.Sucesso(if (doServidor != null && doServidor.startsWith("image/")) doServidor else tipoDeImagemPelosBytes(destino))
                 } catch (erro: IOException) {
                     destino.delete() // um arquivo pela metade não serve para compartilhar nem salvar
                     ResultadoDaChamada.Falha("Não consegui baixar a imagem.")
@@ -423,3 +426,27 @@ fun extensaoDoTipo(tipo: String): String = when (tipo.lowercase()) {
 fun enderecoDaImagem(urlBase: String, imagemId: Int, tamanho: String): String =
     "${urlBase.trimEnd('/')}/imagens/$imagemId/arquivo?tamanho=$tamanho"
 
+/**
+ * O tipo da imagem pelos primeiros bytes do [arquivo]: PNG, JPEG, GIF ou WebP (`RIFF....WEBP`); sem reconhecer, `image/png`. Serve
+ * quando o servidor não informa um tipo de imagem (ele já informa; isto é a rede de segurança do "Salvar na galeria").
+ */
+fun tipoDeImagemPelosBytes(arquivo: File): String {
+    val cabecalho = ByteArray(12)
+    val lidos = try {
+        arquivo.inputStream().use { it.read(cabecalho) }
+    } catch (erro: IOException) {
+        0
+    }
+    return tipoDeImagemPeloCabecalho(cabecalho.copyOf(maxOf(lidos, 0)))
+}
+
+/** O tipo de imagem pelo [cabecalho] (os primeiros bytes); sem reconhecer, `image/png`. */
+fun tipoDeImagemPeloCabecalho(cabecalho: ByteArray): String {
+    fun comeca(vararg bytes: Int) = cabecalho.size >= bytes.size && bytes.indices.all { cabecalho[it] == bytes[it].toByte() }
+    return when {
+        comeca(0xFF, 0xD8, 0xFF) -> "image/jpeg"
+        comeca(0x47, 0x49, 0x46, 0x38) -> "image/gif"
+        cabecalho.size >= 12 && comeca(0x52, 0x49, 0x46, 0x46) && String(cabecalho, 8, 4, Charsets.US_ASCII) == "WEBP" -> "image/webp"
+        else -> "image/png"
+    }
+}

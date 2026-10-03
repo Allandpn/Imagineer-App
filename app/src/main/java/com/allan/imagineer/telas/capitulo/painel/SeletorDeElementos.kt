@@ -113,7 +113,7 @@ internal fun DialogoDoSeletorDeElementos(escolha: EscolhaDeElementos, acoes: Aco
                         )
                         if (candidatos.dados.identificados.isEmpty() && candidatos.dados.outros.isEmpty()) {
                             Text(
-                                if (escolha.ehCena) "Não há elementos para escolher neste capítulo." else "Não há outros elementos (que não sejam personagens) neste capítulo.",
+                                if (escolha.ehCena) "Não há elementos para escolher neste capítulo." else "Não há outros elementos neste capítulo.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
