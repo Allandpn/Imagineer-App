@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -143,6 +144,8 @@ fun DialogoDoCapitulo(
     /** RN1: o título como está guardado (vazio = o padrão "Capítulo N") e como renomear; nulo = sem o lápis. */
     tituloGuardado: String = "",
     aoRenomear: ((String) -> Unit)? = null,
+    /** Tocar em "N sugestões a confirmar" leva ao painel de IA do capítulo, onde elas se confirmam; nulo = o texto não é tocável. */
+    aoVerSugestoes: (() -> Unit)? = null,
 ) {
     // RN1: o lápis ao lado do título troca o título por um campo, com ✓ (salvar) e X (cancelar).
     var editando by remember { mutableStateOf(false) }
@@ -175,6 +178,9 @@ fun DialogoDoCapitulo(
                 Text(
                     descreverSugestoes(sugestoesPendentes) ?: "Nenhuma sugestão a confirmar.",
                     color = if (sugestoesPendentes > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Com sugestões pendentes e um destino, o texto é um link (sublinhado) para o painel de IA, onde se confirma.
+                    textDecoration = if (sugestoesPendentes > 0 && aoVerSugestoes != null) TextDecoration.Underline else null,
+                    modifier = if (sugestoesPendentes > 0 && aoVerSugestoes != null) Modifier.clickable(onClickLabel = "Confirmar as sugestões", onClick = aoVerSugestoes) else Modifier,
                 )
                 if (arquivado) Text("Este capítulo está arquivado.", color = MaterialTheme.colorScheme.error)
                 // Lido: um ícone discreto que **muda** ao tocar (círculo vazio = não lido; marcado = lido), com o estado ao lado.

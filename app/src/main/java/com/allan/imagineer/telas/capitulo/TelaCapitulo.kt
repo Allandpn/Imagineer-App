@@ -447,6 +447,8 @@ private fun LeitorPaginado(
             aoRenomear = { novo ->
                 vmDaTela.renomear(novo) { motivo -> Toast.makeText(contextoDoTitulo, motivo, Toast.LENGTH_SHORT).show() }
             },
+            // Fecha este diálogo e abre o painel de IA do capítulo, onde as sugestões se confirmam.
+            aoVerSugestoes = { infoAberta = false; if (!painelAberto) aoAlternarPainel() },
         )
     }
 

@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Groups
@@ -11,7 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 
-/** As quatro telas irmãs da área do livro, na barra de baixo (LY1). Só ícones: a [descricao] é para leitores de tela. */
+/** As quatro telas irmãs da área do livro, na barra de baixo (LY1). Cada ícone leva a [descricao] como legenda pequena embaixo. */
 enum class DestinoDoLivro(val icone: ImageVector, val descricao: String) {
     ELEMENTOS(Icons.Filled.Groups, "Elementos"),
     CENAS(Icons.Filled.Movie, "Cenas"),
@@ -20,7 +22,7 @@ enum class DestinoDoLivro(val icone: ImageVector, val descricao: String) {
 }
 
 /**
- * A **barra de navegação** do livro (LY1): quatro ícones, sem texto; o da tela atual fica marcado. Tocar no que já está marcado não
+ * A **barra de navegação** do livro (LY1): quatro ícones, cada um com a legenda pequena embaixo; o da tela atual fica marcado. Tocar no que já está marcado não
  * faz nada. A tela de Capítulo e a Ficha do elemento não a mostram (ficam em tela cheia).
  */
 @Composable
@@ -31,8 +33,8 @@ fun BarraDeNavegacaoDoLivro(selecionado: DestinoDoLivro?, aoIr: (DestinoDoLivro)
                 selected = destino == selecionado,
                 onClick = { if (destino != selecionado) aoIr(destino) },
                 icon = { Icon(destino.icone, contentDescription = destino.descricao) },
-                label = null,
-                alwaysShowLabel = false,
+                label = { Text(destino.descricao, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
+                alwaysShowLabel = true,
             )
         }
     }

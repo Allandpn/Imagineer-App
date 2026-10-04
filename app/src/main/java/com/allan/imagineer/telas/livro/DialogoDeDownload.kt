@@ -37,11 +37,11 @@ import java.util.Locale
 
 // "Baixar para ler offline" na tela do livro (item 7.0a, passo 4; PL3 e PL4).
 
-/** O texto do item do ⋮ do livro, conforme o estado do download. */
+/** O texto do item do ⋮ do livro, conforme o estado do download: só a palavra; ao tocar, abre o diálogo com os detalhes e as ações. */
 fun rotuloDoOffline(estado: EstadoDoDownload): String = when (estado) {
-    is EstadoDoDownload.Baixado -> "Baixado · remover download"
-    is EstadoDoDownload.Baixando, is EstadoDoDownload.Pausado -> "Download em andamento"
-    else -> "Baixar para ler offline"
+    is EstadoDoDownload.Baixado -> "Baixado"
+    is EstadoDoDownload.Baixando, is EstadoDoDownload.Pausado -> "Baixando"
+    else -> "Baixar"
 }
 
 /** "12 de 150 arquivos · 34 MB". */

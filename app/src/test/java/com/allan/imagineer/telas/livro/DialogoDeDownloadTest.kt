@@ -12,11 +12,11 @@ class DialogoDeDownloadTest {
 
     @Test
     fun o_item_do_menu_muda_com_o_estado_do_download() {
-        assertEquals("Baixar para ler offline", rotuloDoOffline(EstadoDoDownload.NaoBaixado))
-        assertEquals("Baixar para ler offline", rotuloDoOffline(EstadoDoDownload.Falhou("x")))
-        assertEquals("Download em andamento", rotuloDoOffline(EstadoDoDownload.Baixando(Progresso(1, 6, 100))))
-        assertEquals("Download em andamento", rotuloDoOffline(EstadoDoDownload.Pausado(Progresso(1, 6, 100), "Pausado")))
-        assertEquals("Baixado · remover download", rotuloDoOffline(EstadoDoDownload.Baixado(1L, 2L)))
+        assertEquals("Baixar", rotuloDoOffline(EstadoDoDownload.NaoBaixado))
+        assertEquals("Baixar", rotuloDoOffline(EstadoDoDownload.Falhou("x")))
+        assertEquals("Baixando", rotuloDoOffline(EstadoDoDownload.Baixando(Progresso(1, 6, 100))))
+        assertEquals("Baixando", rotuloDoOffline(EstadoDoDownload.Pausado(Progresso(1, 6, 100), "Pausado")))
+        assertEquals("Baixado", rotuloDoOffline(EstadoDoDownload.Baixado(1L, 2L)))
     }
 
     @Test

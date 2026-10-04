@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import com.allan.imagineer.telas.comum.BotaoDeIcone
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.SmallFloatingActionButton
 import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.compose.ui.text.font.FontStyle
@@ -212,9 +214,7 @@ fun TelaLivro(
         aoContinuarLendo = aoContinuarLendo,
         estadoDoDownload = download,
         aoAbrirOffline = { dialogoDeDownload = true },
-        aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
         aoEditar = viewModel::abrirEdicao,
-        aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
         aoApagar = viewModel::pedirRemocao,
     )
 
@@ -227,6 +227,9 @@ fun TelaLivro(
             estado = edicao as EstadoDaEdicao.Editando,
             aoSalvar = viewModel::salvarEdicao,
             aoCancelar = viewModel::cancelarEdicao,
+            perfil = (estado as? EstadoDoLivro.Pronto)?.perfil,
+            aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
+            aoEscolherPerfil = viewModel::abrirEscolhaDePerfil,
         )
     }
     DialogoDePerfilPadrao(
@@ -262,9 +265,7 @@ fun ConteudoDoLivro(
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     estadoDoDownload: com.allan.imagineer.local.EstadoDoDownload = com.allan.imagineer.local.EstadoDoDownload.NaoBaixado,
     aoAbrirOffline: (() -> Unit)? = null,
-    aoDefinirCapa: () -> Unit = {},
     aoEditar: () -> Unit,
-    aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
 ) {
     var metadadosAbertos by remember { mutableStateOf(false) }
@@ -317,14 +318,14 @@ fun ConteudoDoLivro(
                         if (estado is EstadoDoLivro.Pronto) {
                             // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
                             // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
+                            // As informações ficam junto do ⋮, na cor neutra da barra (como os outros ícones dela).
+                            BotaoDeIcone(IconesDaTelaDoLivro.metadados, "Informações", { metadadosAbertos = true }, cor = LocalContentColor.current)
+                            // Capa e perfil de renderização moram dentro de "Editar" (DialogoDeEdicao), não mais neste menu.
                             MenuDoLivro(
-                                aoAbrirDados = { metadadosAbertos = true },
                                 aoPesquisar = aoAbrirPesquisa,
                                 aoAbrirOffline = aoAbrirOffline,
                                 rotuloDoOffline = rotuloDoOffline(estadoDoDownload),
                                 aoEditar = aoEditar,
-                                aoDefinirCapa = aoDefinirCapa,
-                                aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
                                 aoAbrirLixeira = aoAbrirLixeira,
                                 aoAbrirDestaques = aoAbrirDestaques,
                                 aoApagar = aoApagar,
@@ -373,7 +374,6 @@ fun ConteudoDoLivro(
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
                     aoAlternarLido = aoAlternarLido,
-                    aoAbrirMetadados = { metadadosAbertos = true },
                 )
             }
         }
@@ -388,7 +388,6 @@ private fun ListaDoLivro(
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
     aoAlternarLido: (Int) -> Unit,
-    aoAbrirMetadados: () -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -400,7 +399,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro, aoAbrirMetadados) }
+            item { CabecalhoDoLivro(livro) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -436,11 +435,11 @@ private fun ListaDoLivro(
     }
 }
 
-/** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nos metadados. */
+/** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nas informações (barra de cima). */
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirMetadados: () -> Unit) {
+private fun CabecalhoDoLivro(livro: LivroDetalhe) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -452,10 +451,6 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirMetadados: () -> Unit) 
                 fontFamily = FontFamily.Serif,
                 fontStyle = FontStyle.Italic,
             )
-        }
-        // LY4: o ícone que abre o modal com os demais metadados do livro.
-        IconButton(onClick = aoAbrirMetadados) {
-            Icon(IconesDaTelaDoLivro.metadados, contentDescription = "Metadados do livro", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

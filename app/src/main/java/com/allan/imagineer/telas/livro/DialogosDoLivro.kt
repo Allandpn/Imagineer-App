@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
@@ -39,6 +40,11 @@ fun DialogoDeEdicao(
     estado: EstadoDaEdicao.Editando,
     aoSalvar: (titulo: String, autor: String, idioma: String) -> Unit,
     aoCancelar: () -> Unit,
+    /** O perfil de renderização padrão do livro, para mostrar o nome (nulo = nenhum definido). */
+    perfil: PerfilRenderizacao? = null,
+    /** Abrem o seletor de capa e a escolha do perfil; nulos = a linha não aparece (a biblioteca não usa este diálogo). */
+    aoDefinirCapa: (() -> Unit)? = null,
+    aoEscolherPerfil: (() -> Unit)? = null,
 ) {
     var titulo by remember(livro.id) { mutableStateOf(livro.titulo) }
     var autor by remember(livro.id) { mutableStateOf(livro.autor.orEmpty()) }
@@ -52,6 +58,22 @@ fun DialogoDeEdicao(
                 CampoDeTexto("Título", titulo, { titulo = it }, !estado.salvando)
                 CampoDeTexto("Autor", autor, { autor = it }, !estado.salvando)
                 CampoDeTexto("Idioma (opcional)", idioma, { idioma = it }, !estado.salvando, maiusculas = false)
+                // Capa e perfil de renderização padrão moram aqui (antes eram itens do ⋮): são coisas que se ajustam ao editar o livro.
+                if (aoDefinirCapa != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("Capa", modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = aoDefinirCapa, enabled = !estado.salvando) { Text("Definir capa") }
+                    }
+                }
+                if (aoEscolherPerfil != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Perfil de renderização", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(perfil?.nome ?: "Nenhum definido")
+                        }
+                        OutlinedButton(onClick = aoEscolherPerfil, enabled = !estado.salvando) { Text(if (perfil == null) "Escolher" else "Trocar") }
+                    }
+                }
                 if (estado.erro != null) {
                     Text(estado.erro, color = MaterialTheme.colorScheme.error)
                 }
