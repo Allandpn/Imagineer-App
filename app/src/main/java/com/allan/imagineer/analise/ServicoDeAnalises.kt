@@ -1,5 +1,6 @@
 package com.allan.imagineer.analise
 
+import com.allan.imagineer.rede.ResultadoDaGeracao
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.PromptsSemServidor
 import com.allan.imagineer.rede.RepositorioDePrompts
@@ -32,10 +33,12 @@ data class EventoDeAnalise(
     /** Só no [TipoDeEvento.PROMPT]: o frame da cena e o nome dela, para o aviso. */
     val frameId: Int? = null,
     val rotuloDaCena: String? = null,
+    /** Só no [TipoDeEvento.IMAGEM]: o provedor recusou o prompt (não é erro de rede: a pessoa precisa ajustar o prompt). */
+    val recusada: Boolean = false,
 )
 
 /** O que terminou e merece um aviso. */
-enum class TipoDeEvento { ANALISE, PROMPT }
+enum class TipoDeEvento { ANALISE, PROMPT, IMAGEM }
 
 /**
  * As análises de IA em andamento — **vivem no escopo do app, e não no da tela**.
@@ -111,6 +114,57 @@ class ServicoDeAnalises(
             resultado
         }
         promptsEmAndamento[frameId] = trabalho
+        trabalho
+    }
+
+    private val imagensEmAndamento = mutableMapOf<Int, Deferred<ResultadoDaChamada<ResultadoDaGeracao>>>()
+
+    /** A geração de imagem deste prompt que está rodando agora, se houver. */
+    fun imagemEmAndamento(promptId: Int): Deferred<ResultadoDaChamada<ResultadoDaGeracao>>? =
+        synchronized(trava) { imagensEmAndamento[promptId] }
+
+    /**
+     * Começa a geração da **imagem** do prompt (K1) — ou devolve a que já está rodando (uma por prompt de cada vez, K2). Como o
+     * prompt, **vive no escopo do app**: sair do capítulo não a cancela e, ao terminar, sai um aviso de qualquer tela, com "Abrir".
+     * Uma **recusa** do provedor (`RECUSADA`) também avisa, como "precisa de você".
+     */
+    fun iniciarImagem(
+        promptId: Int,
+        frameId: Int,
+        capituloId: Int,
+        livroId: Int?,
+        rotuloDoCapitulo: String,
+        rotuloDaCena: String,
+        textoEditado: String?,
+        modelo: String?,
+        semFiltro: Boolean,
+        referencias: List<Int>,
+    ): Deferred<ResultadoDaChamada<ResultadoDaGeracao>> = synchronized(trava) {
+        imagensEmAndamento[promptId]?.let { return it }
+        val trabalho = escopo.async {
+            val resultado = when {
+                semFiltro -> prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true, referencias = referencias)
+                referencias.isNotEmpty() -> prompts.gerarImagem(promptId, textoEditado, modelo, referencias = referencias)
+                else -> prompts.gerarImagem(promptId, textoEditado, modelo)
+            }
+            synchronized(trava) { imagensEmAndamento.remove(promptId) }
+            val geracao = (resultado as? ResultadoDaChamada.Sucesso)?.dado
+            _eventos.emit(
+                EventoDeAnalise(
+                    capituloId = capituloId,
+                    livroId = livroId,
+                    rotuloDoCapitulo = rotuloDoCapitulo,
+                    sucesso = geracao?.gerada == true,
+                    motivo = (resultado as? ResultadoDaChamada.Falha)?.motivo,
+                    tipo = TipoDeEvento.IMAGEM,
+                    frameId = frameId,
+                    rotuloDaCena = rotuloDaCena,
+                    recusada = geracao != null && !geracao.gerada,
+                ),
+            )
+            resultado
+        }
+        imagensEmAndamento[promptId] = trabalho
         trabalho
     }
 
@@ -199,6 +253,7 @@ fun descreverAviso(
     modalDoFrameVisivel: Int? = null,
 ): String? {
     if (evento.tipo == TipoDeEvento.PROMPT) return descreverAvisoDePrompt(evento, local, tituloDoLivro, modalDoFrameVisivel)
+    if (evento.tipo == TipoDeEvento.IMAGEM) return descreverAvisoDeImagem(evento, local, painelVisivel, tituloDoLivro, modalDoFrameVisivel)
     if (evento.capituloId == painelVisivel) return null
 
     val dentroDoLivro = evento.livroId != null && local.livroId == evento.livroId
@@ -238,6 +293,29 @@ private fun descreverAvisoDePrompt(
     } else {
         val motivo = evento.motivo?.let { ": $it" }.orEmpty()
         "A geração do prompt$onde de $cena falhou$motivo"
+    }
+}
+
+/**
+ * O aviso de uma **imagem** gerada: no mesmo espírito do de prompt. **Sem aviso** quando o modal daquela cena está na tela ou o painel
+ * de IA do capítulo está aberto (os dois já mostram o próprio recado, "Imagem gerada.").
+ */
+private fun descreverAvisoDeImagem(
+    evento: EventoDeAnalise,
+    local: LocalDoUsuario,
+    painelVisivel: Int?,
+    tituloDoLivro: String?,
+    modalDoFrameVisivel: Int?,
+): String? {
+    if (evento.frameId != null && evento.frameId == modalDoFrameVisivel) return null
+    if (evento.capituloId == painelVisivel) return null
+    val cena = "«${evento.rotuloDaCena ?: "cena"}»"
+    val dentroDoLivro = evento.livroId != null && local.livroId == evento.livroId
+    val onde = if (dentroDoLivro || tituloDoLivro == null) "" else " em «$tituloDoLivro», ${evento.rotuloDoCapitulo}"
+    return when {
+        evento.sucesso -> "Imagem gerada$onde: $cena."
+        evento.recusada -> "A imagem$onde de $cena foi recusada pelo provedor; abra para ajustar o prompt."
+        else -> "A geração da imagem$onde de $cena falhou${evento.motivo?.let { ": $it" }.orEmpty()}"
     }
 }
 

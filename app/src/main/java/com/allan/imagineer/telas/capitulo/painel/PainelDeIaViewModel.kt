@@ -779,6 +779,12 @@ class PainelDeIaViewModel(
         viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
     }
 
+    /** Como a cena (ou o retrato) se chama nos avisos: o rótulo guardado, o título da cena sugerida ou, no fim, "cena". */
+    private fun rotuloDoFrameNoAviso(frameId: Int): String {
+        val cena = (_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.cenas?.firstOrNull { it.frame_id == frameId }
+        return _estado.value.rotulosDeFrame[frameId] ?: cena?.titulo ?: "cena"
+    }
+
     // ------------------------------------------------------------------ //
     // O seletor de elementos e imagens (EV1 a EV10)
     // ------------------------------------------------------------------ //
@@ -977,13 +983,20 @@ class PainelDeIaViewModel(
         } else {
             emptyList()
         }
-        val resultado = if (modeloEstaSemFiltro(modelo, modelos)) {
-            prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true, referencias = referencias)
-        } else if (referencias.isNotEmpty()) {
-            prompts.gerarImagem(promptId, textoEditado, modelo, referencias = referencias)
-        } else {
-            prompts.gerarImagem(promptId, textoEditado, modelo)
-        }
+        // O pedido roda no serviço do app (como o do prompt): sair do capítulo não o cancela, e ao terminar sai o aviso global.
+        val resultado = servico.iniciarImagem(
+            promptId = promptId,
+            frameId = frameId,
+            capituloId = capituloId,
+            livroId = livroId,
+            rotuloDoCapitulo = rotuloDoCapitulo,
+            rotuloDaCena = rotuloDoFrameNoAviso(frameId),
+            textoEditado = textoEditado,
+            modelo = modelo,
+            // F19: escolher um modelo da lista sem filtro é pedir a geração sem o filtro.
+            semFiltro = modeloEstaSemFiltro(modelo, modelos),
+            referencias = referencias,
+        ).await()
         _estado.update { agora ->
             val semPedido = agora.gerandoImagem - promptId
             when (resultado) {

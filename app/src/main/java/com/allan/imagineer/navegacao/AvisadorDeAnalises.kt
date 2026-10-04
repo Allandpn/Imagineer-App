@@ -58,7 +58,7 @@ fun AvisadorDeAnalises(controle: NavHostController, avisos: SnackbarHostState) {
 /** Para onde o botão "Abrir" do aviso leva: o painel do capítulo (análise) ou o modal da cena (prompt gerado). */
 internal fun destinoDoAviso(evento: EventoDeAnalise): Capitulo = Capitulo(
     capituloId = evento.capituloId,
-    abrirFrameId = evento.frameId.takeIf { evento.tipo == TipoDeEvento.PROMPT },
+    abrirFrameId = evento.frameId.takeIf { evento.tipo == TipoDeEvento.PROMPT || evento.tipo == TipoDeEvento.IMAGEM },
     abrirRotulo = evento.rotuloDaCena,
     abrirPainel = evento.tipo == TipoDeEvento.ANALISE,
 )
