@@ -274,7 +274,15 @@ private fun FormularioDoPerfilNaTela(
             Text(AVISO_DA_CATEGORIA, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             OutlinedTextField(value = e.estilo, onValueChange = { aoMudar(e.copy(estilo = it)) }, label = { Text("Estilo") }, minLines = 2, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = e.iluminacao, onValueChange = { aoMudar(e.copy(iluminacao = it)) }, label = { Text("Iluminação") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = e.iluminacao,
+                onValueChange = { aoMudar(e.copy(iluminacao = it)) },
+                label = { Text("Iluminação") },
+                // FD4: o perfil vale para o livro inteiro; a fonte da luz (vela, sol, luar) de cada cena vem do horário e do lugar dela.
+                supportingText = { Text("Só como a luz é desenhada (contraste, sombras). A fonte, como vela ou sol, vem da cena.") },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
             OutlinedTextField(value = e.paleta, onValueChange = { aoMudar(e.copy(paleta = it)) }, label = { Text("Paleta") }, minLines = 2, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = e.artistaDeReferencia, onValueChange = { aoMudar(e.copy(artistaDeReferencia = it)) }, label = { Text("Artista de referência (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = e.formato, onValueChange = { aoMudar(e.copy(formato = it)) }, label = { Text("Formato (opcional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
