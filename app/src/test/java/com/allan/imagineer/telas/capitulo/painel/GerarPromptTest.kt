@@ -69,6 +69,7 @@ internal class PromptsFalso : RepositorioDePrompts {
         ResultadoDaChamada.Sucesso(ResultadoDaGeracao("GERADA", false, PromptDeFrame(id = 1, frame_id = 70, texto = "p1"), ImagemDoPrompt(id = 700)))
     var travaDaGeracaoDeImagem: CompletableDeferred<Unit>? = null
 
+    val portuguesesPedidos = mutableListOf<String?>() // o português que foi junto de cada geração de imagem (PT4)
     val modelosPedidos = mutableListOf<String?>() // o modelo de cada geração de imagem (null = o padrão do servidor)
     var resultadoDosModelos: ResultadoDaChamada<com.allan.imagineer.rede.ModelosDeImagem> = ResultadoDaChamada.Sucesso(
         com.allan.imagineer.rede.ModelosDeImagem(
@@ -109,7 +110,9 @@ internal class PromptsFalso : RepositorioDePrompts {
         modelo: String?,
         semFiltro: Boolean,
         referencias: List<Int>,
+        textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
+        portuguesesPedidos += textoPt
         referenciasPedidas += referencias
         if (semFiltro) pedidosSemFiltro += promptId
         geracoesDeImagem += promptId to textoEditado

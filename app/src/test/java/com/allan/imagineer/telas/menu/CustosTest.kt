@@ -92,6 +92,8 @@ class CustosTest {
     @Test
     fun `dolares abaixo de um mostram tres casas, acima duas, e a estimativa leva til`() {
         assertEquals("US$ 0,025", formatarDolar("0.0250"))
+        assertEquals("US$ 0,0004", formatarDolar("0.0004")) // uma tradução: não pode virar 0,000
+        assertEquals("US$ 0,010", formatarDolar("0.01"))
         assertEquals("US$ 12,40", formatarDolar("12.4"))
         assertEquals("US$ 0,00", formatarDolar("0"))
         assertEquals("~US$ 1,50", formatarDolar("1.5", estimado = true))

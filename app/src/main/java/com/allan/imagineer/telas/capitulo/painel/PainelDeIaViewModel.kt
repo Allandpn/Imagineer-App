@@ -771,12 +771,22 @@ class PainelDeIaViewModel(
      * novo. Sem confirmação (a imagem custa cerca de US$ 0,01). Um pedido por prompt, sem repetição automática (K2).
      * [textoEditado] vem do diálogo da recusa (K4) ou da edição (R2): o servidor o envia direto, sem suavizar.
      */
-    fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null, modelo: String? = null) {
+    fun gerarImagem(frameId: Int, promptId: Int, textoEditado: String? = null, modelo: String? = null, textoPt: String? = null) {
         if (!reservarGeracaoDeImagem(promptId)) return
         // Z9: escolher o modelo no diálogo da recusa o torna o modelo ativo, para as próximas gerações também.
         if (!modelo.isNullOrBlank()) _estado.update { it.copy(modeloEscolhido = modelo) }
         val modeloDoPedido = modelo?.takeIf { it.isNotBlank() } ?: _estado.value.modeloEscolhido
-        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido) }
+        viewModelScope.launch { concluirGeracaoDeImagem(frameId, promptId, textoEditado, modeloDoPedido, textoPt) }
+    }
+
+    /** "Ver em português" (PT2): traz a tradução do prompt (guardada, ou feita agora por uma chamada barata) e entrega a [aoTerminar]. */
+    fun verEmPortugues(promptId: Int, aoTerminar: (ResultadoDaChamada<com.allan.imagineer.rede.Traducao>) -> Unit) {
+        viewModelScope.launch { aoTerminar(prompts.traduzirParaPortugues(promptId)) }
+    }
+
+    /** "Traduzir para o inglês" (PT3): o português escrito vira o inglês que será enviado (só uma prévia; nada é gravado). */
+    fun traduzirParaIngles(promptId: Int, texto: String, aoTerminar: (ResultadoDaChamada<com.allan.imagineer.rede.Traducao>) -> Unit) {
+        viewModelScope.launch { aoTerminar(prompts.traduzirParaIngles(promptId, texto)) }
     }
 
     /** Como a cena (ou o retrato) se chama nos avisos: o rótulo guardado, o título da cena sugerida ou, no fim, "cena". */
@@ -974,7 +984,7 @@ class PainelDeIaViewModel(
     }
 
     /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
-    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) {
+    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?, textoPt: String? = null) {
         // F19: escolher um modelo da lista **sem filtro** é pedir a geração sem o filtro; com qualquer outro, o pedido é o de sempre.
         val modelos = _estado.value.modelosDeImagem
         // W10: as referências do frame só vão se o modelo em uso as aceita (senão ficam guardadas, desativadas).
@@ -996,6 +1006,7 @@ class PainelDeIaViewModel(
             // F19: escolher um modelo da lista sem filtro é pedir a geração sem o filtro.
             semFiltro = modeloEstaSemFiltro(modelo, modelos),
             referencias = referencias,
+            textoPt = textoPt,
         ).await()
         _estado.update { agora ->
             val semPedido = agora.gerandoImagem - promptId

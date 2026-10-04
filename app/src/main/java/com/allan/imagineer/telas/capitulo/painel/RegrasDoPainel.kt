@@ -605,6 +605,13 @@ fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítu
 fun sugestaoDoElemento(sugestoes: com.allan.imagineer.rede.SugestoesDeCapitulo, elementoId: Int): Int? =
     sugestoes.elementos.firstOrNull { it.elemento_casado?.id == elementoId }?.id
 
+/** O que dizer do custo de uma tradução (PT6): já guardada (sem custo), o valor em dólares, ou que o custo não foi informado. */
+fun textoDoCustoDaTraducao(traducao: com.allan.imagineer.rede.Traducao): String = when {
+    traducao.reaproveitada -> "Tradução já guardada (sem custo)."
+    traducao.custo != null -> "Tradução: ${com.allan.imagineer.telas.menu.formatarDolar(traducao.custo)}"
+    else -> "Tradução feita (custo não informado)."
+}
+
 /** O botão que edita o título e a descrição de uma cena (LV6). */
 const val ROTULO_EDITAR_A_CENA = "Editar a cena"
 

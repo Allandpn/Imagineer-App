@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.Traducao
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.foundation.layout.Arrangement
@@ -126,7 +128,11 @@ class AcoesDoPainel(
     // Incremento 12, primeira fatia: importar a imagem (J1 a J10).
     val aoImportarImagem: (frameId: Int, promptId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit,
     // Incremento 12, terceira fatia: gerar a imagem (K1 a K10).
-    val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?, modelo: String?) -> Unit,
+    val aoGerarImagem: (frameId: Int, promptId: Int, textoEditado: String?, modelo: String?, textoPt: String?) -> Unit,
+    /** PT2: o prompt em português (guardado, ou traduzido agora). */
+    val aoVerEmPortugues: (promptId: Int, aoTerminar: (ResultadoDaChamada<Traducao>) -> Unit) -> Unit,
+    /** PT3: o português escrito, em inglês (só uma prévia). */
+    val aoTraduzirParaIngles: (promptId: Int, texto: String, aoTerminar: (ResultadoDaChamada<Traducao>) -> Unit) -> Unit,
     // Qual modelo de imagem usar (Z6 a Z9).
     val aoCarregarModelosDeImagem: () -> Unit,
     val aoAbrirEscolhaDeModelo: () -> Unit,
@@ -1097,7 +1103,7 @@ private fun CartaoDePrompt(
                 OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
                 OutlinedButton(
-                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null) },
+                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
@@ -1186,7 +1192,9 @@ private fun DialogoDeRecusaDeImagem(recusa: RecusaDeImagem, estado: EstadoDoPain
         opcoesSemFiltro = estado.modelosDeImagem?.let(::modelosSemFiltroParaEscolher).orEmpty(),
         padraoDoServidor = estado.modelosDeImagem?.padrao,
         modeloInicial = alternativaAoModelo(recusa.modelo, opcoes),
-        aoConfirmar = { texto, modelo -> acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto, modelo) },
+        promptId = recusa.promptId,
+        acoes = acoes,
+        aoConfirmar = { texto, modelo, textoPt -> acoes.aoGerarImagem(recusa.frameId, recusa.promptId, texto, modelo, textoPt) },
         aoFechar = acoes.aoFecharRecusaDeImagem,
         rotuloDoFechar = "Fechar",
     )
@@ -1211,13 +1219,22 @@ private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, estado: EstadoDoPain
         opcoesSemFiltro = estado.modelosDeImagem?.let(::modelosSemFiltroParaEscolher).orEmpty(),
         padraoDoServidor = estado.modelosDeImagem?.padrao,
         modeloInicial = modeloEmUso(estado.modeloEscolhido, estado.modelosDeImagem),
-        aoConfirmar = { texto, modelo -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto, modelo) },
+        promptId = edicao.promptId,
+        acoes = acoes,
+        aoConfirmar = { texto, modelo, textoPt -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto, modelo, textoPt) },
         aoFechar = acoes.aoFecharEdicaoDePrompt,
         rotuloDoFechar = "Cancelar",
     )
 }
 
-/** O campo editável do texto de um prompt, com o seletor de modelo de imagem, comum à recusa (K4, Z9) e à edição (R1). */
+/**
+ * O campo editável do texto de um prompt, com o seletor de modelo de imagem, comum à recusa (K4, Z9) e à edição (R1).
+ *
+ * **Camada em português (PT7):** duas abas, **Inglês** (o prompt de verdade, o que vai à imagem) e **Português**. "Português" traz a
+ * tradução do prompt (guardada, ou feita agora por uma chamada barata); a pessoa edita o português e toca em **"Traduzir para o inglês"**,
+ * que preenche o **"Inglês que será enviado"** (ainda editável, para conferir). **Gerar** envia esse inglês (e o português junto, para o
+ * prompt novo guardá-lo). O custo da última tradução aparece embaixo.
+ */
 @Composable
 private fun DialogoDoTextoDoPrompt(
     chave: String,
@@ -1230,12 +1247,50 @@ private fun DialogoDoTextoDoPrompt(
     opcoesSemFiltro: List<String>,
     padraoDoServidor: String?,
     modeloInicial: String?,
-    aoConfirmar: (texto: String, modelo: String?) -> Unit,
+    promptId: Int,
+    acoes: AcoesDoPainel,
+    aoConfirmar: (texto: String, modelo: String?, textoPt: String?) -> Unit,
     aoFechar: () -> Unit,
     rotuloDoFechar: String,
 ) {
     var texto by rememberSaveable(chave) { mutableStateOf(textoInicial) }
     var modelo by rememberSaveable(chave) { mutableStateOf(modeloInicial) }
+    // PT7: a aba, o português (nulo = ainda não trazido), o português que gerou o inglês atual e o que a rede está fazendo.
+    var emPortugues by rememberSaveable(chave) { mutableStateOf(false) }
+    var textoPt by rememberSaveable(chave) { mutableStateOf<String?>(null) }
+    var portuguesEscrito by rememberSaveable(chave) { mutableStateOf<String?>(null) }
+    var traduzindo by remember { mutableStateOf(false) }
+    var recado by remember { mutableStateOf<String?>(null) }
+    var recadoEhErro by remember { mutableStateOf(false) }
+
+    fun trazerOPortugues() {
+        traduzindo = true; recado = null
+        acoes.aoVerEmPortugues(promptId) { resultado ->
+            traduzindo = false
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> { textoPt = resultado.dado.texto; recado = textoDoCustoDaTraducao(resultado.dado); recadoEhErro = false }
+                is ResultadoDaChamada.Falha -> { emPortugues = false; recado = resultado.motivo; recadoEhErro = true }
+            }
+        }
+    }
+
+    fun passarParaOIngles() {
+        val escrito = textoPt ?: return
+        traduzindo = true; recado = null
+        acoes.aoTraduzirParaIngles(promptId, escrito) { resultado ->
+            traduzindo = false
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> {
+                    texto = resultado.dado.texto.take(LIMITE_DO_PROMPT_EDITADO)
+                    portuguesEscrito = escrito
+                    emPortugues = false
+                    recado = textoDoCustoDaTraducao(resultado.dado); recadoEhErro = false
+                }
+                is ResultadoDaChamada.Falha -> { recado = resultado.motivo; recadoEhErro = true }
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = aoFechar,
         title = { Text(titulo) },
@@ -1247,17 +1302,52 @@ private fun DialogoDoTextoDoPrompt(
                     Text("Modelo de imagem", style = MaterialTheme.typography.labelLarge)
                     SeletorDeModelo(opcoesDeModelo, padraoDoServidor, modelo, { modelo = it }, semFiltro = opcoesSemFiltro)
                 }
-                OutlinedTextField(
-                    value = texto,
-                    onValueChange = { texto = it.take(LIMITE_DO_PROMPT_EDITADO) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Prompt") },
-                    minLines = 4,
-                    maxLines = 10,
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !emPortugues,
+                        onClick = { emPortugues = false },
+                        label = { Text(if (portuguesEscrito != null) "Inglês que será enviado" else "Inglês") },
+                    )
+                    FilterChip(
+                        selected = emPortugues,
+                        onClick = { emPortugues = true; if (textoPt == null && !traduzindo) trazerOPortugues() },
+                        label = { Text("Português") },
+                    )
+                }
+                if (emPortugues) {
+                    OutlinedTextField(
+                        value = textoPt.orEmpty(),
+                        onValueChange = { textoPt = it.take(LIMITE_DO_PROMPT_EDITADO) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Prompt em português") },
+                        enabled = textoPt != null && !traduzindo,
+                        minLines = 4,
+                        maxLines = 10,
+                    )
+                    OutlinedButton(onClick = { passarParaOIngles() }, enabled = !textoPt.isNullOrBlank() && !traduzindo) {
+                        Text("Traduzir para o inglês")
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = texto,
+                        onValueChange = { texto = it.take(LIMITE_DO_PROMPT_EDITADO); portuguesEscrito = null /* editou o inglês à mão: o português já não o descreve */ },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (portuguesEscrito != null) "Inglês que será enviado" else "Prompt") },
+                        minLines = 4,
+                        maxLines = 10,
+                    )
+                }
+                if (traduzindo) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                recado?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (recadoEhErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { aoConfirmar(texto, modelo) }, enabled = texto.isNotBlank()) { Text(rotuloDoBotao) } },
+        confirmButton = { TextButton(onClick = { aoConfirmar(texto, modelo, portuguesEscrito) }, enabled = texto.isNotBlank() && !traduzindo) { Text(rotuloDoBotao) } },
         dismissButton = { TextButton(onClick = aoFechar) { Text(rotuloDoFechar) } },
     )
 }

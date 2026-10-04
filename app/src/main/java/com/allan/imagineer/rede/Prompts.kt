@@ -28,6 +28,8 @@ data class PromptDeFrame(
     val modelo_ia: String? = null,
     val data_criacao: String = "",
     val total_de_imagens: Int = 0,
+    /** A versão em português do prompt (PT1); nulo = ainda sem tradução. O que vai à imagem é o [texto], em inglês. */
+    val texto_pt: String? = null,
     val referencias_visuais: List<ReferenciaVisual> = emptyList(),
     /** Só vêm em `GET /prompts/{id}` (a listagem do frame traz apenas [total_de_imagens]). */
     val imagens: List<ImagemDoPrompt> = emptyList(),
@@ -177,7 +179,17 @@ interface RepositorioDePrompts {
         modelo: String? = null,
         semFiltro: Boolean = false,
         referencias: List<Int> = emptyList(),
+        /** O português que a pessoa escreveu e que deu origem ao [textoEditado] (PT4): o prompt novo o guarda. */
+        textoPt: String? = null,
     ): ResultadoDaChamada<ResultadoDaGeracao>
+
+    /** `POST /prompts/{id}/traducao-pt`: o prompt em português (PT2); traduz uma vez e guarda, e a segunda vez não chama a IA. */
+    suspend fun traduzirParaPortugues(promptId: Int): ResultadoDaChamada<Traducao> =
+        ResultadoDaChamada.Falha("A tradução não está disponível.")
+
+    /** `POST /prompts/{id}/traduzir-para-ingles`: o português escrito, em inglês (PT3); só uma prévia, não grava nada. */
+    suspend fun traduzirParaIngles(promptId: Int, texto: String): ResultadoDaChamada<Traducao> =
+        ResultadoDaChamada.Falha("A tradução não está disponível.")
 
     /** `GET /frames/{id}/elementos-para-vincular`: os elementos e as imagens do seletor (EV6). Nunca gasta IA. */
     suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular>
@@ -265,18 +277,31 @@ class RepositorioDePromptsPeloRetrofit(
         return interpretarRemocao(chamarApi { api.removerImagem(imagemId) })
     }
 
+    override suspend fun traduzirParaPortugues(promptId: Int): ResultadoDaChamada<Traducao> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.traduzirParaPortugues(promptId) }
+    }
+
+    override suspend fun traduzirParaIngles(promptId: Int, texto: String): ResultadoDaChamada<Traducao> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("texto", texto) }
+        return chamarApi { api.traduzirParaIngles(promptId, corpo) }
+    }
+
     override suspend fun gerarImagem(
         promptId: Int,
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
         referencias: List<Int>,
+        textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
         val api = provedor.obter() ?: return provedor.semServidor()
         // Só o que a pessoa decidiu: sem texto o servidor segue o fluxo normal (original e, se recusar, suaviza); sem
         // modelo vale o padrão do servidor (Z3).
         val corpo: JsonObject = buildJsonObject {
             if (textoEditado != null) put("texto", textoEditado)
+            if (textoEditado != null && !textoPt.isNullOrBlank()) put("texto_pt", textoPt)
             if (modelo != null) put("modelo", modelo)
             // F12: só por pedido explícito da pessoa, no diálogo próprio; nunca vai por padrão.
             if (semFiltro) put("sem_filtro_de_seguranca", true)
@@ -351,6 +376,7 @@ object PromptsSemServidor : RepositorioDePrompts {
         modelo: String?,
         semFiltro: Boolean,
         referencias: List<Int>,
+        textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
     override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas> =
@@ -436,6 +462,18 @@ fun extensaoDoTipo(tipo: String): String = when (tipo.lowercase()) {
     "image/gif" -> "gif"
     else -> "png"
 }
+
+/**
+ * O resultado de uma tradução de prompt (PT2, PT3, PT6). [custo] vem em dólares **como texto** (ou nulo: já estava guardada, ou o
+ * fornecedor não informou); [reaproveitada] = já estava guardada, sem chamar a IA.
+ */
+@Serializable
+data class Traducao(
+    val texto: String,
+    val modelo: String? = null,
+    val custo: String? = null,
+    val reaproveitada: Boolean = false,
+)
 
 /** O endereço de uma imagem no servidor (item 6.9): `miniatura`, `leitura` ou `original` (J4, J7). */
 fun enderecoDaImagem(urlBase: String, imagemId: Int, tamanho: String): String =

@@ -139,13 +139,14 @@ class ServicoDeAnalises(
         modelo: String?,
         semFiltro: Boolean,
         referencias: List<Int>,
+        textoPt: String? = null,
     ): Deferred<ResultadoDaChamada<ResultadoDaGeracao>> = synchronized(trava) {
         imagensEmAndamento[promptId]?.let { return it }
         val trabalho = escopo.async {
             val resultado = when {
-                semFiltro -> prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true, referencias = referencias)
-                referencias.isNotEmpty() -> prompts.gerarImagem(promptId, textoEditado, modelo, referencias = referencias)
-                else -> prompts.gerarImagem(promptId, textoEditado, modelo)
+                semFiltro -> prompts.gerarImagem(promptId, textoEditado, modelo, semFiltro = true, referencias = referencias, textoPt = textoPt)
+                referencias.isNotEmpty() -> prompts.gerarImagem(promptId, textoEditado, modelo, referencias = referencias, textoPt = textoPt)
+                else -> prompts.gerarImagem(promptId, textoEditado, modelo, textoPt = textoPt)
             }
             synchronized(trava) { imagensEmAndamento.remove(promptId) }
             val geracao = (resultado as? ResultadoDaChamada.Sucesso)?.dado

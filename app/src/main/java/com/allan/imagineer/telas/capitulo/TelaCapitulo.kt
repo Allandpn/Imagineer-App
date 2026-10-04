@@ -420,7 +420,9 @@ private fun LeitorPaginado(
             painel.escolherImagemPara(frameId, promptId)
             seletorDeImagem.launch("image/*")
         },
-        aoGerarImagem = painel::gerarImagem,
+        aoGerarImagem = { frameId, promptId, texto, modelo, textoPt -> painel.gerarImagem(frameId, promptId, texto, modelo, textoPt) },
+        aoVerEmPortugues = painel::verEmPortugues,
+        aoTraduzirParaIngles = painel::traduzirParaIngles,
         aoCarregarModelosDeImagem = painel::carregarModelosDeImagem,
         aoAbrirEscolhaDeModelo = painel::abrirEscolhaDeModelo,
         aoEscolherModelo = painel::escolherModelo,

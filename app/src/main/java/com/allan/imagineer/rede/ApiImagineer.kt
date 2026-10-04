@@ -100,6 +100,14 @@ interface ApiImagineer {
         @Body ajuste: CapituloAjuste,
     ): CapituloResumo
 
+    /** `POST /prompts/{id}/traducao-pt` — o prompt em português (traduz uma vez e guarda) (PT2). */
+    @POST("prompts/{id}/traducao-pt")
+    suspend fun traduzirParaPortugues(@Path("id") promptId: Int): Traducao
+
+    /** `POST /prompts/{id}/traduzir-para-ingles` — o português escrito, em inglês; só uma prévia (PT3). */
+    @POST("prompts/{id}/traduzir-para-ingles")
+    suspend fun traduzirParaIngles(@Path("id") promptId: Int, @Body corpo: JsonObject): Traducao
+
     /** `GET /custos` — os custos de IA de um mês (`AAAA-MM`; sem `mes`, o atual), por provedor, operação, livro e modelo (CU4). */
     @GET("custos")
     suspend fun custos(@Query("mes") mes: String? = null): CustosDoMes

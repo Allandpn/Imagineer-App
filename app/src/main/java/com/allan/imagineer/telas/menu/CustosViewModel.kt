@@ -61,12 +61,17 @@ fun temMesSeguinte(dados: CustosDoMes): Boolean = mesesNavegaveis(dados).any { i
 private val PORTUGUES_DO_BRASIL = Locale("pt", "BR")
 
 /**
- * Um valor em dólares para ler: "US$ 12,40" a partir de 1 dólar; abaixo disso, três casas ("US$ 0,025"), porque uma imagem custa
- * centavos de centavo. [estimado] antepõe o "~" (o valor veio, em parte, de uma tabela de preços).
+ * Um valor em dólares para ler: "US$ 12,40" a partir de 1 dólar; de 1 centavo a 1 dólar, três casas ("US$ 0,025"); abaixo de 1 centavo,
+ * quatro ("US$ 0,0004"), porque uma chamada barata custa frações de centavo. [estimado] antepõe o "~" (o valor veio, em parte, de uma tabela de preços).
  */
 fun formatarDolar(valor: String, estimado: Boolean = false): String {
     val numero = valor.toDoubleOrNull() ?: 0.0
-    val texto = if (numero >= 1.0 || numero == 0.0) String.format(PORTUGUES_DO_BRASIL, "%.2f", numero) else String.format(PORTUGUES_DO_BRASIL, "%.3f", numero)
+    val casas = when {
+        numero == 0.0 || numero >= 1.0 -> 2
+        numero >= 0.01 -> 3
+        else -> 4 // abaixo de um centavo (uma tradução, uma chamada barata): "0,0004" e não "0,000"
+    }
+    val texto = String.format(PORTUGUES_DO_BRASIL, "%.${casas}f", numero)
     return (if (estimado) "~" else "") + "US$ $texto"
 }
 
@@ -94,6 +99,7 @@ fun nomeDaOperacao(operacao: String): String = when (operacao) {
     "fundamentacao" -> "Contexto da cena"
     "prompt" -> "Prompt de imagem"
     "suavizacao" -> "Suavização do prompt"
+    "traducao" -> "Tradução de prompt"
     "perfil" -> "Perfil de renderização"
     "imagem" -> "Imagens geradas"
     else -> operacao.replaceFirstChar { it.uppercase() }
