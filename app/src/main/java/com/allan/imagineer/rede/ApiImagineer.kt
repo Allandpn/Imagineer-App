@@ -53,6 +53,10 @@ interface ApiImagineer {
     @GET("configuracao/modelos-de-imagem")
     suspend fun catalogoDeImagem(): CatalogoDeImagem
 
+    /** `PUT /configuracao/modelos-de-imagem/preco` — informa (ou limpa) o preço por imagem de um modelo; devolve o catálogo (PD5). */
+    @PUT("configuracao/modelos-de-imagem/preco")
+    suspend fun informarPrecoDoModelo(@Body corpo: PrecoInformado): CatalogoDeImagem
+
     /** `POST /configuracao/modelos-de-imagem/testar` — gera **uma** imagem de teste (gasta ~1 centavo) e mede resolução e custo (MI5). */
     @Headers("X-Timeout-Leitura: 660")
     @POST("configuracao/modelos-de-imagem/testar")

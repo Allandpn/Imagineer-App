@@ -48,6 +48,10 @@ data class TesteDeImagem(
     val previa_base64: String = "",
 )
 
+/** O corpo de `PUT /configuracao/modelos-de-imagem/preco` (PD5): [preco] em dólares por imagem; nulo ou vazio limpa. */
+@Serializable
+data class PrecoInformado(val modelo: String, val preco: String? = null)
+
 /** O corpo de `PUT /configuracao` que troca a **lista** de modelos de imagem que se pode escolher ao gerar. */
 @Serializable
 @Suppress("PropertyName")

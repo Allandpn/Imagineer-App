@@ -33,12 +33,23 @@ private class CatalogoFalso(var modelos: List<ModeloDeImagem>) : RepositorioDeMo
     var falhaNoTeste: String? = null
     val testados = mutableListOf<String>()
     val listasGravadas = mutableListOf<List<String>>()
+    val precosInformados = mutableListOf<Pair<String, String?>>()
     val escolhas = mutableListOf<Pair<String, String?>>()
     private val config = ConfiguracaoAtual(tem_chave_api = true, origem_da_chave = "ambiente", prioridade_ia = "ECONOMIA")
 
     override suspend fun configuracao() = ResultadoDaChamada.Sucesso(config)
     override suspend fun modelosDeTexto() = ResultadoDaChamada.Sucesso(emptyList<ModeloDeTexto>())
     override suspend fun catalogoDeImagem() = ResultadoDaChamada.Sucesso(CatalogoDeImagem(modelos))
+    override suspend fun informarPreco(modelo: String, preco: String?): ResultadoDaChamada<CatalogoDeImagem> {
+        precosInformados += modelo to preco
+        modelos = modelos.map {
+            if (it.id != modelo) it
+            else if (preco.isNullOrBlank()) it.copy(preco_por_imagem = null, origem_do_preco = null)
+            else it.copy(preco_por_imagem = preco.replace(',', '.'), origem_do_preco = "informado")
+        }
+        return ResultadoDaChamada.Sucesso(CatalogoDeImagem(modelos))
+    }
+
     override suspend fun testarImagem(modelo: String): ResultadoDaChamada<TesteDeImagem> {
         testados += modelo
         falhaNoTeste?.let { return ResultadoDaChamada.Falha(it) }
@@ -68,14 +79,15 @@ class ModelosDeImagemTest {
     fun limpar() = Dispatchers.resetMain()
 
     private val a = modelo("meta/muse-image", "Muse", emUso = true, disponivel = true)
-    private val b = modelo("fal:fal-ai/flux/dev", "Flux Dev", preco = "0.025", origem = "tabela", fornecedor = "fal.ai")
+    private val b = modelo("fal:fal-ai/flux/dev", "Flux Dev", preco = "0.025", origem = "fornecedor", fornecedor = "fal.ai")
 
     private fun pronto(vm: ModelosDeImagemViewModel) = (vm.estado.value.carga as CargaDoCatalogo.Pronta).modelos
 
     @Test
     fun o_preco_diz_de_onde_veio_ou_que_falta_medir() {
-        assertEquals("Sem preço por imagem ainda: teste para medir", precoDaImagem(a))
-        assertEquals("~US$ 0,025 por imagem (estimado pela tabela)", precoDaImagem(b))
+        assertEquals("Sem preço por imagem ainda: informe o preço ou teste para medir", precoDaImagem(a))
+        assertEquals("~US$ 0,025 por imagem (estimado: fal.ai, por megapixel)", precoDaImagem(b))
+        assertEquals("US$ 0,031 por imagem (informado por você)", precoDaImagem(modelo("x", preco = "0.031", origem = "informado")))
         assertEquals("US$ 0,020 por imagem (média do que já custou)", precoDaImagem(modelo("x", preco = "0.02", origem = "medido")))
     }
 
@@ -91,6 +103,38 @@ class ModelosDeImagemTest {
         assertEquals(listOf(b), filtrarCatalogo(todos, "flux"))
         assertEquals(listOf(b), filtrarCatalogo(todos, "FAL.ai"))
         assertEquals(todos, filtrarCatalogo(todos, " "))
+    }
+
+    @Test
+    fun o_filtro_por_fornecedor_e_a_minha_lista() {
+        val replicate = modelo("replicate:dono/x", fornecedor = "Replicate")
+        val todos = listOf(a, b, replicate)
+
+        assertEquals(todos, filtrarPorFornecedor(todos, FiltroDeFornecedor.TODOS))
+        assertEquals(listOf(b), filtrarPorFornecedor(todos, FiltroDeFornecedor.FAL))
+        assertEquals(listOf(replicate), filtrarPorFornecedor(todos, FiltroDeFornecedor.REPLICATE))
+        assertEquals(listOf(a), filtrarPorFornecedor(todos, FiltroDeFornecedor.OPENROUTER))
+        assertEquals(listOf(a), filtrarPorFornecedor(todos, FiltroDeFornecedor.MINHA_LISTA))  // só o que aparece ao gerar
+    }
+
+    @Test
+    fun informar_o_preco_grava_e_o_catalogo_mostra_como_informado_e_limpar_volta() = runTest {
+        val repositorio = CatalogoFalso(listOf(a, b))
+        val vm = ModelosDeImagemViewModel(repositorio)
+        vm.carregar()
+        advanceUntilIdle()
+
+        vm.informarPreco(b, "0,04")
+        advanceUntilIdle()
+
+        assertEquals(listOf("fal:fal-ai/flux/dev" to "0,04"), repositorio.precosInformados)
+        val informado = pronto(vm).first { it.id == b.id }
+        assertEquals("informado", informado.origem_do_preco)
+        assertEquals("US$ 0,040 por imagem (informado por você)", precoDaImagem(informado))
+
+        vm.informarPreco(informado, null)
+        advanceUntilIdle()
+        assertEquals(null, pronto(vm).first { it.id == b.id }.preco_por_imagem)
     }
 
     @Test

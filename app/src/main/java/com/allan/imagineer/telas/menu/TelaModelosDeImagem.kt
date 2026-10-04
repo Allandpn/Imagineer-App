@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -15,6 +16,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -58,6 +60,9 @@ fun TelaModelosDeImagem(aoVoltar: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
     var busca by rememberSaveable { mutableStateOf("") }
     var adicionando by rememberSaveable { mutableStateOf(false) }
+    var filtro by rememberSaveable { mutableStateOf(FiltroDeFornecedor.TODOS) }
+    var mostrando by rememberSaveable { mutableStateOf(TAMANHO_DA_PAGINA_DO_CATALOGO) }
+    var precificando by remember { mutableStateOf<ModeloDeImagem?>(null) }
 
     TelaDoMenu("Modelo de imagem", aoVoltar) {
         when (val carga = estado.carga) {
@@ -72,22 +77,36 @@ fun TelaModelosDeImagem(aoVoltar: () -> Unit) {
                 OutlinedTextField(value = busca, onValueChange = { busca = it }, label = { Text("Buscar modelo") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 TextButton(onClick = { adicionando = true }) { Text("Adicionar um modelo pelo id") }
                 Text(
-                    "O preço por imagem só aparece quando se sabe: depois de gerar ou testar (média real) ou, no fal.ai e no Replicate, pela tabela de preços (estimado, com ~).",
+                    "O preço por imagem vem de, em ordem: o que as imagens do modelo já custaram (média real), o que você informar e o que o fal.ai publica (estimado, com ~). O Replicate não publica preço: informe o que você vê na conta dele.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                filtrarCatalogo(carga.modelos, busca).forEach { modelo ->
-                    CartaoDoModeloDeImagem(modelo, ocupado = modelo.id in estado.ocupados, viewModel = viewModel)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FiltroDeFornecedor.entries.forEach { opcao ->
+                        FilterChip(selected = filtro == opcao, onClick = { filtro = opcao; mostrando = TAMANHO_DA_PAGINA_DO_CATALOGO }, label = { Text(opcao.rotulo) })
+                    }
+                }
+                val lista = filtrarCatalogo(filtrarPorFornecedor(carga.modelos, filtro), busca)
+                lista.take(mostrando).forEach { modelo ->
+                    CartaoDoModeloDeImagem(modelo, ocupado = modelo.id in estado.ocupados, viewModel = viewModel, aoInformarPreco = { precificando = modelo })
+                }
+                if (lista.size > mostrando) {
+                    OutlinedButton(onClick = { mostrando += TAMANHO_DA_PAGINA_DO_CATALOGO }) { Text("Mostrar mais (${lista.size - mostrando})") }
+                } else if (lista.isEmpty()) {
+                    Text("Nenhum modelo neste filtro.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
     }
     if (adicionando) DialogoDeAdicionarModelo(aoFechar = { adicionando = false }, aoAdicionar = { viewModel.adicionar(it); adicionando = false })
     estado.teste?.let { DialogoDoTeste(it, viewModel) }
+    precificando?.let { modelo ->
+        DialogoDePreco(modelo, aoFechar = { precificando = null }, aoSalvar = { viewModel.informarPreco(modelo, it); precificando = null })
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CartaoDoModeloDeImagem(modelo: ModeloDeImagem, ocupado: Boolean, viewModel: ModelosDeImagemViewModel) {
+private fun CartaoDoModeloDeImagem(modelo: ModeloDeImagem, ocupado: Boolean, viewModel: ModelosDeImagemViewModel, aoInformarPreco: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(modelo.nome + if (modelo.em_uso) " · padrão" else "", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -108,9 +127,39 @@ private fun CartaoDoModeloDeImagem(modelo: ModeloDeImagem, ocupado: Boolean, vie
                     Text(if (modelo.disponivel) "Tirar da lista" else "Mostrar ao gerar", maxLines = 1, softWrap = false)
                 }
                 OutlinedButton(onClick = { viewModel.pedirTeste(modelo) }, enabled = !ocupado) { Text("Testar resolução", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = aoInformarPreco, enabled = !ocupado) { Text("Informar preço", maxLines = 1, softWrap = false) }
             }
         }
     }
+}
+
+@Composable
+private fun DialogoDePreco(modelo: ModeloDeImagem, aoFechar: () -> Unit, aoSalvar: (String?) -> Unit) {
+    var texto by rememberSaveable(modelo.id) { mutableStateOf(if (modelo.origem_do_preco == "informado") modelo.preco_por_imagem.orEmpty() else "") }
+    AlertDialog(
+        onDismissRequest = aoFechar,
+        title = { Text("Preço de ${modelo.nome}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Quanto custa uma imagem desse modelo, em dólares (por exemplo 0,03). Vale em cima do que o fornecedor publica, e só a média real de imagens já geradas vale mais que ele.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = texto, onValueChange = { texto = it }, label = { Text("US$ por imagem") }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { aoSalvar(texto.trim()) }, enabled = texto.isNotBlank()) { Text("Salvar") } },
+        dismissButton = {
+            Row {
+                if (modelo.origem_do_preco == "informado") TextButton(onClick = { aoSalvar(null) }) { Text("Limpar") }
+                TextButton(onClick = aoFechar) { Text("Cancelar") }
+            }
+        },
+    )
 }
 
 @Composable

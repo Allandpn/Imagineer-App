@@ -27,6 +27,9 @@ interface RepositorioDeModelos {
     /** `GET /configuracao/modelos-de-imagem` (MI1). */
     suspend fun catalogoDeImagem(): ResultadoDaChamada<CatalogoDeImagem>
 
+    /** `PUT /configuracao/modelos-de-imagem/preco`: o preço por imagem que a pessoa informa ([preco] nulo limpa) (PD5). Devolve o catálogo. */
+    suspend fun informarPreco(modelo: String, preco: String?): ResultadoDaChamada<CatalogoDeImagem>
+
     /** `POST /configuracao/modelos-de-imagem/testar`: gera uma imagem de teste. **Gasta dinheiro** (MI5). */
     suspend fun testarImagem(modelo: String): ResultadoDaChamada<TesteDeImagem>
 
@@ -51,6 +54,11 @@ class RepositorioDeModelosPeloRetrofit(private val provedor: ProvedorDeApi) : Re
     override suspend fun catalogoDeImagem(): ResultadoDaChamada<CatalogoDeImagem> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.catalogoDeImagem() }
+    }
+
+    override suspend fun informarPreco(modelo: String, preco: String?): ResultadoDaChamada<CatalogoDeImagem> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.informarPrecoDoModelo(PrecoInformado(modelo, preco)) }
     }
 
     override suspend fun testarImagem(modelo: String): ResultadoDaChamada<TesteDeImagem> {

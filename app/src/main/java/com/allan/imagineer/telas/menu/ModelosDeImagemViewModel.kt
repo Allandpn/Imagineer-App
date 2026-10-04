@@ -14,16 +14,36 @@ import kotlinx.coroutines.launch
 
 // A escolha do modelo de imagem (MI6): ver preço por imagem, moderação e resolução, usar, mostrar ao gerar e testar.
 
-/** O preço por imagem como se lê na tela: o valor (com "~" se é de tabela), de onde veio, ou que ainda não há. */
+/** O preço por imagem como se lê na tela: o valor (com "~" se é estimado), de onde veio, ou que ainda não há (PD1). */
 fun precoDaImagem(modelo: ModeloDeImagem): String {
-    val valor = modelo.preco_por_imagem ?: return "Sem preço por imagem ainda: teste para medir"
-    val texto = formatarDolar(valor, estimado = modelo.origem_do_preco == "tabela") + " por imagem"
+    val valor = modelo.preco_por_imagem ?: return "Sem preço por imagem ainda: informe o preço ou teste para medir"
+    val texto = formatarDolar(valor, estimado = modelo.origem_do_preco == "fornecedor") + " por imagem"
     return when (modelo.origem_do_preco) {
         "medido" -> "$texto (média do que já custou)"
-        "tabela" -> "$texto (estimado pela tabela)"
+        "informado" -> "$texto (informado por você)"
+        "fornecedor" -> "$texto (estimado: fal.ai, por megapixel)"
         else -> texto
     }
 }
+
+/** Os filtros da lista por fornecedor (PD6). [rotulo] é o que a tela mostra; [fornecedor] é o nome que o servidor devolve (nulo = sem filtro). */
+enum class FiltroDeFornecedor(val rotulo: String, val fornecedor: String?) {
+    TODOS("Todos", null),
+    MINHA_LISTA("Minha lista", null),
+    OPENROUTER("OpenRouter", "OpenRouter"),
+    FAL("fal.ai", "fal.ai"),
+    REPLICATE("Replicate", "Replicate"),
+}
+
+/** Os modelos do [filtro]: "Minha lista" são os que aparecem ao gerar (e o padrão); os demais, o fornecedor. */
+fun filtrarPorFornecedor(modelos: List<ModeloDeImagem>, filtro: FiltroDeFornecedor): List<ModeloDeImagem> = when (filtro) {
+    FiltroDeFornecedor.TODOS -> modelos
+    FiltroDeFornecedor.MINHA_LISTA -> modelos.filter { it.disponivel || it.em_uso }
+    else -> modelos.filter { it.fornecedor == filtro.fornecedor }
+}
+
+/** Quantos modelos a lista mostra de cada vez (a lista completa passa de 300). */
+const val TAMANHO_DA_PAGINA_DO_CATALOGO = 30
 
 /** A linha de preço de token do OpenRouter, quando há: o preço **não** é por imagem, e a tela diz isso. */
 fun precoPorTokenDeImagem(modelo: ModeloDeImagem): String? =
@@ -46,7 +66,7 @@ fun listaAoAlternar(modelos: List<ModeloDeImagem>, alvo: String): List<String> {
 
 /** O que a confirmação do teste diz sobre o custo: o preço conhecido, ou que ainda não se sabe. */
 fun avisoDeCustoDoTeste(modelo: ModeloDeImagem): String {
-    val preco = modelo.preco_por_imagem?.let { formatarDolar(it, estimado = modelo.origem_do_preco == "tabela") }
+    val preco = modelo.preco_por_imagem?.let { formatarDolar(it, estimado = modelo.origem_do_preco == "fornecedor") }
     return if (preco != null) "Gera uma imagem de teste e cobra cerca de $preco." else "Gera uma imagem de teste e cobra (o preço ainda não é conhecido; costuma ser de um a poucos centavos)."
 }
 
@@ -135,6 +155,13 @@ class ModelosDeImagemViewModel(private val repositorio: RepositorioDeModelos) : 
                 is ResultadoDaChamada.Falha -> _estado.update { it.copy(recado = r.motivo, recadoEhErro = true) }
             }
             _estado.update { it.copy(ocupados = it.ocupados - chave) }
+        }
+    }
+
+    /** Informa o preço por imagem de um [modelo] ([preco] em dólares; nulo ou vazio limpa) e relê o catálogo (PD5). */
+    fun informarPreco(modelo: ModeloDeImagem, preco: String?) {
+        gravar(modelo.id, if (preco.isNullOrBlank()) "${modelo.nome}: preço informado removido." else "${modelo.nome}: preço informado.") {
+            repositorio.informarPreco(modelo.id, preco)
         }
     }
 
