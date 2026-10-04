@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -92,8 +94,8 @@ private fun CampoDeTexto(
 
 /**
  * O diálogo de escolher o perfil padrão. Escolher grava na hora — a escolha é o
- * gesto, não há botão "Salvar". Só escolhe entre perfis **existentes**; criar
- * perfis é da tela de Perfis (Bloco E).
+ * gesto, não há botão "Salvar". Só escolhe entre perfis **existentes** (os 10 de fábrica e
+ * os próprios); criar perfis próprios é da tela de Perfis, nas Configurações.
  */
 @Composable
 fun DialogoDePerfilPadrao(
@@ -115,16 +117,19 @@ fun DialogoDePerfilPadrao(
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 is EstadoDaEscolhaDePerfil.Falhou ->
                     Text(estado.motivo, color = MaterialTheme.colorScheme.error)
-                is EstadoDaEscolhaDePerfil.Lista -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                is EstadoDaEscolhaDePerfil.Lista -> Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     if (estado.perfis.isEmpty()) {
                         Text(
-                            "Nenhum perfil criado ainda. Crie um em Perfis, na tela do livro.",
+                            "Nenhum perfil disponível.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    OpcaoDePerfil("Nenhum", perfilAtualId == null, !estado.salvando) { aoEscolher(null) }
+                    OpcaoDePerfil("Nenhum", null, perfilAtualId == null, !estado.salvando) { aoEscolher(null) }
                     estado.perfis.forEach { perfil ->
-                        OpcaoDePerfil(perfil.nome, perfil.id == perfilAtualId, !estado.salvando) { aoEscolher(perfil) }
+                        OpcaoDePerfil(perfil.nome, perfil.categoria?.dica, perfil.id == perfilAtualId, !estado.salvando) { aoEscolher(perfil) }
                     }
                     if (estado.erro != null) {
                         Text(estado.erro, color = MaterialTheme.colorScheme.error)
@@ -141,7 +146,7 @@ fun DialogoDePerfilPadrao(
 }
 
 @Composable
-private fun OpcaoDePerfil(nome: String, marcado: Boolean, habilitado: Boolean, aoEscolher: () -> Unit) {
+private fun OpcaoDePerfil(nome: String, dica: String?, marcado: Boolean, habilitado: Boolean, aoEscolher: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -150,6 +155,11 @@ private fun OpcaoDePerfil(nome: String, marcado: Boolean, habilitado: Boolean, a
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = marcado, onClick = null, enabled = habilitado)
-        Text(nome, modifier = Modifier.padding(start = 12.dp))
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(nome)
+            if (dica != null) {
+                Text(dica, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +60,11 @@ const val AVISO_DA_CATEGORIA =
     "A categoria escolhe uma técnica fixa que o servidor cola ao fim de cada prompt. O estilo, a iluminação e a paleta abaixo " +
         "devem combinar com ela: se o texto disser \"óleo\" e a categoria for anime, o modelo pode ignorar a categoria."
 
+/** A explicação no alto da lista: o caminho simples (escolher um de fábrica) e o avançado (criar um próprio). */
+const val EXPLICACAO_DOS_PERFIS =
+    "Os perfis de fábrica já trazem a técnica do estilo pronta: no livro, é só escolher um deles. " +
+        "Crie um perfil próprio apenas se precisar de algo sob medida."
+
 /** A linha de resumo de um perfil na lista. */
 fun resumoDoPerfil(perfil: PerfilRenderizacao): String =
     listOfNotNull(perfil.categoria?.rotulo, perfil.estilo?.takeIf { it.isNotBlank() }).joinToString(" · ").ifBlank { "Sem categoria nem estilo" }
@@ -85,7 +91,11 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = viewModel::novo) { Icon(Icons.Filled.Add, contentDescription = "Novo perfil") }
+            ExtendedFloatingActionButton(
+                onClick = viewModel::novo,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("Criar novo perfil") },
+            )
         },
     ) { margens ->
         Box(modifier = Modifier.padding(margens).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -101,7 +111,7 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
                 }
                 is CargaDosPerfis.Pronta -> if (carga.perfis.isEmpty()) {
                     Text(
-                        "Nenhum perfil ainda. Toque em + para criar o primeiro.",
+                        "Nenhum perfil ainda. Toque em \"Criar novo perfil\" para criar o primeiro.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp),
@@ -109,13 +119,19 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
                 } else {
                     LazyColumn(
                         modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        item {
+                            Text(EXPLICACAO_DOS_PERFIS, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         items(carga.perfis, key = { it.id }) { perfil ->
-                            Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.editar(perfil) }) {
+                            Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.ver(perfil) }) {
                                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(perfil.nome, style = MaterialTheme.typography.titleMedium)
+                                    if (perfil.de_fabrica) {
+                                        Text("De fábrica", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    }
                                     Text(
                                         resumoDoPerfil(perfil),
                                         style = MaterialTheme.typography.bodySmall,
@@ -132,6 +148,14 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
         }
     }
 
+    estado.detalhe?.let { perfil ->
+        DetalheDoPerfil(
+            perfil = perfil,
+            aoCopiar = { viewModel.criarAPartirDe(perfil) },
+            aoEditar = { viewModel.editar(perfil) },
+            aoFechar = viewModel::fecharDetalhe,
+        )
+    }
     estado.formulario?.let { formulario ->
         FormularioDoPerfilNaTela(
             formulario = formulario,
@@ -153,6 +177,48 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
             confirmButton = { TextButton(onClick = viewModel::confirmarApagar) { Text("Apagar", color = MaterialTheme.colorScheme.error) } },
             dismissButton = { TextButton(onClick = viewModel::cancelarApagar) { Text("Cancelar") } },
         )
+    }
+}
+
+/** O perfil em detalhes (PF4): tudo o que ele leva ao prompt, inclusive o bloco técnico em inglês. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, aoEditar: () -> Unit, aoFechar: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = aoFechar) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(perfil.nome, style = MaterialTheme.typography.titleLarge)
+            Text(
+                if (perfil.de_fabrica) "Perfil de fábrica: já vem pronto e não pode ser editado." else "Perfil próprio.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            CampoDoDetalhe("Categoria", perfil.categoria?.rotulo ?: "Sem categoria")
+            CampoDoDetalhe("Estilo", perfil.estilo)
+            CampoDoDetalhe("Iluminação", perfil.iluminacao)
+            CampoDoDetalhe("Paleta", perfil.paleta)
+            CampoDoDetalhe("Artista de referência", perfil.artista_referencia)
+            CampoDoDetalhe("Formato", perfil.formato)
+            CampoDoDetalhe(
+                "Texto técnico colado ao fim de cada prompt",
+                perfil.bloco_tecnico ?: "Sem categoria, o prompt não ganha o bloco técnico.",
+            )
+            Button(onClick = aoCopiar, modifier = Modifier.fillMaxWidth()) { Text("Criar a partir deste") }
+            if (!perfil.de_fabrica) {
+                TextButton(onClick = aoEditar, modifier = Modifier.fillMaxWidth()) { Text("Editar") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CampoDoDetalhe(rotulo: String, valor: String?) {
+    if (valor.isNullOrBlank()) return
+    Column {
+        Text(rotulo, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(valor, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

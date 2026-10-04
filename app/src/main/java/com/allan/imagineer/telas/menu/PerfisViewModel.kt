@@ -28,6 +28,8 @@ data class EstadoDosPerfis(
     val formulario: FormularioDoPerfil? = null,
     /** O perfil que a pessoa pediu para apagar e ainda não confirmou. */
     val apagando: PerfilRenderizacao? = null,
+    /** O perfil aberto em detalhes (PF4); nulo = nenhum. */
+    val detalhe: PerfilRenderizacao? = null,
     /** Um recado curto (falha ao apagar, por exemplo); nulo quando está tudo bem. */
     val aviso: String? = null,
 )
@@ -58,8 +60,25 @@ class PerfisViewModel(private val repositorio: RepositorioDePerfis) : ViewModel(
         _estado.value = _estado.value.copy(formulario = FormularioDoPerfil(null, PerfilEdicao(nome = "")))
     }
 
+    /** Abre o perfil em detalhes: textos, categoria e o bloco técnico que o servidor cola ao prompt. */
+    fun ver(perfil: PerfilRenderizacao) {
+        _estado.value = _estado.value.copy(detalhe = perfil)
+    }
+
+    fun fecharDetalhe() {
+        _estado.value = _estado.value.copy(detalhe = null)
+    }
+
+    /** Edita um perfil **próprio** (os de fábrica são travados no servidor, e a tela nem oferece). */
     fun editar(perfil: PerfilRenderizacao) {
-        _estado.value = _estado.value.copy(formulario = FormularioDoPerfil(perfil.id, perfil.paraEdicao()))
+        if (perfil.de_fabrica) return
+        _estado.value = _estado.value.copy(detalhe = null, formulario = FormularioDoPerfil(perfil.id, perfil.paraEdicao()))
+    }
+
+    /** "Criar a partir deste": um perfil novo já com os textos e a categoria do escolhido, com outro nome (o nome é único). */
+    fun criarAPartirDe(perfil: PerfilRenderizacao) {
+        val edicao = perfil.paraEdicao().copy(nome = "${perfil.nome} (cópia)")
+        _estado.value = _estado.value.copy(detalhe = null, formulario = FormularioDoPerfil(null, edicao))
     }
 
     fun mudarFormulario(edicao: PerfilEdicao) {
@@ -94,6 +113,7 @@ class PerfisViewModel(private val repositorio: RepositorioDePerfis) : ViewModel(
     }
 
     fun pedirParaApagar(perfil: PerfilRenderizacao) {
+        if (perfil.de_fabrica) return
         _estado.value = _estado.value.copy(apagando = perfil)
     }
 
@@ -103,7 +123,7 @@ class PerfisViewModel(private val repositorio: RepositorioDePerfis) : ViewModel(
 
     fun confirmarApagar() {
         val perfil = _estado.value.apagando ?: return
-        _estado.value = _estado.value.copy(apagando = null, formulario = null)
+        _estado.value = _estado.value.copy(apagando = null, formulario = null, detalhe = null)
         viewModelScope.launch {
             when (val r = repositorio.removerPerfil(perfil.id)) {
                 is ResultadoDaChamada.Sucesso -> carregar()

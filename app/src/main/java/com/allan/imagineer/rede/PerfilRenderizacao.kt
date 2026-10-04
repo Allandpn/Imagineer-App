@@ -22,6 +22,10 @@ data class PerfilRenderizacao(
     val modelo_alvo: String? = null,
     /** A categoria de estilo (BT1): escolhe o bloco técnico fixo que o servidor cola ao fim do prompt. Nula = sem bloco. */
     val categoria_estilo: String? = null,
+    /** Um dos 10 perfis que já vêm com o Imagineer (PF1): travado, só se pode escolher ou copiar. */
+    val de_fabrica: Boolean = false,
+    /** O bloco técnico da categoria, em inglês, só para a tela mostrar o perfil em detalhes (PF2). */
+    val bloco_tecnico: String? = null,
 ) {
     val categoria: CategoriaDeEstilo? get() = CategoriaDeEstilo.de(categoria_estilo)
 }

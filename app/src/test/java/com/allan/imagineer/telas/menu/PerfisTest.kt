@@ -25,8 +25,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-private fun perfil(id: Int, nome: String, categoria: String? = null, estilo: String? = null) =
-    PerfilRenderizacao(id = id, nome = nome, estilo = estilo, categoria_estilo = categoria)
+private fun perfil(id: Int, nome: String, categoria: String? = null, estilo: String? = null, deFabrica: Boolean = false) =
+    PerfilRenderizacao(id = id, nome = nome, estilo = estilo, categoria_estilo = categoria, de_fabrica = deFabrica)
 
 private class PerfisFalsos(var perfis: List<PerfilRenderizacao> = emptyList(), var falharAoSalvar: String? = null) : RepositorioDePerfis {
     val criados = mutableListOf<PerfilEdicao>()
@@ -227,5 +227,75 @@ class PerfisTest {
         assertEquals("Anime", resumoDoPerfil(perfil(1, "x", "ANIME")))
         assertEquals("só o estilo", resumoDoPerfil(perfil(1, "x", null, "só o estilo")))
         assertEquals("Sem categoria nem estilo", resumoDoPerfil(perfil(1, "x")))
+    }
+
+    // ---- os perfis de fábrica (PF3, PF4)
+
+    @Test
+    fun ver_abre_o_perfil_em_detalhes_e_fechar_volta_para_a_lista() = runTest {
+        val vm = PerfisViewModel(PerfisFalsos(listOf(perfil(1, "Anime", "ANIME", deFabrica = true))))
+
+        vm.ver(perfil(1, "Anime", "ANIME", deFabrica = true))
+        assertEquals("Anime", vm.estado.value.detalhe!!.nome)
+
+        vm.fecharDetalhe()
+        assertNull(vm.estado.value.detalhe)
+    }
+
+    @Test
+    fun o_perfil_de_fabrica_nao_abre_para_edicao_nem_para_apagar() = runTest {
+        val vm = PerfisViewModel(PerfisFalsos())
+        val anime = perfil(1, "Anime", "ANIME", deFabrica = true)
+
+        vm.editar(anime)
+        vm.pedirParaApagar(anime)
+
+        assertNull(vm.estado.value.formulario)
+        assertNull(vm.estado.value.apagando)
+    }
+
+    @Test
+    fun criar_a_partir_de_um_de_fabrica_copia_os_textos_com_outro_nome_e_salva_como_novo() = runTest {
+        val falso = PerfisFalsos()
+        val vm = PerfisViewModel(falso)
+        val anime = PerfilRenderizacao(1, "Anime", estilo = "cel-shading", paleta = "vibrante", categoria_estilo = "ANIME", de_fabrica = true)
+        vm.ver(anime)
+
+        vm.criarAPartirDe(anime)
+
+        val formulario = vm.estado.value.formulario!!
+        assertNull(vm.estado.value.detalhe)
+        assertNull(formulario.perfilId)  // vai para o POST: não mexe no original
+        assertEquals("Anime (cópia)", formulario.edicao.nome)
+        assertEquals("cel-shading", formulario.edicao.estilo)
+        assertEquals(CategoriaDeEstilo.ANIME, formulario.edicao.categoria)
+
+        vm.salvar()
+        advanceUntilIdle()
+        assertEquals("Anime (cópia)", falso.criados.single().nome)
+    }
+
+    @Test
+    fun editar_um_perfil_proprio_fecha_o_detalhe_e_abre_o_formulario() = runTest {
+        val vm = PerfisViewModel(PerfisFalsos())
+        val proprio = perfil(7, "Meu", "AQUARELA")
+        vm.ver(proprio)
+
+        vm.editar(proprio)
+
+        assertNull(vm.estado.value.detalhe)
+        assertEquals(7, vm.estado.value.formulario!!.perfilId)
+    }
+
+    @Test
+    fun a_marca_de_fabrica_e_o_bloco_tecnico_vem_da_api() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val perfil = json.decodeFromString<PerfilRenderizacao>(
+            """{"id":3,"nome":"Anime","categoria_estilo":"ANIME","de_fabrica":true,"bloco_tecnico":"Japanese anime illustration."}""",
+        )
+
+        assertTrue(perfil.de_fabrica)
+        assertEquals("Japanese anime illustration.", perfil.bloco_tecnico)
+        assertFalse(json.decodeFromString<PerfilRenderizacao>("""{"id":1,"nome":"x"}""").de_fabrica)  // servidor antigo
     }
 }
