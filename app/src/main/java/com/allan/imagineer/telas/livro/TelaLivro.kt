@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
@@ -272,6 +274,8 @@ fun ConteudoDoLivro(
                         if (estado is EstadoDoLivro.Pronto) {
                             // LV2: os textos viraram ícones com selo; o perfil e as configurações do livro vão para o ⋮.
                             AcoesDaBarraDoLivro(
+                                continuar = continuarLendo(estado.livro, marcador),
+                                aoContinuar = { alvo -> aoContinuarLendo(alvo.capituloId, alvo.posicao) },
                                 aoAbrirElementos = aoAbrirElementos,
                                 aoPesquisar = aoAbrirPesquisa,
                                 aoAbrirMetadados = { metadadosAbertos = true },
@@ -322,8 +326,6 @@ fun ConteudoDoLivro(
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
-                    continuar = continuarLendo(estado.livro, marcador),
-                    aoContinuar = { alvo -> aoContinuarLendo(alvo.capituloId, alvo.posicao) },
                 )
             }
         }
@@ -337,8 +339,6 @@ private fun ListaDoLivro(
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
-    continuar: ContinuarLendo?,
-    aoContinuar: (ContinuarLendo) -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -350,7 +350,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro, continuar, aoContinuar) }
+            item { CabecalhoDoLivro(livro) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -389,17 +389,19 @@ private fun ListaDoLivro(
 
 /** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nos metadados. */
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe, continuar: ContinuarLendo?, aoContinuar: (ContinuarLendo) -> Unit) {
+private fun CabecalhoDoLivro(livro: LivroDetalhe) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
-        // LE3: continua de onde a pessoa parou (ou começa).
-        continuar?.let {
-            Button(onClick = { aoContinuar(it) }, modifier = Modifier.padding(top = 12.dp)) { Text(it.rotulo) }
-        }
+        // O autor: do tamanho e da cor dos títulos dos capítulos, numa fonte diferente (serifada, em itálico).
+        Text(
+            livro.autor ?: "Autor desconhecido",
+            style = MaterialTheme.typography.bodyLarge,
+            fontFamily = FontFamily.Serif,
+            fontStyle = FontStyle.Italic,
+        )
     }
 }
 

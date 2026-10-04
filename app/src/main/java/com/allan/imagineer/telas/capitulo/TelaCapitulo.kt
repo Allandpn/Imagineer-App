@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.flow.debounce
 import androidx.compose.runtime.derivedStateOf
 import com.allan.imagineer.telas.livro.DialogoDoCapitulo
@@ -268,7 +270,8 @@ private fun LeitorPaginado(
     // P3: só a direção da rolagem decide se o botão de IA aparece. Trocar de página o faz reaparecer.
     val visibilidade = remember { VisibilidadeDoBotao() }
     var botaoVisivel by remember { mutableStateOf(true) }
-    LaunchedEffect(idDaTela) { botaoVisivel = true }
+    var barraVisivel by remember { mutableStateOf(true) }
+    LaunchedEffect(idDaTela) { botaoVisivel = true; barraVisivel = true }
 
     // Nada do painel é pedido ao servidor até ele ser aberto (P1); trocar de página com ele aberto lê o do novo capítulo.
     LaunchedEffect(painelAberto, idDaTela) { if (painelAberto) painel.aoAbrirPainel() }
@@ -491,7 +494,7 @@ private fun LeitorPaginado(
     Scaffold(
         topBar = {
             // Como o botão de IA: some ao rolar para baixo e volta ao rolar para cima (e no topo e no fim do texto).
-            AnimatedVisibility(visible = botaoVisivel, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            AnimatedVisibility(visible = barraVisivel, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 TopAppBar(
                     title = { Text(titulo) },
                     navigationIcon = {
@@ -592,6 +595,7 @@ private fun LeitorPaginado(
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
+                                barraVisivel = visibilidade.barraVisivel
                             },
                         )
                     }
@@ -839,7 +843,14 @@ private fun LeitorDeTexto(
 
         // LE4, LE7: ao chegar ao fim do texto (ou se ele cabe inteiro na tela), o capítulo vira lido. Espera um instante parado lá, para uma
         // passada rápida (ou o primeiro quadro, antes de a lista ser medida) não contar.
-        val noFim by remember { derivedStateOf { !listaDeParagrafos.canScrollForward } }
+        // Tolerância (a pessoa nem sempre vai até o último pixel): vale também quando o **respiro do fim** (último item) já aparece.
+        val noFim by remember {
+            derivedStateOf {
+                val info = listaDeParagrafos.layoutInfo
+                !listaDeParagrafos.canScrollForward ||
+                    (info.totalItemsCount > 0 && info.visibleItemsInfo.lastOrNull()?.index == info.totalItemsCount - 1)
+            }
+        }
         LaunchedEffect(noFim, emFoco, estado.capitulo.lido) {
             if (noFim && emFoco && !estado.capitulo.lido) {
                 kotlinx.coroutines.delay(TEMPO_NO_FIM_PARA_LIDO_MS)
@@ -943,6 +954,8 @@ private fun LeitorDeTexto(
                         )
                     }
                 }
+                // Respiro no fim do capítulo: o último parágrafo não fica colado na borda, e chegar até aqui conta como chegar ao fim.
+                item { Spacer(Modifier.height(RESPIRO_DO_FIM_DO_CAPITULO)) }
             }
         }
         }
@@ -1016,6 +1029,9 @@ private fun verPerfilDoArtefato(artefato: Artefato, estado: EstadoDoPainel, pain
         }
     }
 }
+
+/** O espaço vazio depois do último parágrafo (cerca de quatro linhas). */
+private val RESPIRO_DO_FIM_DO_CAPITULO = 120.dp
 
 /** Quanto a pessoa fica parada no fim do texto para o capítulo valer como lido (LE4). */
 private const val TEMPO_NO_FIM_PARA_LIDO_MS = 800L

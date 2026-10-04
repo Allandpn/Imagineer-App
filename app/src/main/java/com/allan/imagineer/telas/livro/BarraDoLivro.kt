@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
@@ -27,6 +28,7 @@ object IconesDaTelaDoLivro {
     val elementos: ImageVector = Icons.Filled.Groups
     val pesquisar: ImageVector = Icons.Filled.Search
     val metadados: ImageVector = Icons.Filled.Info
+    val continuar: ImageVector = Icons.Filled.AutoStories
 }
 
 /** Os capítulos **ativos** (não arquivados) do livro: é sobre eles que a lista e as contagens trabalham. */
@@ -53,10 +55,14 @@ fun IconeComSelo(icone: ImageVector, descricao: String, selo: String?, aoTocar: 
  */
 @Composable
 fun AcoesDaBarraDoLivro(
+    /** O "Continuar lendo" (ou "Começar a ler") como **ícone**; a descrição diz qual dos dois (LE3). */
+    continuar: ContinuarLendo?,
+    aoContinuar: (ContinuarLendo) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoPesquisar: (() -> Unit)?,
     aoAbrirMetadados: () -> Unit,
 ) {
+    continuar?.let { IconeComSelo(IconesDaTelaDoLivro.continuar, it.rotulo, null) { aoContinuar(it) } }
     if (aoPesquisar != null) IconeComSelo(IconesDaTelaDoLivro.pesquisar, "Pesquisar", null, aoPesquisar)
     IconeComSelo(IconesDaTelaDoLivro.elementos, "Elementos", null, aoAbrirElementos)
     IconeComSelo(IconesDaTelaDoLivro.metadados, "Metadados", null, aoAbrirMetadados)

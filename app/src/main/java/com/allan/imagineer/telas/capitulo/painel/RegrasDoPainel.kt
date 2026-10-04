@@ -271,6 +271,14 @@ class VisibilidadeDoBotao(private val limiar: Float = 24f) {
     var visivel: Boolean = true
         private set
 
+    /**
+     * Se a **barra superior** aparece. Segue a mesma direção da rolagem, **mas não reaparece no fim do texto**: ela ocupa lugar (o texto
+     * fica abaixo dela), e voltar de repente quando a pessoa chega ao fim encolheria a área do texto e cortaria as últimas linhas.
+     * O botão de IA, que flutua por cima, continua reaparecendo no fim.
+     */
+    var barraVisivel: Boolean = true
+        private set
+
     private var acumulado = 0f
 
     /**
@@ -279,6 +287,7 @@ class VisibilidadeDoBotao(private val limiar: Float = 24f) {
     fun aoRolar(delta: Float, noTopo: Boolean, noFim: Boolean) {
         if (noTopo || noFim) {
             visivel = true
+            if (noTopo) barraVisivel = true // no fim, a barra fica como estava
             acumulado = 0f
             return
         }
@@ -290,8 +299,10 @@ class VisibilidadeDoBotao(private val limiar: Float = 24f) {
 
         if (acumulado >= limiar) {
             visivel = false
+            barraVisivel = false
         } else if (acumulado <= -limiar) {
             visivel = true
+            barraVisivel = true
         }
     }
 }
