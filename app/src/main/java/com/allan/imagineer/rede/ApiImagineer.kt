@@ -205,6 +205,18 @@ interface ApiImagineer {
     @GET("perfis-renderizacao/{id}")
     suspend fun perfil(@Path("id") perfilId: Int): PerfilRenderizacao
 
+    /** `POST /perfis-renderizacao` — cria um perfil (nome repetido = 409). */
+    @POST("perfis-renderizacao")
+    suspend fun criarPerfil(@Body corpo: JsonObject): PerfilRenderizacao
+
+    /** `PATCH /perfis-renderizacao/{id}` — só o que vai no corpo muda; `null` explícito apaga. */
+    @PATCH("perfis-renderizacao/{id}")
+    suspend fun ajustarPerfil(@Path("id") perfilId: Int, @Body corpo: JsonObject): PerfilRenderizacao
+
+    /** `DELETE /perfis-renderizacao/{id}`. */
+    @DELETE("perfis-renderizacao/{id}")
+    suspend fun removerPerfil(@Path("id") perfilId: Int)
+
     /**
      * `GET /capitulos/{id}/sugestoes` — **só lê** o que está salvo. Nunca chama a IA, nunca
      * cobra (item 6.8): é o que o painel usa ao abrir.

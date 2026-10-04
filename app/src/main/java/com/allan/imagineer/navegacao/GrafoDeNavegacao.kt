@@ -1,5 +1,6 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.menu.TelaPerfis
 import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import androidx.compose.material3.Text
@@ -291,13 +292,7 @@ fun GrafoDeNavegacao() {
                 },
             )
         }
-        composable<PerfisDeRenderizacao> {
-            TelaProvisoria(
-                titulo = "Perfis de renderização",
-                descricao = "Estilo visual dos livros (item 7.9).",
-                aoVoltar = { controle.popBackStack() },
-            )
-        }
+        composable<PerfisDeRenderizacao> { TelaPerfis(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracao> {
             TelaConfiguracao(
                 aoSalvar = { irParaBibliotecaLimpandoAPilha(controle) },
