@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.allan.imagineer.telas.lixeira
 
 import androidx.compose.foundation.background
@@ -5,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -301,10 +304,10 @@ private fun ListaDaLixeira(
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(legendaDaLixeira(imagem), style = MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { aoRestaurar(imagem.id) }, enabled = !ocupada) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { aoRestaurar(imagem.id) }, enabled = !ocupada) { Text("Restaurar") }
                             OutlinedButton(onClick = { aoPedirApagarDeVez(imagem) }, enabled = !ocupada) {
-                                Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
+                                Text("Apagar de vez", color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
@@ -386,10 +389,10 @@ private fun CartaoDoLivroNaLixeira(
                 Text(livro.titulo, style = MaterialTheme.typography.titleMedium)
                 livro.autor?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic) }
                 Text(detalhesDoLivroNaLixeira(livro), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar") }
                     OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {
-                        Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
+                        Text("Apagar de vez", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -419,10 +422,10 @@ private fun CartaoDoFrameNaLixeira(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(tituloDoFrameNaLixeira(frame), style = MaterialTheme.typography.titleMedium)
                 Text(detalhesDoFrameNaLixeira(frame), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar") }
                     OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {
-                        Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
+                        Text("Apagar de vez", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -452,10 +455,10 @@ private fun CartaoDoElementoNaLixeira(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(elemento.nome, style = MaterialTheme.typography.titleMedium)
                 Text(detalhesDoElementoNaLixeira(elemento), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar") }
                     OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {
-                        Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
+                        Text("Apagar de vez", color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
