@@ -85,6 +85,10 @@ class ImagineerApp : Application() {
         RepositorioDePromptsPeloRetrofit(provedorDeApi, leitorDeArquivos)
     }
 
+    val repositorioDeMarcador: com.allan.imagineer.rede.RepositorioDeMarcador by lazy {
+        com.allan.imagineer.rede.RepositorioDeMarcadorPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeBusca: com.allan.imagineer.rede.RepositorioDeBusca by lazy {
         com.allan.imagineer.rede.RepositorioDeBuscaPeloRetrofit(provedorDeApi)
     }

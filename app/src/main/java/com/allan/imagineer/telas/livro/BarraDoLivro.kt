@@ -74,6 +74,7 @@ fun DialogoDosMetadados(livro: LivroDetalhe, perfil: PerfilRenderizacao?, aoFech
                 Text(livro.autor ?: "Autor desconhecido")
                 livro.idioma?.let { Text("Idioma: $it") }
                 Text(descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados))
+                Text(descreverProgresso(livro.capitulos_lidos, capitulosAtivos(livro).size))
                 Text("Tamanho: ${descreverTamanho(totalDeCaracteres(livro))} nos capítulos ativos")
                 Text("Tempo de leitura: ${descreverTempoDeLeitura(totalDeCaracteres(livro))}")
                 Text("Arquivo: ${livro.nome_arquivo}")
@@ -103,6 +104,9 @@ fun DialogoDoCapitulo(
     sugestoesPendentes: Int,
     arquivado: Boolean,
     aoFechar: () -> Unit,
+    /** LE5: se o capítulo está lido, e como marcar/desmarcar à mão (nulo = sem o botão). */
+    lido: Boolean = false,
+    aoAlternarLido: (() -> Unit)? = null,
 ) {
     AlertDialog(
         onDismissRequest = aoFechar,
@@ -116,9 +120,13 @@ fun DialogoDoCapitulo(
                     descreverSugestoes(sugestoesPendentes) ?: "Nenhuma sugestão a confirmar.",
                     color = if (sugestoesPendentes > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(if (lido) "Lido ✓" else "Ainda não lido", color = if (lido) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (arquivado) Text("Este capítulo está arquivado.", color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = { TextButton(onClick = aoFechar) { Text("Fechar") } },
+        dismissButton = aoAlternarLido?.let { alternar ->
+            { TextButton(onClick = { alternar(); aoFechar() }) { Text(if (lido) "Marcar como não lido" else "Marcar como lido") } }
+        },
     )
 }

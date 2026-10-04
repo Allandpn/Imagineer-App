@@ -156,7 +156,20 @@ class LivroViewModel(
     private val livros: RepositorioDeLivros,
     private val capitulos: RepositorioDeCapitulos,
     private val perfis: RepositorioDePerfis,
+    /** Onde a pessoa parou (LE3); o padrão não lê nada (testes antigos). */
+    private val marcadores: com.allan.imagineer.rede.RepositorioDeMarcador = com.allan.imagineer.rede.MarcadorSemServidor,
 ) : ViewModel() {
+
+    private val _marcador = MutableStateFlow<com.allan.imagineer.rede.Marcador?>(null)
+
+    /** Onde a pessoa parou neste livro, ou `null` (nunca leu, ou ainda lendo): alimenta o "Continuar lendo". */
+    val marcador: StateFlow<com.allan.imagineer.rede.Marcador?> = _marcador.asStateFlow()
+
+    private fun lerMarcador() {
+        viewModelScope.launch {
+            (marcadores.ler(livroId) as? ResultadoDaChamada.Sucesso)?.let { _marcador.value = it.dado }
+        }
+    }
 
     private val _estado = MutableStateFlow<EstadoDoLivro>(EstadoDoLivro.Carregando)
     val estado: StateFlow<EstadoDoLivro> = _estado.asStateFlow()
@@ -233,6 +246,7 @@ class LivroViewModel(
     }
 
     fun carregar() {
+        lerMarcador()
         carregamentoEmAndamento?.cancel()
         if (_estado.value !is EstadoDoLivro.Pronto) _estado.value = EstadoDoLivro.Carregando
 

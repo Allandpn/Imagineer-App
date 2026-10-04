@@ -55,6 +55,8 @@ class CapituloViewModel(
     private val capituloId: Int,
     private val capitulos: RepositorioDeCapitulos,
     private val artefatosDoCapitulo: RepositorioDeArtefatos,
+    /** Onde a pessoa parou (LE2). O padrão não faz nada (testes antigos). */
+    private val marcador: com.allan.imagineer.rede.RepositorioDeMarcador = com.allan.imagineer.rede.MarcadorSemServidor,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow<EstadoDoCapitulo>(EstadoDoCapitulo.Carregando)
@@ -81,6 +83,32 @@ class CapituloViewModel(
     }
 
     private var carregamentoEmAndamento: Job? = null
+
+    /**
+     * Marca (ou desmarca) o capítulo como lido (LE1, LE5). **Otimista**: o ✓ aparece na hora e, se o servidor recusar, volta ao que
+     * era. Marcar um capítulo que já está lido não chama o servidor.
+     */
+    fun marcarLido(lido: Boolean) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        if (pronto.capitulo.lido == lido) return
+        _estado.value = pronto.copy(capitulo = pronto.capitulo.copy(lido = lido))
+        viewModelScope.launch {
+            val resultado = capitulos.ajustarCapitulo(capituloId, com.allan.imagineer.rede.CapituloAjuste(lido = lido))
+            if (resultado is ResultadoDaChamada.Falha) {
+                val agora = _estado.value as? EstadoDoCapitulo.Pronto ?: return@launch
+                _estado.value = agora.copy(capitulo = agora.capitulo.copy(lido = !lido))
+            }
+        }
+    }
+
+    /** O leitor chegou ao fim do texto (LE4, LE7): marca como lido, uma vez; reler não desmarca (só a pessoa desmarca). */
+    fun chegouAoFim() = marcarLido(true)
+
+    /** Grava onde a pessoa está lendo ([posicao] = início do parágrafo à vista, UTF-16) (LE2). Falhar em silêncio: não atrapalha a leitura. */
+    fun gravarPosicao(posicao: Int) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        viewModelScope.launch { marcador.gravar(pronto.capitulo.livro_id, capituloId, posicao) }
+    }
 
     /**
      * Carrega o capítulo, **a não ser que já esteja carregado ou carregando**. A tela

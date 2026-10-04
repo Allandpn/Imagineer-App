@@ -100,6 +100,14 @@ interface ApiImagineer {
         @Body ajuste: CapituloAjuste,
     ): CapituloResumo
 
+    /** `GET /livros/{id}/marcador` — onde a pessoa parou; `marcador` nulo = nunca leu (LE2). */
+    @GET("livros/{id}/marcador")
+    suspend fun marcador(@Path("id") livroId: Int): MarcadorDoLivro
+
+    /** `PUT /livros/{id}/marcador` — grava onde a pessoa está; o mais recente vence (LE2). */
+    @PUT("livros/{id}/marcador")
+    suspend fun gravarMarcador(@Path("id") livroId: Int, @Body corpo: MarcadorGravacao): JsonObject
+
     /** `GET /perfis-renderizacao` — os perfis, compartilhados entre livros. */
     @GET("perfis-renderizacao")
     suspend fun perfis(): List<PerfilRenderizacao>

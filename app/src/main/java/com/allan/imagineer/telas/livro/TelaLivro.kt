@@ -82,6 +82,7 @@ fun livroViewModel(livroId: Int, dono: ViewModelStoreOwner? = null): LivroViewMo
                 aplicacao.repositorioDeLivros,
                 aplicacao.repositorioDeCapitulos,
                 aplicacao.repositorioDePerfis,
+                aplicacao.repositorioDeMarcador,
             )
         }
     }
@@ -141,6 +142,8 @@ fun TelaLivro(
     aoAbrirPerfis: () -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
+    aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
     // CP5: "Definir capa…" abre o seletor de arquivos (uma imagem ou o EPUB do livro).
@@ -154,6 +157,7 @@ fun TelaLivro(
     val remocao by viewModel.remocao.collectAsState()
     val selecao by viewModel.selecao.collectAsState()
     val avisos = remember { SnackbarHostState() }
+    val marcador by viewModel.marcador.collectAsState()
 
     // O botão voltar do aparelho, no modo de seleção, cancela a seleção em vez de sair
     // da tela.
@@ -186,6 +190,8 @@ fun TelaLivro(
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPerfis = aoAbrirPerfis,
         aoAbrirPesquisa = aoAbrirPesquisa,
+        marcador = marcador,
+        aoContinuarLendo = aoContinuarLendo,
         aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
         aoEditar = viewModel::abrirEdicao,
         aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
@@ -228,6 +234,8 @@ fun ConteudoDoLivro(
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    marcador: com.allan.imagineer.rede.Marcador? = null,
+    aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     aoDefinirCapa: () -> Unit = {},
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
@@ -314,6 +322,8 @@ fun ConteudoDoLivro(
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
+                    continuar = continuarLendo(estado.livro, marcador),
+                    aoContinuar = { alvo -> aoContinuarLendo(alvo.capituloId, alvo.posicao) },
                 )
             }
         }
@@ -327,6 +337,8 @@ private fun ListaDoLivro(
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
+    continuar: ContinuarLendo?,
+    aoContinuar: (ContinuarLendo) -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -338,7 +350,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro) }
+            item { CabecalhoDoLivro(livro, continuar, aoContinuar) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -377,13 +389,17 @@ private fun ListaDoLivro(
 
 /** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nos metadados. */
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe) {
+private fun CabecalhoDoLivro(livro: LivroDetalhe, continuar: ContinuarLendo?, aoContinuar: (ContinuarLendo) -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        // LE3: continua de onde a pessoa parou (ou começa).
+        continuar?.let {
+            Button(onClick = { aoContinuar(it) }, modifier = Modifier.padding(top = 12.dp)) { Text(it.rotulo) }
+        }
     }
 }
 

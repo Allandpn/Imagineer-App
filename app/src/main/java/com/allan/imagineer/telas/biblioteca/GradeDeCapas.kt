@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.biblioteca
 
+import com.allan.imagineer.telas.livro.progressoDoLivro
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -80,6 +83,15 @@ private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Uni
     Box(modifier = Modifier.clickable(onClick = aoTocar)) {
         CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
         MenuSobreACapa(aoPedirRemocao, Modifier.align(Alignment.TopEnd))
+        // LE6: a barrinha do progresso (lidos ÷ ativos) no pé da capa; some quando nada foi lido.
+        progressoDoLivro(livro)?.let { progresso ->
+            LinearProgressIndicator(
+                progress = { progresso },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(4.dp),
+                color = MaterialTheme.colorScheme.tertiary,
+                trackColor = Color.Black.copy(alpha = 0.35f),
+            )
+        }
     }
 }
 

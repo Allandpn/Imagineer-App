@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo
 
+import kotlinx.coroutines.flow.debounce
+import androidx.compose.runtime.derivedStateOf
 import com.allan.imagineer.telas.livro.DialogoDoCapitulo
 import com.allan.imagineer.telas.livro.IconesDaTelaDoLivro
 import com.allan.imagineer.telas.livro.IconeComSelo
@@ -128,7 +130,7 @@ private fun capituloViewModel(capituloId: Int): CapituloViewModel {
         key = "capitulo$capituloId",
         factory = viewModelFactory {
             initializer {
-                CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeArtefatos)
+                CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeArtefatos, aplicacao.repositorioDeMarcador)
             }
         },
     )
@@ -354,6 +356,8 @@ private fun LeitorPaginado(
             sugestoesPendentes = capituloDaTela.sugestoes_pendentes,
             arquivado = capituloDaTela.ignorado,
             aoFechar = { infoAberta = false },
+            lido = capituloDaTela.lido,
+            aoAlternarLido = { vmDaTela.marcarLido(!capituloDaTela.lido) },
         )
     }
 
@@ -556,6 +560,7 @@ private fun LeitorPaginado(
                         PaginaDoCapitulo(
                             capituloId = idDaPagina,
                             ehAtual = pagina == estadoDoPager.currentPage,
+                            ehAssentada = pagina == estadoDoPager.settledPage,
                             aoTocarArtefato = { artefato ->
                                 // C1: o id de uma cena e o de um elemento são de tabelas diferentes; cada um abre o seu modal.
                                 val sugestaoId = artefato.sugestao_id
@@ -643,6 +648,8 @@ private fun LeitorPaginado(
 private fun PaginaDoCapitulo(
     capituloId: Int,
     ehAtual: Boolean,
+    /** A página em que o pager **parou** (não só a que está mais à vista no meio de um deslize): só ela conta para lido e marcador. */
+    ehAssentada: Boolean,
     aoTocarArtefato: (Artefato) -> Unit,
     aoOcultarImagem: (frameId: Int) -> Unit,
     posicionando: PosicionandoArtefato?,
@@ -699,6 +706,9 @@ private fun PaginaDoCapitulo(
                 aoVerPerfilDoArtefato = aoVerPerfilDoArtefato,
                 irParaPosicao = irParaPosicao,
                 aoAtenderPosicao = aoAtenderPosicao,
+                emFoco = ehAssentada,
+                aoChegarAoFim = viewModel::chegouAoFim,
+                aoLerAte = viewModel::gravarPosicao,
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -726,6 +736,12 @@ private fun LeitorDeTexto(
     aoVerPerfilDoArtefato: (Artefato) -> Unit,
     irParaPosicao: Int?,
     aoAtenderPosicao: () -> Unit,
+    /** Esta página é a que a pessoa está lendo (o pager parou nela). */
+    emFoco: Boolean,
+    /** Chegou ao fim do texto: o capítulo vira lido (LE4, LE7). */
+    aoChegarAoFim: () -> Unit,
+    /** O parágrafo à vista mudou e parou: grava onde a pessoa está (LE2). */
+    aoLerAte: (posicao: Int) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -811,7 +827,7 @@ private fun LeitorDeTexto(
         // "sem texto" e a faixa "Sem posição", quando existem.
         LaunchedEffect(blocos, irParaPosicao) {
             val alvo = irParaPosicao ?: return@LaunchedEffect
-            val paragrafo = trechos.indexOfFirst { it.inicio == alvo }
+            val paragrafo = trechos.indexOfLast { it.inicio <= alvo }
             val bloco = blocos.indexOfFirst { paragrafo in indicesDoBloco(it) }
             if (paragrafo >= 0 && bloco >= 0) {
                 val antes = 1 + (if (estado.paragrafos.isEmpty()) 1 else 0) + (if (distribuidos.semPosicao.isNotEmpty()) 1 else 0)
@@ -819,6 +835,30 @@ private fun LeitorDeTexto(
                 destacado = paragrafo
                 aoAtenderPosicao()
             }
+        }
+
+        // LE4, LE7: ao chegar ao fim do texto (ou se ele cabe inteiro na tela), o capítulo vira lido. Espera um instante parado lá, para uma
+        // passada rápida (ou o primeiro quadro, antes de a lista ser medida) não contar.
+        val noFim by remember { derivedStateOf { !listaDeParagrafos.canScrollForward } }
+        LaunchedEffect(noFim, emFoco, estado.capitulo.lido) {
+            if (noFim && emFoco && !estado.capitulo.lido) {
+                kotlinx.coroutines.delay(TEMPO_NO_FIM_PARA_LIDO_MS)
+                aoChegarAoFim()
+            }
+        }
+
+        // LE2: onde a pessoa está lendo. Quando o parágrafo à vista para de mudar por 2 s, grava o início dele (o servidor guarda o mais recente).
+        @OptIn(kotlinx.coroutines.FlowPreview::class)
+        LaunchedEffect(emFoco, blocos) {
+            if (!emFoco) return@LaunchedEffect
+            val antes = 1 + (if (estado.paragrafos.isEmpty()) 1 else 0) + (if (distribuidos.semPosicao.isNotEmpty()) 1 else 0)
+            androidx.compose.runtime.snapshotFlow { listaDeParagrafos.firstVisibleItemIndex }
+                .debounce(ATRASO_PARA_GRAVAR_POSICAO_MS)
+                .collect { indice ->
+                    val bloco = blocos.getOrNull((indice - antes).coerceAtLeast(0)) ?: return@collect
+                    val paragrafo = indicesDoBloco(bloco).firstOrNull() ?: return@collect
+                    trechos.getOrNull(paragrafo)?.let { aoLerAte(it.inicio) }
+                }
         }
 
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
@@ -976,6 +1016,12 @@ private fun verPerfilDoArtefato(artefato: Artefato, estado: EstadoDoPainel, pain
         }
     }
 }
+
+/** Quanto a pessoa fica parada no fim do texto para o capítulo valer como lido (LE4). */
+private const val TEMPO_NO_FIM_PARA_LIDO_MS = 800L
+
+/** Quanto o parágrafo à vista fica parado antes de a posição ser gravada no servidor (LE2). */
+private const val ATRASO_PARA_GRAVAR_POSICAO_MS = 2000L
 
 /** A coluna de leitura nunca passa de 600 dp, mesmo num tablet largo. */
 private val LARGURA_MAXIMA_DA_LEITURA = 600.dp

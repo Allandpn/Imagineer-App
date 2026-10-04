@@ -23,6 +23,8 @@ data class LivroResumo(
     val capitulos_ignorados: Int,
     /** O livro tem capa guardada no servidor (`GET /livros/{id}/capa`). */
     val tem_capa: Boolean = false,
+    /** Quantos capítulos ativos estão lidos (LE6). */
+    val capitulos_lidos: Int = 0,
     /** Sobe a cada mudança no livro: vai na URL da capa para o Coil buscar de novo quando ela muda. */
     val revisao: Int = 0,
 )

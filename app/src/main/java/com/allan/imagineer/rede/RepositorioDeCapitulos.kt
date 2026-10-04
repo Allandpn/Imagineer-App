@@ -94,6 +94,7 @@ class RepositorioDeCapitulosPeloRetrofit(
                 ignorado = resumo.ignorado,
                 tamanho_do_texto = resumo.tamanho_do_texto,
                 sugestoes_pendentes = resumo.sugestoes_pendentes,
+                lido = resumo.lido,
                 livro_id = registro.livroId,
                 texto = texto,
             )

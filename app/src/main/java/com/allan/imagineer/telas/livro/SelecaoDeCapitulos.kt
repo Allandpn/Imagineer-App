@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Deselect
@@ -90,6 +91,16 @@ fun LinhaDeCapitulo(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+
+        // LE5: o capítulo lido ganha um ✓ discreto.
+        if (capitulo.lido && !emSelecao) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = "Lido",
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.padding(end = 16.dp).size(20.dp),
+            )
         }
 
         if (ajustando) {
