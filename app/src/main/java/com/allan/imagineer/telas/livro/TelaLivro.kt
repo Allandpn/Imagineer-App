@@ -137,6 +137,7 @@ fun TelaLivro(
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
     aoAbrirArquivados: () -> Unit,
+    aoAbrirPesquisa: () -> Unit = {},
     viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
     val estado by viewModel.estado.collectAsState()
@@ -176,6 +177,7 @@ fun TelaLivro(
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPerfis = aoAbrirPerfis,
+        aoAbrirPesquisa = aoAbrirPesquisa,
         aoEditar = viewModel::abrirEdicao,
         aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
         aoApagar = viewModel::pedirRemocao,
@@ -216,6 +218,7 @@ fun ConteudoDoLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
+    aoAbrirPesquisa: () -> Unit = {},
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
@@ -260,7 +263,7 @@ fun ConteudoDoLivro(
                                 livro = estado.livro,
                                 aoAbrirElementos = aoAbrirElementos,
                                 aoAbrirArquivados = aoAbrirArquivados,
-                                aoPesquisar = null,
+                                aoPesquisar = aoAbrirPesquisa,
                                 aoMostrar = { dialogoDaBarra = it },
                             )
                             MenuDoLivro(

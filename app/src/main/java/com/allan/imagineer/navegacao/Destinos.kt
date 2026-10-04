@@ -29,7 +29,13 @@ data class Capitulo(
     val capituloId: Int,
     /** Quando vem da lista de elementos (LV3): abre a área de IA deste elemento ao entrar no capítulo. */
     val abrirElementoId: Int? = null,
+    /** Quando vem da pesquisa (LV5): o início do parágrafo para onde rolar, que fica destacado por um instante. */
+    val irParaPosicao: Int? = null,
 )
+
+/** A pesquisa no texto (LV5): [capituloId] só vem quando se pesquisa de dentro de um capítulo (então há a aba Capítulo). */
+@Serializable
+data class Pesquisa(val livroId: Int, val capituloId: Int? = null)
 
 /** Um frame, retrato ou cena (item 7.6). */
 @Serializable

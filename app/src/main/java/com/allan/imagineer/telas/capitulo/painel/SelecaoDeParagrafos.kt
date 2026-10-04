@@ -71,9 +71,15 @@ internal fun ComMarcaDeParagrafo(
     emModo: Boolean,
     aoTocar: () -> Unit,
     aoSegurar: () -> Unit,
+    /** O parágrafo achado pela pesquisa (LV5): fica com um fundo de destaque por alguns segundos. */
+    destacado: Boolean = false,
     conteudo: @Composable () -> Unit,
 ) {
-    val fundo = if (marcado) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else androidx.compose.ui.graphics.Color.Transparent
+    val fundo = when {
+        marcado -> MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+        destacado -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.28f)
+        else -> androidx.compose.ui.graphics.Color.Transparent
+    }
     val modificador = Modifier
         .alpha(if (emModo && !marcado) OPACIDADE_DO_PARAGRAFO_NAO_MARCADO else 1f)
         .background(fundo, RoundedCornerShape(8.dp))

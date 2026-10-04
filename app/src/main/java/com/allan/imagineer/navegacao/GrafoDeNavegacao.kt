@@ -32,6 +32,7 @@ import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
 import com.allan.imagineer.telas.lixeira.TelaLixeira
 import com.allan.imagineer.telas.elementos.TelaElementos
+import com.allan.imagineer.telas.pesquisa.TelaPesquisa
 import com.allan.imagineer.telas.elementos.TelaFichaDoElemento
 import com.allan.imagineer.telas.livro.TelaCapitulosArquivados
 import com.allan.imagineer.telas.livro.TelaLivro
@@ -101,6 +102,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
                 aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
                 aoAbrirArquivados = { controle.navigate(CapitulosArquivados(destino.livroId)) },
+                aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
             )
         }
         composable<CapitulosArquivados> { entrada ->
@@ -119,12 +121,27 @@ fun GrafoDeNavegacao() {
             TelaCapitulo(
                 capituloId = destino.capituloId,
                 abrirElementoId = destino.abrirElementoId,
+                irParaPosicao = destino.irParaPosicao,
+                aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa
                     // janela que ainda estava de pé) não empilha uma segunda ficha.
                     if (entrada.estaNaFrente()) {
                         controle.navigate(FichaDoElemento(elementoId, livroId, capituloId)) { launchSingleTop = true }
+                    }
+                },
+            )
+        }
+        composable<Pesquisa> { entrada ->
+            val destino = entrada.toRoute<Pesquisa>()
+            TelaPesquisa(
+                livroId = destino.livroId,
+                capituloId = destino.capituloId,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrirOcorrencia = { ocorrencia, _ ->
+                    if (entrada.estaNaFrente()) {
+                        controle.navigate(Capitulo(ocorrencia.capitulo_id, irParaPosicao = ocorrencia.inicio_do_paragrafo))
                     }
                 },
             )

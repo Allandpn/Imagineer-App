@@ -26,6 +26,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Button
@@ -163,6 +164,10 @@ fun TelaCapitulo(
     aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
     /** LV3: veio dos chips da lista de elementos; ao entrar, abre o painel de IA já no modal deste elemento. */
     abrirElementoId: Int? = null,
+    /** LV5: veio da pesquisa; ao ter o texto, rola até o parágrafo que começa nesta posição e o destaca. */
+    irParaPosicao: Int? = null,
+    /** Abre a pesquisa (LV5): o livro e o capítulo de onde se pesquisa. */
+    aoPesquisar: (livroId: Int, capituloId: Int) -> Unit = { _, _ -> },
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
@@ -183,6 +188,7 @@ fun TelaCapitulo(
     var painelAberto by rememberSaveable { mutableStateOf(abrirElementoId != null) }
     // Pedido de abrir um elemento (LV3): vale uma vez só; depois de atendido (ou girando o aparelho) não reabre.
     var elementoPendente by rememberSaveable { mutableStateOf(abrirElementoId) }
+    var posicaoPendente by rememberSaveable { mutableStateOf(irParaPosicao) }
 
     // O pager é refeito uma vez, quando a lista completa chega (de [capituloId] sozinho para todos os capítulos).
     // O que está dentro das páginas (textos, rolagem) vive nos ViewModels, e a página aberta volta no mesmo ponto.
@@ -196,6 +202,9 @@ fun TelaCapitulo(
             aoAbrirFicha = aoAbrirFicha,
             elementoPendente = elementoPendente,
             aoAtenderElementoPendente = { elementoPendente = null },
+            posicaoPendente = posicaoPendente,
+            aoAtenderPosicao = { posicaoPendente = null },
+            aoPesquisar = aoPesquisar,
         )
     }
 }
@@ -211,6 +220,9 @@ private fun LeitorPaginado(
     aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
     elementoPendente: Int?,
     aoAtenderElementoPendente: () -> Unit,
+    posicaoPendente: Int?,
+    aoAtenderPosicao: () -> Unit,
+    aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
 ) {
     val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
     val aside = usarAside(LocalConfiguration.current.screenWidthDp)
@@ -401,6 +413,14 @@ private fun LeitorPaginado(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                     }
                 },
+                actions = {
+                    // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
+                    if (livroDoCapitulo != null) {
+                        IconButton(onClick = { aoPesquisar(livroDoCapitulo, idDaTela) }) {
+                            Icon(Icons.Filled.Search, contentDescription = "Pesquisar")
+                        }
+                    }
+                },
             )
         },
         floatingActionButton = {
@@ -467,6 +487,9 @@ private fun LeitorPaginado(
                             aoEscolherParagrafo = painel::escolherParagrafo,
                             aoGerarImagemDoTrecho = painel::abrirTrecho,
                             aoVerPerfilDoArtefato = { artefato -> verPerfilDoArtefato(artefato, estadoDoPainel, painel, acoesDoPainel) },
+                            // LV5: só a página em que se começou recebe o pedido de rolar até o achado.
+                            irParaPosicao = if (idDaPagina == lista.ids[lista.indiceInicial]) posicaoPendente else null,
+                            aoAtenderPosicao = aoAtenderPosicao,
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
@@ -535,6 +558,8 @@ private fun PaginaDoCapitulo(
     aoCancelarPosicionamento: () -> Unit,
     aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
     aoVerPerfilDoArtefato: (Artefato) -> Unit,
+    irParaPosicao: Int?,
+    aoAtenderPosicao: () -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
     val viewModel = capituloViewModel(capituloId)
@@ -579,6 +604,8 @@ private fun PaginaDoCapitulo(
                 aoCancelarPosicionamento = aoCancelarPosicionamento,
                 aoGerarImagemDoTrecho = { trecho, posicao -> if (ehAtual) aoGerarImagemDoTrecho(trecho, posicao) },
                 aoVerPerfilDoArtefato = aoVerPerfilDoArtefato,
+                irParaPosicao = irParaPosicao,
+                aoAtenderPosicao = aoAtenderPosicao,
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
@@ -604,6 +631,8 @@ private fun LeitorDeTexto(
     aoCancelarPosicionamento: () -> Unit,
     aoGerarImagemDoTrecho: (trecho: String, posicao: Int?) -> Unit,
     aoVerPerfilDoArtefato: (Artefato) -> Unit,
+    irParaPosicao: Int?,
+    aoAtenderPosicao: () -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
 ) {
@@ -621,6 +650,14 @@ private fun LeitorDeTexto(
     // Voltar (do aparelho) desfaz a marcação antes de sair do capítulo.
     BackHandler(enabled = marcados.isNotEmpty()) { marcados = emptySet() }
     val contextoDaTela = LocalContext.current
+    // LV5: o parágrafo achado pela pesquisa fica destacado por uns segundos.
+    var destacado by remember(capitulo.id) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(destacado) {
+        if (destacado != null) {
+            kotlinx.coroutines.delay(3000)
+            destacado = null
+        }
+    }
 
     // Escuta a rolagem da lista para o botão de IA (P3). O sinal do deslocamento do Compose é o
     // contrário do que a regra espera (dedo para cima = y negativo = rolando para baixo), por
@@ -675,6 +712,20 @@ private fun LeitorDeTexto(
                     }
                 },
             )
+        }
+
+        // LV5: veio da pesquisa: rola até o bloco do parágrafo achado e o destaca. Os itens antes dos blocos são o cabeçalho, o aviso de
+        // "sem texto" e a faixa "Sem posição", quando existem.
+        LaunchedEffect(blocos, irParaPosicao) {
+            val alvo = irParaPosicao ?: return@LaunchedEffect
+            val paragrafo = trechos.indexOfFirst { it.inicio == alvo }
+            val bloco = blocos.indexOfFirst { paragrafo in indicesDoBloco(it) }
+            if (paragrafo >= 0 && bloco >= 0) {
+                val antes = 1 + (if (estado.paragrafos.isEmpty()) 1 else 0) + (if (distribuidos.semPosicao.isNotEmpty()) 1 else 0)
+                listaDeParagrafos.scrollToItem(antes + bloco)
+                destacado = paragrafo
+                aoAtenderPosicao()
+            }
         }
 
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
@@ -754,6 +805,7 @@ private fun LeitorDeTexto(
                             emModo = marcados.isNotEmpty(),
                             aoTocar = { if (marcados.isNotEmpty()) marcados = alternarBloco(marcados, indices) },
                             aoSegurar = { if (marcados.isEmpty()) marcados = marcados + indices },
+                            destacado = destacado != null && destacado in indices,
                             conteudo = conteudoDoBloco,
                         )
                     }

@@ -317,6 +317,14 @@ interface ApiImagineer {
     @PUT("frames/{id}/imagem-oculta")
     suspend fun definirImagemOculta(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /busca` — procura o termo no capítulo, no livro ou na biblioteca (sem os filtros); só leitura, nunca gasta IA (LV5). */
+    @GET("busca")
+    suspend fun buscar(
+        @Query("q") termo: String,
+        @Query("livro_id") livroId: Int? = null,
+        @Query("capitulo_id") capituloId: Int? = null,
+    ): ResultadoDaBusca
+
     /** `GET /capitulos/{id}/artefatos` — os ícones a desenhar sobre o texto; só leitura, nunca gasta IA (item 6.8). */
     @GET("capitulos/{id}/artefatos")
     suspend fun artefatos(@Path("id") capituloId: Int): ArtefatosDoCapitulo
