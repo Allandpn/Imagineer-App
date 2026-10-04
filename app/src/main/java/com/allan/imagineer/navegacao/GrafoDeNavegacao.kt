@@ -122,6 +122,9 @@ fun GrafoDeNavegacao() {
                 capituloId = destino.capituloId,
                 abrirElementoId = destino.abrirElementoId,
                 irParaPosicao = destino.irParaPosicao,
+                abrirFrameId = destino.abrirFrameId,
+                abrirRotulo = destino.abrirRotulo,
+                abrirPainel = destino.abrirPainel,
                 aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->

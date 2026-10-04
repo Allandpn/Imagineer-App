@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -280,11 +281,6 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
                 )
                 elemento.descartada -> CartaoDeElementoDescartado(elemento, estado, acoes)
                 else -> {
-                    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
-                    Row {
-                        TextButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }) { Text(ROTULO_POSICIONAR) }
-                        TextButton(onClick = { acoes.aoTirarPosicao(false, elemento.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
-                    }
                     CartaoDeElemento(
                         elemento = elemento,
                         cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
@@ -583,6 +579,12 @@ internal fun CartaoDeElemento(
                     )
                 }
                 Etiqueta(etiquetaDaSituacao(elemento), situacao)
+                // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
+                if (!elemento.descartada) {
+                    IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
+                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+                    }
+                }
             }
             descreverCenasDoElemento(cenas)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -606,6 +608,8 @@ internal fun CartaoDeElemento(
 
             if (aberto) {
                 DetalhesDoElemento(elemento, situacao, cenas)
+                // O ícone do cabeçalho põe o artefato num parágrafo; aqui, desfazer a escolha (volta ao lugar achado sozinho).
+                TextButton(onClick = { acoes.aoTirarPosicao(false, elemento.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     acoesDoElemento(situacao).forEachIndexed { indice, acao ->
                         val aoTocar: () -> Unit = {
@@ -937,6 +941,9 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                     )
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
+                IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
+                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+                }
             }
             // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
             if (!aberto) {
@@ -1323,13 +1330,9 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     ) {
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
-    }
-    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo. FlowRow: os botões passam para a linha de baixo em vez
-    // de sair da tela (o "Editar a cena" ficava escondido).
-    FlowRow {
-        TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
-        TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
-        TextButton(onClick = { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) }) { Text(ROTULO_EDITAR_A_CENA) }
+        IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
+            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+        }
     }
     CorpoDaCena(cena, estado, acoes)
     // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.
@@ -1350,6 +1353,12 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     val ocupada = cena.id in estado.cenasOcupadas
     val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
 
+    // Desfazer a posição escolhida e editar título e descrição: em toda cena, no cartão da lista e no modal. (O ícone de posicionar
+    // fica no cabeçalho.) FlowRow: os botões passam para a linha de baixo em vez de sair da tela.
+    FlowRow {
+        TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
+        TextButton(onClick = { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) }) { Text(ROTULO_EDITAR_A_CENA) }
+    }
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)
     if (situacao.isNotEmpty()) {

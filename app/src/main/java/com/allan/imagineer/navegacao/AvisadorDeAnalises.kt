@@ -1,5 +1,9 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.analise.EventoDeAnalise
+import com.allan.imagineer.analise.TipoDeEvento
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,9 +46,32 @@ fun AvisadorDeAnalises(controle: NavHostController, avisos: SnackbarHostState) {
 
             val texto = descreverAviso(evento, local, servico.painelVisivel.value, titulo, servico.modalDoFrameVisivel.value) ?: return@collect
             // Cada aviso em sua própria corrotina: o Snackbar enfileira, e esperar um fechar travaria a coleta.
-            launch { avisos.showSnackbar(texto) }
+            // O aviso leva "Abrir": toca e vai para a tela de IA dele (o painel do capítulo, ou o modal da cena).
+            launch {
+                val resposta = avisos.showSnackbar(texto, actionLabel = "Abrir", duration = SnackbarDuration.Long)
+                if (resposta == SnackbarResult.ActionPerformed) abrirOQueTerminou(controle, evento)
+            }
         }
     }
+}
+
+/** Para onde o botão "Abrir" do aviso leva: o painel do capítulo (análise) ou o modal da cena (prompt gerado). */
+internal fun destinoDoAviso(evento: EventoDeAnalise): Capitulo = Capitulo(
+    capituloId = evento.capituloId,
+    abrirFrameId = evento.frameId.takeIf { evento.tipo == TipoDeEvento.PROMPT },
+    abrirRotulo = evento.rotuloDaCena,
+    abrirPainel = evento.tipo == TipoDeEvento.ANALISE,
+)
+
+/**
+ * Leva à tela de IA do que terminou: a **análise** abre o painel do capítulo; o **prompt** abre o modal da cena. Se já se está nesse
+ * capítulo, a tela é **trocada** (não empilha uma cópia).
+ */
+private fun abrirOQueTerminou(controle: NavHostController, evento: EventoDeAnalise) {
+    val destino = destinoDoAviso(evento)
+    val atual = controle.currentBackStackEntry
+    val nesteCapitulo = atual?.destination?.hasRoute<Capitulo>() == true && atual.toRoute<Capitulo>().capituloId == evento.capituloId
+    if (nesteCapitulo) controle.navigate(destino) { popUpTo<Capitulo> { inclusive = true } } else controle.navigate(destino)
 }
 
 /** O livro cuja área está aberta nesta tela, ou `null` (Biblioteca, Configuração, Perfis...). */

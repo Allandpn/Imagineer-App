@@ -31,6 +31,11 @@ data class Capitulo(
     val abrirElementoId: Int? = null,
     /** Quando vem da pesquisa (LV5): o início do parágrafo para onde rolar, que fica destacado por um instante. */
     val irParaPosicao: Int? = null,
+    /** Quando vem de um aviso de prompt gerado: abre o modal deste frame (a cena) ao entrar; [abrirRotulo] é o nome dela. */
+    val abrirFrameId: Int? = null,
+    val abrirRotulo: String? = null,
+    /** Quando vem do aviso de análise concluída: abre o painel de IA do capítulo. */
+    val abrirPainel: Boolean = false,
 )
 
 /** A pesquisa no texto (LV5): [capituloId] só vem quando se pesquisa de dentro de um capítulo (então há a aba Capítulo). */

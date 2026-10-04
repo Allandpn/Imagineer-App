@@ -169,6 +169,11 @@ fun TelaCapitulo(
     abrirElementoId: Int? = null,
     /** LV5: veio da pesquisa; ao ter o texto, rola até o parágrafo que começa nesta posição e o destaca. */
     irParaPosicao: Int? = null,
+    /** Veio do aviso de um prompt gerado: abre o modal deste frame (a cena); [abrirRotulo] é o nome dele. */
+    abrirFrameId: Int? = null,
+    abrirRotulo: String? = null,
+    /** Veio do aviso de análise concluída: abre o painel de IA. */
+    abrirPainel: Boolean = false,
     /** Abre a pesquisa (LV5): o livro e o capítulo de onde se pesquisa. */
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit = { _, _ -> },
 ) {
@@ -188,10 +193,11 @@ fun TelaCapitulo(
 
     // rememberSaveable: o painel aberto sobrevive a girar o aparelho (P4); fica acima do pager, que é refeito
     // quando a lista completa chega.
-    var painelAberto by rememberSaveable { mutableStateOf(false) }
+    var painelAberto by rememberSaveable { mutableStateOf(abrirPainel) }
     // Pedido de abrir um elemento (LV3): vale uma vez só; depois de atendido (ou girando o aparelho) não reabre.
     var elementoPendente by rememberSaveable { mutableStateOf(abrirElementoId) }
     var posicaoPendente by rememberSaveable { mutableStateOf(irParaPosicao) }
+    var framePendente by rememberSaveable { mutableStateOf(abrirFrameId) }
 
     // O pager é refeito uma vez, quando a lista completa chega (de [capituloId] sozinho para todos os capítulos).
     // O que está dentro das páginas (textos, rolagem) vive nos ViewModels, e a página aberta volta no mesmo ponto.
@@ -208,7 +214,10 @@ fun TelaCapitulo(
             posicaoPendente = posicaoPendente,
             aoAtenderPosicao = { posicaoPendente = null },
             aoPesquisar = aoPesquisar,
-            modoDireto = abrirElementoId != null,
+            modoDireto = abrirElementoId != null || abrirFrameId != null,
+            framePendente = framePendente,
+            rotuloDoFramePendente = abrirRotulo,
+            aoAtenderFramePendente = { framePendente = null },
         )
     }
 }
@@ -229,6 +238,9 @@ private fun LeitorPaginado(
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
     /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
     modoDireto: Boolean,
+    framePendente: Int?,
+    rotuloDoFramePendente: String?,
+    aoAtenderFramePendente: () -> Unit,
 ) {
     val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
     val aside = usarAside(LocalConfiguration.current.screenWidthDp)
@@ -271,6 +283,20 @@ private fun LeitorPaginado(
     DisposableEffect(painelAberto, idDaTela) {
         servicoDeAnalises.definirPainelVisivel(if (painelAberto) idDaTela else null)
         onDispose { servicoDeAnalises.definirPainelVisivel(null) }
+    }
+
+    // Veio do aviso de prompt gerado: lê as sugestões e abre o modal da cena (ou, sem sugestão por trás, o do frame).
+    LaunchedEffect(framePendente) { if (framePendente != null) painel.aoAbrirPainel() }
+    LaunchedEffect(framePendente, estadoDoPainel.conteudo) {
+        val frameId = framePendente ?: return@LaunchedEffect
+        val conteudo = estadoDoPainel.conteudo
+        val pronto = conteudo is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Pronto
+        val terminou = pronto || conteudo is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.NuncaAnalisado ||
+            conteudo is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Erro
+        if (!terminou) return@LaunchedEffect
+        val cena = (conteudo as? com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Pronto)?.sugestoes?.cenas?.firstOrNull { it.frame_id == frameId }
+        if (cena != null) painel.abrirModalDeCena(cena.id) else painel.abrirModalDeFrame(frameId, rotuloDoFramePendente ?: "Cena")
+        aoAtenderFramePendente()
     }
 
     // LV3: o painel não abre (só o modal do elemento), mas a lista de sugestões precisa ser lida.
@@ -401,7 +427,10 @@ private fun LeitorPaginado(
         aoAlterarDescricaoDoTrecho = painel::alterarDescricaoDoTrecho,
         aoAlternarElementoDoTrecho = painel::alternarElementoDoTrecho,
         aoCriarCenaDoTrecho = painel::criarCenaDoTrecho,
-        aoFecharModalDoFrame = painel::fecharModalDoFrame,
+        aoFecharModalDoFrame = {
+            painel.fecharModalDoFrame()
+            if (modoDireto && estadoDoPainel.modais.size <= 1) aoVoltar()
+        },
         aoAbrirImagemExistente = painel::abrirImagemExistente,
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
@@ -414,7 +443,10 @@ private fun LeitorPaginado(
         aoCancelarConfirmarTodos = painel::cancelarConfirmarTodos,
         aoDispensarResultadoDoLote = painel::dispensarResultadoDoLote,
         aoAbrirCena = painel::abrirModalDeCena,
-        aoFecharModalDaCena = painel::fecharModalDaCena,
+        aoFecharModalDaCena = {
+            painel.fecharModalDaCena()
+            if (modoDireto && estadoDoPainel.modais.size <= 1) aoVoltar()
+        },
         aoExecutarCena = painel::executarCena,
         aoRevisarParticipante = painel::revisarParticipante,
         aoAbrirFicha = { elementoId, doCapitulo ->
