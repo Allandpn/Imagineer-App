@@ -1,5 +1,10 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import android.os.PersistableBundle
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
@@ -53,12 +58,13 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
     val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
     val aoConsultar by rememberUpdatedState(aoConsultarDicionario)
+    val aoMarcar by rememberUpdatedState(aoMarcarParagrafo)
     Box(
         modifier = Modifier.appendTextContextMenuComponents {
             separator()
@@ -76,8 +82,27 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoConsultar(trecho) }
             }
+            // LV4: liga o modo de marcar parágrafos (copiar vários, gerar imagem de um trecho maior) a partir da seleção.
+            item(key = ChaveDeMarcarParagrafo, label = ROTULO_MARCAR_PARAGRAFO) {
+                close()
+                copiarSelecaoE(visao, contexto) { trecho -> aoMarcar(trecho) }
+            }
         },
-    ) { conteudo() }
+    ) {
+        // Copiar aqui é só o meio de pegar o trecho: marcado como sensível, o Android não mostra o aviso de "copiado" (nem o do Samsung,
+        // "copiado para dispositivos conectados"). O texto continua na área de transferência normalmente.
+        val real = LocalClipboard.current
+        val silenciosa = remember(real) { AreaDeTransferenciaSemAviso(real) }
+        CompositionLocalProvider(LocalClipboard provides silenciosa) { conteudo() }
+    }
+}
+
+/** Uma área de transferência que grava o que o app copia **marcado como sensível** (`IS_SENSITIVE`, Android 13+; antes disso é ignorado). */
+private class AreaDeTransferenciaSemAviso(private val real: Clipboard) : Clipboard by real {
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+        clipEntry?.clipData?.description?.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+        real.setClipEntry(clipEntry)
+    }
 }
 
 private object ChaveDeGerarImagemDoTrecho
@@ -85,6 +110,11 @@ private object ChaveDeGerarImagemDoTrecho
 private object ChaveDeDestacarTrecho
 
 private object ChaveDeConsultarDicionario
+
+private object ChaveDeMarcarParagrafo
+
+/** O item do menu da seleção que entra no modo de marcar parágrafos (LV4). */
+const val ROTULO_MARCAR_PARAGRAFO = "Marcar parágrafo"
 
 /** O item do menu da seleção que procura a palavra no dicionário (RL20). */
 const val ROTULO_DICIONARIO = "Dicionário"

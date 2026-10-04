@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import java.util.Locale
 
 /**
@@ -68,7 +69,28 @@ class MotorDeVozDoAndroid(
         if (resultado == TextToSpeech.LANG_MISSING_DATA || resultado == TextToSpeech.LANG_NOT_SUPPORTED) {
             voz.language = Locale.getDefault()
             aoAvisar("A voz de ${desejado.displayLanguage} não está instalada; usando a padrão do aparelho.")
+        } else {
+            escolherAMelhorVoz(desejado)
         }
+    }
+
+    /**
+     * O Android escolhe sozinho uma voz do idioma, e muitas vezes é a mais simples (a "robótica"). Aqui vale a de **maior qualidade**
+     * entre as **instaladas** do idioma, preferindo a do mesmo país (pt-BR para quem pediu "pt-BR") e, no empate, a que **não** precisa
+     * de internet. Para ter vozes melhores é preciso baixá-las nas configurações de texto para voz do aparelho.
+     */
+    private fun escolherAMelhorVoz(desejado: Locale) {
+        val melhor = runCatching {
+            voz.voices.orEmpty()
+                .filter { it.locale.language == desejado.language && "notInstalled" !in it.features }
+                .sortedWith(
+                    compareByDescending<Voice> { desejado.country.isNotEmpty() && it.locale.country == desejado.country }
+                        .thenByDescending { it.quality }
+                        .thenBy { it.isNetworkConnectionRequired },
+                )
+                .firstOrNull()
+        }.getOrNull()
+        if (melhor != null) voz.voice = melhor
     }
 
     override fun falar(id: String, texto: String) {

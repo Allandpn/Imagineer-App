@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
@@ -192,7 +194,8 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, aoEditar: () -> Unit, aoFechar: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = aoFechar) {
+    // Abre já inteira: a meia altura escondia os botões embaixo, atrás de uma rolagem que ninguém procurava.
+    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -203,6 +206,17 @@ private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, ao
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // Os botões vêm logo no alto: o texto técnico embaixo é longo e empurrava "Editar" para fora da vista.
+            // PB1: a ação principal é preenchida e a alternativa, de contorno. Num perfil próprio a principal é Editar; num de fábrica,
+            // que não se edita, "Criar a partir deste" é a única ação e fica preenchida.
+            if (perfil.de_fabrica) {
+                Button(onClick = aoCopiar, modifier = Modifier.fillMaxWidth()) { Text("Criar a partir deste") }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoEditar, modifier = Modifier.weight(1f)) { Text("Editar") }
+                    OutlinedButton(onClick = aoCopiar, modifier = Modifier.weight(1f)) { Text("Criar a partir deste") }
+                }
+            }
             CampoDoDetalhe("Categoria", perfil.categoria?.rotulo ?: "Sem categoria")
             CampoDoDetalhe("Estilo", perfil.estilo)
             CampoDoDetalhe("Iluminação", perfil.iluminacao)
@@ -213,11 +227,6 @@ private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, ao
                 "Texto técnico colado ao fim de cada prompt",
                 perfil.bloco_tecnico ?: "Sem categoria, o prompt não ganha o bloco técnico.",
             )
-            Button(onClick = aoCopiar, modifier = Modifier.fillMaxWidth()) { Text("Criar a partir deste") }
-            if (!perfil.de_fabrica) {
-                // Alternativa da principal ("Criar a partir deste"), logo abaixo dela: botão de contorno (PB1).
-                OutlinedButton(onClick = aoEditar, modifier = Modifier.fillMaxWidth()) { Text("Editar") }
-            }
         }
     }
 }
@@ -244,7 +253,7 @@ private fun FormularioDoPerfilNaTela(
     aoFechar: () -> Unit,
 ) {
     val e = formulario.edicao
-    ModalBottomSheet(onDismissRequest = aoFechar) {
+    ModalBottomSheet(onDismissRequest = aoFechar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
