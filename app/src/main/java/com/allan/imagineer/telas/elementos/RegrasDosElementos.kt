@@ -26,13 +26,25 @@ fun semAcentos(texto: String): String =
  * A lista de elementos da tela (E20): filtrada pelo [tipo] (nulo = todos) e pela [busca] no nome
  * (sem ligar para acento nem caixa), em ordem alfabética.
  */
-fun filtrarElementos(elementos: List<ElementoDoLivro>, busca: String, tipo: String?): List<ElementoDoLivro> {
+fun filtrarElementos(
+    elementos: List<ElementoDoLivro>,
+    busca: String,
+    tipo: String?,
+    /** LV3b: só os que aparecem neste capítulo (nulo = todos); [capitulosDosElementos] diz em quais cada um aparece. */
+    capituloId: Int? = null,
+    capitulosDosElementos: Map<Int, List<CapituloDoElemento>> = emptyMap(),
+): List<ElementoDoLivro> {
     val termo = semAcentos(busca.trim())
     return elementos
         .filter { tipo == null || it.tipo == tipo }
+        .filter { capituloId == null || capitulosDosElementos[it.id].orEmpty().any { c -> c.capituloId == capituloId } }
         .filter { termo.isEmpty() || semAcentos(it.nome).contains(termo) }
         .sortedBy { semAcentos(it.nome) }
 }
+
+/** Os capítulos em que há algum elemento, na ordem do livro: o que o filtro por capítulo oferece (LV3b). */
+fun capitulosComElementos(capitulosDosElementos: Map<Int, List<CapituloDoElemento>>): List<CapituloDoElemento> =
+    capitulosDosElementos.values.flatten().distinctBy { it.capituloId }.sortedBy { it.ordem }
 
 /** Os tipos que existem de fato na lista, na ordem canônica — para os filtros não oferecerem o vazio. */
 fun tiposPresentes(elementos: List<ElementoDoLivro>, ordemCanonica: List<String>): List<String> {

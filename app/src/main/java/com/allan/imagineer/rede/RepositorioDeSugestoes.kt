@@ -67,6 +67,15 @@ interface RepositorioDeSugestoes {
     /** `DELETE /frames/{id}`: apaga o frame com os prompts e as imagens dele. **Não tem volta.** */
     suspend fun apagarFrame(frameId: Int): ResultadoDaChamada<Unit>
 
+    /** `PATCH /sugestoes-cena/{id}` (LV6): muda o título e a descrição de uma cena sugerida (o frame dela, se há, acompanha). Não gasta IA. */
+    suspend fun editarCena(sugestaoCenaId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit>
+
+    /** `PATCH /frames/{id}` (LV6): o mesmo para a cena de um trecho, que é só um frame. */
+    suspend fun editarFrame(frameId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit>
+
+    /** `GET /frames/{id}` (LV6): o título e a descrição de um frame, para preencher a edição. */
+    suspend fun textoDoFrame(frameId: Int): ResultadoDaChamada<Pair<String, String>>
+
     /** `GET /frames/{id}`: as imagens escolhidas como referência, guardadas no servidor (RS1); valem em qualquer aparelho. */
     suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>>
 
@@ -157,6 +166,23 @@ class RepositorioDeSugestoesPeloRetrofit(
     override suspend fun apagarFrame(frameId: Int): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.apagarFrame(frameId); Unit }
+    }
+
+    override suspend fun editarCena(sugestaoCenaId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("titulo", titulo); put("descricao", descricao) }
+        return chamarApi { api.ajustarCena(sugestaoCenaId, corpo); Unit }
+    }
+
+    override suspend fun editarFrame(frameId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("titulo", titulo); put("descricao", descricao) }
+        return chamarApi { api.ajustarFrame(frameId, corpo); Unit }
+    }
+
+    override suspend fun textoDoFrame(frameId: Int): ResultadoDaChamada<Pair<String, String>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.frame(frameId).let { (it.titulo ?: "") to (it.descricao ?: "") } }
     }
 
     override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {

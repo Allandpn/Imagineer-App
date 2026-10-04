@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -429,7 +430,8 @@ private fun IconeDaBarra(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
-        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1)
+        // O botão tem 12 dp de folga embaixo do ícone; subir a legenda 7 dp encurta o espaço em cerca de 60%.
+        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.offset(y = (-7).dp))
     }
 }
 

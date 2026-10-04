@@ -28,6 +28,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -165,6 +168,7 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             Row {
                 TextButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) }) { Text(ROTULO_POSICIONAR) }
                 TextButton(onClick = { acoes.aoTirarPosicao(true, null, frameId) }) { Text(ROTULO_TIRAR_POSICAO) }
+                TextButton(onClick = { acoes.aoAbrirEdicaoDeFrame(frameId, rotulo) }) { Text(ROTULO_EDITAR_A_CENA) }
                 TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, rotulo, false) }) { Text(ROTULO_APAGAR_A_CENA, color = MaterialTheme.colorScheme.error) }
             }
             estado.mensagensDePrompt[frameId]?.takeIf { it.ehErro }?.let { Text(it.texto, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
@@ -174,6 +178,45 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             )
         }
     }
+}
+
+/** Editar o título e a descrição de uma cena (LV6): serve a toda cena (sugerida, confirmada ou criada de um trecho). */
+@Composable
+internal fun DialogoDeEdicaoDaCena(alvo: EdicaoDaCena, acoes: AcoesDoPainel) {
+    // Os campos recomeçam quando o texto do frame termina de chegar (carregando passa de true para false).
+    var titulo by remember(alvo.sugestaoId, alvo.frameId, alvo.carregando) { mutableStateOf(alvo.titulo) }
+    var descricao by remember(alvo.sugestaoId, alvo.frameId, alvo.carregando) { mutableStateOf(alvo.descricao) }
+    AlertDialog(
+        onDismissRequest = acoes.aoFecharEdicaoDaCena,
+        title = { Text(ROTULO_EDITAR_A_CENA) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = titulo,
+                    onValueChange = { titulo = it },
+                    label = { Text("Título") },
+                    singleLine = true,
+                    enabled = !alvo.carregando && !alvo.salvando,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = descricao,
+                    onValueChange = { descricao = it },
+                    label = { Text("Descrição") },
+                    minLines = 3,
+                    maxLines = 8,
+                    enabled = !alvo.carregando && !alvo.salvando,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                alvo.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                if (alvo.carregando || alvo.salvando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { acoes.aoSalvarEdicaoDaCena(titulo, descricao) }, enabled = !alvo.carregando && !alvo.salvando) { Text("Salvar") }
+        },
+        dismissButton = { TextButton(onClick = acoes.aoFecharEdicaoDaCena, enabled = !alvo.salvando) { Text("Cancelar") } },
+    )
 }
 
 /**

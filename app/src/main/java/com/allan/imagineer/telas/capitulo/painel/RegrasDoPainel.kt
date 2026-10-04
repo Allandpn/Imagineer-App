@@ -594,6 +594,9 @@ fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítu
 fun sugestaoDoElemento(sugestoes: com.allan.imagineer.rede.SugestoesDeCapitulo, elementoId: Int): Int? =
     sugestoes.elementos.firstOrNull { it.elemento_casado?.id == elementoId }?.id
 
+/** O botão que edita o título e a descrição de uma cena (LV6). */
+const val ROTULO_EDITAR_A_CENA = "Editar a cena"
+
 /** O botão que apaga o frame da cena, com os prompts e as imagens dele. */
 const val ROTULO_APAGAR_A_CENA = "Apagar a cena"
 

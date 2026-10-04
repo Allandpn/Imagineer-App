@@ -144,6 +144,8 @@ data class VinculadoDoFrame(
 @Serializable
 data class FrameComVinculados(
     val id: Int,
+    val titulo: String? = null,
+    val descricao: String? = null,
     val vinculados: List<VinculadoDoFrame> = emptyList(),
     /** As imagens escolhidas como referência para a próxima geração, guardadas no servidor (RS1). */
     val imagens_de_referencia: List<Int> = emptyList(),

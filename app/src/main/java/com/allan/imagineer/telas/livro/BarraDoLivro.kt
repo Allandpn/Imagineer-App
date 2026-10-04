@@ -48,7 +48,7 @@ object IconesDaTelaDoLivro {
 }
 
 /** O que a barra do topo pode abrir num diálogo. */
-enum class DialogoDaBarra { METADADOS, PENDENCIAS, CARACTERES }
+enum class DialogoDaBarra { METADADOS, PENDENCIAS }
 
 /** Os capítulos **ativos** (não arquivados) do livro: é sobre eles que a barra conta e que a lista mostra. */
 fun capitulosAtivos(livro: LivroDetalhe): List<CapituloResumo> = livro.capitulos.filter { !it.ignorado }
@@ -111,12 +111,31 @@ fun AcoesDaBarraDoLivro(
 ) {
     if (aoPesquisar != null) IconeComSelo(IconesDaTelaDoLivro.pesquisar, "Pesquisar", null, aoPesquisar)
     IconeComSelo(IconesDaTelaDoLivro.elementos, "Elementos", null, aoAbrirElementos)
-    val pendencias = totalDePendencias(livro)
-    IconeComSelo(IconesDaTelaDoLivro.pendencias, "Pendências", pendencias.takeIf { it > 0 }?.toString()) { aoMostrar(DialogoDaBarra.PENDENCIAS) }
     IconeComSelo(IconesDaTelaDoLivro.metadados, "Metadados", null) { aoMostrar(DialogoDaBarra.METADADOS) }
     val arquivados = livro.capitulos.count { it.ignorado }
     if (arquivados > 0) IconeComSelo(IconesDaTelaDoLivro.arquivados, "Capítulos arquivados", arquivados.toString(), aoAbrirArquivados)
-    IconeComSelo(IconesDaTelaDoLivro.caracteres, "Caracteres", abreviarQuantidade(totalDeCaracteres(livro))) { aoMostrar(DialogoDaBarra.CARACTERES) }
+}
+
+/** A informação de um capítulo da lista (LV7): tamanho, tempo estimado de leitura e pendências. */
+@Composable
+fun DialogoDoCapitulo(capitulo: CapituloResumo, totalDeCapitulos: Int, aoAbrir: () -> Unit, aoFechar: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = aoFechar,
+        title = { Text(tituloDoCapitulo(capitulo.titulo, capitulo.ordem)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Capítulo ${capitulo.ordem} de $totalDeCapitulos")
+                Text("Tamanho: ${descreverTamanho(capitulo.tamanho_do_texto)}")
+                Text("Tempo estimado de leitura: ${descreverTempoDeLeitura(capitulo.tamanho_do_texto)}")
+                Text(
+                    descreverSugestoes(capitulo.sugestoes_pendentes) ?: "Nenhuma sugestão a confirmar.",
+                    color = if (capitulo.sugestoes_pendentes > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { aoFechar(); aoAbrir() }) { Text("Abrir") } },
+        dismissButton = { TextButton(onClick = aoFechar) { Text("Fechar") } },
+    )
 }
 
 /** O diálogo de cada ícone que mostra informação (metadados, pendências, caracteres). */
@@ -131,7 +150,6 @@ fun DialogoDaBarraDoLivro(
     val titulo = when (qual) {
         DialogoDaBarra.METADADOS -> "Metadados"
         DialogoDaBarra.PENDENCIAS -> "Pendências"
-        DialogoDaBarra.CARACTERES -> "Caracteres"
     }
     AlertDialog(
         onDismissRequest = aoFechar,
@@ -144,6 +162,8 @@ fun DialogoDaBarraDoLivro(
                         Text(livro.autor ?: "Autor desconhecido")
                         livro.idioma?.let { Text("Idioma: $it") }
                         Text(descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados))
+                        Text("Caracteres: ${descreverTamanho(totalDeCaracteres(livro)).removeSuffix(" caracteres")} nos capítulos ativos")
+                        Text("Tempo estimado de leitura: ${descreverTempoDeLeitura(totalDeCaracteres(livro))}")
                         Text("Arquivo: ${livro.nome_arquivo}")
                         Text(
                             when {
@@ -180,11 +200,6 @@ fun DialogoDaBarraDoLivro(
                         }
                     }
 
-                    DialogoDaBarra.CARACTERES -> {
-                        Text(descreverTamanho(totalDeCaracteres(livro)) + " nos capítulos ativos.")
-                        val arquivados = livro.capitulos.filter { it.ignorado }.sumOf { it.tamanho_do_texto }
-                        if (arquivados > 0) Text("(+ ${descreverTamanho(arquivados)} nos arquivados)", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
                 }
             }
         },

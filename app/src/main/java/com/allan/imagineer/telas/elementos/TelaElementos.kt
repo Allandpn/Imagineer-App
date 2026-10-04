@@ -1,5 +1,10 @@
 package com.allan.imagineer.telas.elementos
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
@@ -126,7 +131,7 @@ private fun ConteudoDaLista(
     aoAbrirFicha: (Int) -> Unit,
     aoAbrirNoCapitulo: (capituloId: Int, elementoId: Int) -> Unit,
 ) {
-    val visiveis = filtrarElementos(todos, estado.busca, estado.tipo)
+    val visiveis = filtrarElementos(todos, estado.busca, estado.tipo, estado.capituloId, estado.capitulosDosElementos)
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -149,6 +154,7 @@ private fun ConteudoDaLista(
                             label = { Text("${rotuloDoTipo(tipo)} (${todos.count { it.tipo == tipo }})") },
                         )
                     }
+                    FiltroPorCapitulo(estado.capitulosDosElementos, estado.capituloId, viewModel::filtrarPorCapitulo)
                 }
             }
         }
@@ -169,6 +175,34 @@ private fun ConteudoDaLista(
                 capitulos = estado.capitulosDosElementos[elemento.id].orEmpty(),
                 aoAbrirNoCapitulo = { capituloId -> aoAbrirNoCapitulo(capituloId, elemento.id) },
             ) { aoAbrirFicha(elemento.id) }
+        }
+    }
+}
+
+/** O filtro "Capítulo": um chip que abre a lista dos capítulos com elementos (LV3b); "Todos os capítulos" limpa. */
+@Composable
+private fun FiltroPorCapitulo(
+    capitulosDosElementos: Map<Int, List<CapituloDoElemento>>,
+    escolhido: Int?,
+    aoEscolher: (Int?) -> Unit,
+) {
+    val capitulos = capitulosComElementos(capitulosDosElementos)
+    if (capitulos.isEmpty()) return
+    var aberto by remember { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = escolhido != null,
+            onClick = { aberto = true },
+            label = { Text(capitulos.firstOrNull { it.capituloId == escolhido }?.rotulo ?: "Capítulo") },
+        )
+        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            DropdownMenuItem(text = { Text("Todos os capítulos") }, onClick = { aberto = false; aoEscolher(null) })
+            capitulos.forEach { capitulo ->
+                DropdownMenuItem(
+                    text = { Text(capitulo.rotulo + (capitulo.titulo?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")) },
+                    onClick = { aberto = false; aoEscolher(capitulo.capituloId) },
+                )
+            }
         }
     }
 }

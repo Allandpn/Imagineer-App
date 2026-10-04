@@ -185,7 +185,7 @@ fun TelaCapitulo(
 
     // rememberSaveable: o painel aberto sobrevive a girar o aparelho (P4); fica acima do pager, que é refeito
     // quando a lista completa chega.
-    var painelAberto by rememberSaveable { mutableStateOf(abrirElementoId != null) }
+    var painelAberto by rememberSaveable { mutableStateOf(false) }
     // Pedido de abrir um elemento (LV3): vale uma vez só; depois de atendido (ou girando o aparelho) não reabre.
     var elementoPendente by rememberSaveable { mutableStateOf(abrirElementoId) }
     var posicaoPendente by rememberSaveable { mutableStateOf(irParaPosicao) }
@@ -205,6 +205,7 @@ fun TelaCapitulo(
             posicaoPendente = posicaoPendente,
             aoAtenderPosicao = { posicaoPendente = null },
             aoPesquisar = aoPesquisar,
+            modoDireto = abrirElementoId != null,
         )
     }
 }
@@ -223,6 +224,8 @@ private fun LeitorPaginado(
     posicaoPendente: Int?,
     aoAtenderPosicao: () -> Unit,
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
+    /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
+    modoDireto: Boolean,
 ) {
     val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
     val aside = usarAside(LocalConfiguration.current.screenWidthDp)
@@ -266,6 +269,9 @@ private fun LeitorPaginado(
         servicoDeAnalises.definirPainelVisivel(if (painelAberto) idDaTela else null)
         onDispose { servicoDeAnalises.definirPainelVisivel(null) }
     }
+
+    // LV3: o painel não abre (só o modal do elemento), mas a lista de sugestões precisa ser lida.
+    LaunchedEffect(elementoPendente) { if (elementoPendente != null) painel.aoAbrirPainel() }
 
     // LV3: chegou pelos chips da lista de elementos: com a lista de sugestões lida, abre o modal do elemento (ou, sem sugestão
     // dele neste capítulo, a ficha).
@@ -370,6 +376,10 @@ private fun LeitorPaginado(
         aoTirarPosicao = painel::tirarPosicao,
         aoPedirApagarFrame = { frameId, rotulo, deSugestao -> painel.pedirApagarFrame(frameId, rotulo, deSugestao) },
         aoCancelarApagarFrame = painel::cancelarApagarFrame,
+        aoAbrirEdicaoDaCena = painel::abrirEdicaoDaCena,
+        aoAbrirEdicaoDeFrame = painel::abrirEdicaoDeFrame,
+        aoSalvarEdicaoDaCena = painel::salvarEdicaoDaCena,
+        aoFecharEdicaoDaCena = painel::fecharEdicaoDaCena,
         aoConfirmarApagarFrame = painel::confirmarApagarFrame,
         aoFecharTrecho = painel::fecharTrecho,
         aoAlterarDescricaoDoTrecho = painel::alterarDescricaoDoTrecho,
@@ -401,7 +411,11 @@ private fun LeitorPaginado(
         aoAlternarApagarEstado = painel::alternarApagarEstado,
         aoConfirmarDesfazer = painel::confirmarDesfazer,
         aoConfirmarDescarte = painel::confirmarDescarte,
-        aoFecharModal = painel::fecharModal,
+        // No modo direto, fechar o (único) modal do elemento volta à lista de elementos, sem passar pelo capítulo.
+        aoFecharModal = {
+            painel.fecharModal()
+            if (modoDireto && estadoDoPainel.modais.size <= 1) aoVoltar()
+        },
     )
 
     Scaffold(
@@ -488,7 +502,8 @@ private fun LeitorPaginado(
                             aoGerarImagemDoTrecho = painel::abrirTrecho,
                             aoVerPerfilDoArtefato = { artefato -> verPerfilDoArtefato(artefato, estadoDoPainel, painel, acoesDoPainel) },
                             // LV5: só a página em que se começou recebe o pedido de rolar até o achado.
-                            irParaPosicao = if (idDaPagina == lista.ids[lista.indiceInicial]) posicaoPendente else null,
+                            // Só com a lista completa: quando ela chega, o pager é refeito e uma página nova nasceria no topo, perdendo a rolagem.
+                            irParaPosicao = if (lista.completa && idDaPagina == lista.ids[lista.indiceInicial]) posicaoPendente else null,
                             aoAtenderPosicao = aoAtenderPosicao,
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoRolar = { delta, noTopo, noFim ->

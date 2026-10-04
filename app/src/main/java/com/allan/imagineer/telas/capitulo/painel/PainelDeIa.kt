@@ -155,6 +155,10 @@ class AcoesDoPainel(
     val aoTirarPosicao: (ehCena: Boolean, sugestaoId: Int?, frameId: Int?) -> Unit,
     val aoPedirApagarFrame: (frameId: Int, rotulo: String, deSugestao: Boolean) -> Unit,
     val aoCancelarApagarFrame: () -> Unit,
+    val aoAbrirEdicaoDaCena: (sugestaoId: Int, titulo: String, descricao: String?) -> Unit,
+    val aoAbrirEdicaoDeFrame: (frameId: Int, rotulo: String) -> Unit,
+    val aoSalvarEdicaoDaCena: (titulo: String, descricao: String) -> Unit,
+    val aoFecharEdicaoDaCena: () -> Unit,
     val aoConfirmarApagarFrame: () -> Unit,
     val aoFecharTrecho: () -> Unit,
     val aoAlterarDescricaoDoTrecho: (String) -> Unit,
@@ -212,6 +216,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.usandoImagemExistente?.let { DialogoDeImagemExistente(it, estado.capituloAtualId, acoes) }
     estado.trechoParaImagem?.let { DialogoDoTrecho(it, estado, acoes) }
     estado.apagandoFrame?.let { DialogoApagarFrame(it, acoes) }
+    estado.editandoCena?.let { DialogoDeEdicaoDaCena(it, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
@@ -1323,6 +1328,7 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     Row {
         TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
         TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
+        TextButton(onClick = { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) }) { Text(ROTULO_EDITAR_A_CENA) }
     }
     CorpoDaCena(cena, estado, acoes)
     // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.

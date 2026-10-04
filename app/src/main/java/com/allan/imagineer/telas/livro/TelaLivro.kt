@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -249,7 +250,7 @@ fun ConteudoDoLivro(
                 )
             } else {
                 TopAppBar(
-                    title = { Text((estado as? EstadoDoLivro.Pronto)?.livro?.titulo ?: "Livro", maxLines = 1) },
+                    title = { Text("Livro") },
                     navigationIcon = {
                         IconButton(onClick = aoVoltar) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -309,6 +310,7 @@ fun ConteudoDoLivro(
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
+                    aoAbrirPendencias = { dialogoDaBarra = DialogoDaBarra.PENDENCIAS },
                 )
             }
         }
@@ -322,8 +324,12 @@ private fun ListaDoLivro(
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
+    aoAbrirPendencias: () -> Unit,
 ) {
     val livro = estado.livro
+    // LV7: o capítulo cuja informação está aberta.
+    var capituloEmInfo by remember { mutableStateOf<CapituloResumo?>(null) }
+    capituloEmInfo?.let { DialogoDoCapitulo(it, livro.total_de_capitulos, aoAbrir = { aoAbrirCapitulo(it.id) }, aoFechar = { capituloEmInfo = null }) }
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
     val ativos = livro.capitulos.filter { !it.ignorado }
     val arquivados = livro.capitulos.count { it.ignorado }
@@ -333,7 +339,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro) }
+            item { CabecalhoDoLivro(livro, aoAbrirPendencias) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -362,6 +368,7 @@ private fun ListaDoLivro(
                     aoSegurar = {
                         if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
                     },
+                    aoInformacoes = { capituloEmInfo = capitulo },
                 )
                 }
             }
@@ -369,11 +376,33 @@ private fun ListaDoLivro(
     }
 }
 
-/** O cabeçalho da lista: só o autor (o título já está na barra); o resto vive nos ícones da barra (LV2). */
+/**
+ * O cabeçalho da lista (LV2 revisto): **título** grande e em destaque, **autor** e **idioma**; embaixo, os capítulos, os caracteres e (se
+ * há) as pendências, que abrem o detalhe ao tocar.
+ */
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleMedium)
+private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirPendencias: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        livro.idioma?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(
+            descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados) + " · " + descreverTamanho(totalDeCaracteres(livro)),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val pendencias = totalDePendencias(livro)
+        if (pendencias > 0) {
+            Text(
+                if (pendencias == 1) "1 pendência" else "$pendencias pendências",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.clickable(onClick = aoAbrirPendencias).padding(vertical = 4.dp),
+            )
+        }
     }
 }
 

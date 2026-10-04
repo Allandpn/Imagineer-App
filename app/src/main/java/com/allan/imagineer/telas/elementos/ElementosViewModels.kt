@@ -30,6 +30,8 @@ data class EstadoDaLista(
     val carga: CargaDaLista = CargaDaLista.Carregando,
     val busca: String = "",
     val tipo: String? = null,
+    /** O capítulo escolhido no filtro (LV3b); nulo = todos. */
+    val capituloId: Int? = null,
     /** Em que capítulos cada elemento aparece (LV3); lido à parte: se falhar, a lista só fica sem os chips. */
     val capitulosDosElementos: Map<Int, List<CapituloDoElemento>> = emptyMap(),
 )
@@ -66,6 +68,11 @@ class ListaDeElementosViewModel(
 
     fun buscar(texto: String) {
         _estado.update { it.copy(busca = texto) }
+    }
+
+    /** Filtra pelos elementos de um capítulo; `null` mostra todos (LV3b). */
+    fun filtrarPorCapitulo(capituloId: Int?) {
+        _estado.update { it.copy(capituloId = capituloId) }
     }
 
     /** Um toque no mesmo tipo de novo limpa o filtro. */

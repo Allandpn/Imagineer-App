@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,6 +49,8 @@ fun LinhaDeCapitulo(
     ajustando: Boolean,
     aoTocar: () -> Unit,
     aoSegurar: () -> Unit,
+    /** LV7: com ele, a linha mostra só o título e um ícone de informação (com selo se há pendências); sem ele, a linha de detalhes de antes. */
+    aoInformacoes: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -73,13 +76,24 @@ fun LinhaDeCapitulo(
                 tituloDoCapitulo(capitulo.titulo, capitulo.ordem),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            Text(
-                listOfNotNull(
-                    descreverTamanho(capitulo.tamanho_do_texto),
-                    descreverSugestoes(capitulo.sugestoes_pendentes),
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            if (aoInformacoes == null) {
+                Text(
+                    listOfNotNull(
+                        descreverTamanho(capitulo.tamanho_do_texto),
+                        descreverSugestoes(capitulo.sugestoes_pendentes),
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (aoInformacoes != null && !emSelecao) {
+            IconeComSelo(
+                icone = Icons.Outlined.Info,
+                descricao = "Informações do capítulo",
+                selo = capitulo.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
+                aoTocar = aoInformacoes,
             )
         }
 

@@ -206,3 +206,91 @@ class IconesDoVisualizadorTest {
         assertEquals("Voltar à posição automática", ROTULO_TIRAR_POSICAO)
     }
 }
+
+/** Editar o título e a descrição de uma cena (LV6). */
+@OptIn(ExperimentalCoroutinesApi::class)
+class EditarCenaNoPainelTest {
+
+    private val agendador = StandardTestDispatcher()
+
+    @Before
+    fun preparar() {
+        Dispatchers.setMain(agendador)
+    }
+
+    @After
+    fun limpar() {
+        Dispatchers.resetMain()
+    }
+
+    private fun vm(repositorio: SugestoesFalso = SugestoesFalso()) = PainelDeIaViewModel(5, repositorio, ElementosFalso())
+
+    @Test
+    fun `LV6 editar uma cena sugerida abre com o que ela tem e grava pelo servidor`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.abrirEdicaoDaCena(8, "A espada", "Ned ergue a espada.")
+        assertEquals("Ned ergue a espada.", vm.estado.value.editandoCena?.descricao)
+
+        vm.salvarEdicaoDaCena("  A espada de Ned ", "Nova descrição"); advanceUntilIdle()
+
+        assertEquals(listOf(Triple("sugestao8", "A espada de Ned", "Nova descrição")), repositorio.edicoesPedidas)
+        assertNull(vm.estado.value.editandoCena)
+    }
+
+    @Test
+    fun `LV6 editar a cena de um trecho le o texto do frame e grava no frame`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.abrirModalDeFrame(70, "O vento")
+        val versaoAntes = vm.estado.value.versaoDosFrames
+
+        vm.abrirEdicaoDeFrame(70, "O vento")
+        assertTrue(vm.estado.value.editandoCena!!.carregando)
+        advanceUntilIdle()
+        assertEquals("Título lido", vm.estado.value.editandoCena?.titulo)
+        assertEquals("Descrição lida", vm.estado.value.editandoCena?.descricao)
+
+        vm.salvarEdicaoDaCena("O vento forte", ""); advanceUntilIdle()
+
+        assertEquals(listOf(Triple("frame70", "O vento forte", "")), repositorio.edicoesPedidas)
+        assertEquals("O vento forte", (vm.estado.value.modais.single() as ModalAberto.DeFrame).rotulo)
+        assertEquals(versaoAntes + 1, vm.estado.value.versaoDosFrames)
+    }
+
+    @Test
+    fun `LV6 titulo vazio nao grava e avisa`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.abrirEdicaoDaCena(8, "A espada", null)
+
+        vm.salvarEdicaoDaCena("   ", "x"); advanceUntilIdle()
+
+        assertTrue(repositorio.edicoesPedidas.isEmpty())
+        assertEquals("O título não pode ficar vazio.", vm.estado.value.editandoCena?.erro)
+    }
+
+    @Test
+    fun `LV6 a recusa do servidor fica no dialogo, que continua aberto`() = runTest {
+        val repositorio = SugestoesFalso().also { it.resultadoDeEditar = ResultadoDaChamada.Falha("Sem conexão.") }
+        val vm = vm(repositorio)
+        vm.abrirEdicaoDaCena(8, "A espada", null)
+
+        vm.salvarEdicaoDaCena("Novo", ""); advanceUntilIdle()
+
+        assertEquals("Sem conexão.", vm.estado.value.editandoCena?.erro)
+        assertEquals(false, vm.estado.value.editandoCena?.salvando)
+    }
+
+    @Test
+    fun `LV6 cancelar fecha sem gravar`() = runTest {
+        val repositorio = SugestoesFalso()
+        val vm = vm(repositorio)
+        vm.abrirEdicaoDaCena(8, "A espada", null)
+
+        vm.fecharEdicaoDaCena()
+
+        assertNull(vm.estado.value.editandoCena)
+        assertTrue(repositorio.edicoesPedidas.isEmpty())
+    }
+}

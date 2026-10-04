@@ -1,5 +1,10 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.ui.platform.ViewConfiguration
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.runtime.CompositionLocalProvider
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -58,6 +63,9 @@ fun trechoDosParagrafos(paragrafos: List<ParagrafoDoTexto>, marcados: Set<Int>):
 fun posicaoDosParagrafos(paragrafos: List<ParagrafoDoTexto>, marcados: Set<Int>): Int? =
     marcados.minOrNull()?.let { paragrafos.getOrNull(it)?.inicio }
 
+/** Quanto tempo de toque vale como "segurar" o parágrafo (menor que o da seleção de texto do sistema, que é 400 ms). */
+const val TEMPO_DO_TOQUE_LONGO_DO_PARAGRAFO_MS = 300L
+
 /** O quanto os parágrafos **não** marcados escurecem enquanto há marcados. */
 const val OPACIDADE_DO_PARAGRAFO_NAO_MARCADO = 0.35f
 
@@ -80,17 +88,31 @@ internal fun ComMarcaDeParagrafo(
         destacado -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.28f)
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
+    val haptico = LocalHapticFeedback.current
+    // O toque longo do parágrafo (300 ms) vem antes do da seleção nativa de texto (400 ms): quando ela tentaria começar, o modo já a desligou,
+    // e não piscam a alça nem a barra dela.
+    val configuracao = LocalViewConfiguration.current
+    val maisRapida = remember(configuracao) {
+        object : ViewConfiguration by configuracao {
+            override val longPressTimeoutMillis: Long get() = TEMPO_DO_TOQUE_LONGO_DO_PARAGRAFO_MS
+        }
+    }
     val modificador = Modifier
         .alpha(if (emModo && !marcado) OPACIDADE_DO_PARAGRAFO_NAO_MARCADO else 1f)
         .background(fundo, RoundedCornerShape(8.dp))
         .combinedClickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null,
-            onLongClick = aoSegurar,
+            onLongClick = {
+                haptico.performHapticFeedback(HapticFeedbackType.LongPress)
+                aoSegurar()
+            },
             onClick = aoTocar,
         )
-    androidx.compose.foundation.layout.Box(modifier = modificador) {
-        if (emModo) DisableSelection { conteudo() } else conteudo()
+    CompositionLocalProvider(LocalViewConfiguration provides maisRapida) {
+        androidx.compose.foundation.layout.Box(modifier = modificador) {
+            if (emModo) DisableSelection { conteudo() } else conteudo()
+        }
     }
 }
 

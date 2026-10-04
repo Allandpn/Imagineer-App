@@ -121,6 +121,23 @@ internal class SugestoesFalso(
         return resultadoDeApagarFrame
     }
 
+    /** As edições de cena pedidas: (sugestão ou frame, título, descrição); e as respostas a dar (LV6). */
+    val edicoesPedidas = mutableListOf<Triple<String, String, String>>()
+    var resultadoDeEditar: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    var textoDoFrameADar: ResultadoDaChamada<Pair<String, String>> = ResultadoDaChamada.Sucesso("Título lido" to "Descrição lida")
+
+    override suspend fun editarCena(sugestaoCenaId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit> {
+        edicoesPedidas += Triple("sugestao$sugestaoCenaId", titulo, descricao)
+        return resultadoDeEditar
+    }
+
+    override suspend fun editarFrame(frameId: Int, titulo: String, descricao: String): ResultadoDaChamada<Unit> {
+        edicoesPedidas += Triple("frame$frameId", titulo, descricao)
+        return resultadoDeEditar
+    }
+
+    override suspend fun textoDoFrame(frameId: Int): ResultadoDaChamada<Pair<String, String>> = textoDoFrameADar
+
     /** As cenas de trecho pedidas e a resposta a dar (TR3). */
     class CenaDeTrechoPedida(val titulo: String, val descricao: String, val posicao: Int?, val estadosIds: List<Int>)
     val cenasDeTrechoPedidas = mutableListOf<CenaDeTrechoPedida>()

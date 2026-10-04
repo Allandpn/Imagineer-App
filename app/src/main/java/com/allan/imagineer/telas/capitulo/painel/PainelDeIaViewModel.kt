@@ -79,6 +79,17 @@ data class TrechoParaImagem(
 data class PosicionandoArtefato(val ehCena: Boolean, val sugestaoId: Int?, val rotulo: String, val erro: String? = null, val frameId: Int? = null)
 
 /** O diálogo "Apagar esta cena?" (a cena de um trecho): o frame, o nome, se está apagando e a recusa do servidor. */
+/** A edição aberta do título e da descrição de uma cena: de uma **sugestão** ([sugestaoId]) ou de um frame sem sugestão ([frameId]). */
+data class EdicaoDaCena(
+    val sugestaoId: Int? = null,
+    val frameId: Int? = null,
+    val titulo: String = "",
+    val descricao: String = "",
+    val carregando: Boolean = false,
+    val salvando: Boolean = false,
+    val erro: String? = null,
+)
+
 data class ApagandoFrame(
     val frameId: Int,
     val rotulo: String,
@@ -159,6 +170,8 @@ data class EstadoDoPainel(
     val capituloAtualId: Int? = null,
     /** O diálogo de apagar a cena de um trecho está aberto; `null` = fechado. */
     val apagandoFrame: ApagandoFrame? = null,
+    /** A edição do título e da descrição de uma cena (LV6); `null` = fechada. */
+    val editandoCena: EdicaoDaCena? = null,
     /** O diálogo de gerar imagem de um trecho está aberto (TR2); `null` = fechado. */
     val trechoParaImagem: TrechoParaImagem? = null,
     /** O modo de posicionar um artefato à mão está ligado (PM1); `null` = desligado. */
@@ -1727,6 +1740,72 @@ class PainelDeIaViewModel(
                         ehCena -> it.copy(mensagensDeCena = it.mensagensDeCena + (sugestaoId!! to recado))
                         else -> it.copy(mensagens = it.mensagens + (sugestaoId!! to recado))
                     }
+                }
+            }
+        }
+    }
+
+    // --- Editar o título e a descrição de uma cena (LV6) -------------------- //
+
+    /** Abre a edição de uma cena **sugerida** (a lista já traz o título e a descrição). */
+    fun abrirEdicaoDaCena(sugestaoId: Int, titulo: String, descricao: String?) {
+        _estado.update { it.copy(editandoCena = EdicaoDaCena(sugestaoId = sugestaoId, titulo = titulo, descricao = descricao.orEmpty())) }
+    }
+
+    /** Abre a edição da cena de um trecho (só frame): lê o título e a descrição dele antes. */
+    fun abrirEdicaoDeFrame(frameId: Int, rotulo: String) {
+        _estado.update { it.copy(editandoCena = EdicaoDaCena(frameId = frameId, titulo = rotulo, carregando = true)) }
+        viewModelScope.launch {
+            val lido = sugestoes.textoDoFrame(frameId)
+            _estado.update { atual ->
+                val edicao = atual.editandoCena
+                if (edicao == null || edicao.frameId != frameId) {
+                    atual
+                } else when (lido) {
+                    is ResultadoDaChamada.Sucesso -> atual.copy(
+                        editandoCena = edicao.copy(titulo = lido.dado.first.ifBlank { rotulo }, descricao = lido.dado.second, carregando = false),
+                    )
+                    is ResultadoDaChamada.Falha -> atual.copy(editandoCena = edicao.copy(carregando = false, erro = lido.motivo))
+                }
+            }
+        }
+    }
+
+    fun fecharEdicaoDaCena() {
+        if (_estado.value.editandoCena?.salvando == true) return
+        _estado.update { it.copy(editandoCena = null) }
+    }
+
+    /** Grava o novo título e a nova descrição; o título não pode ficar vazio. */
+    fun salvarEdicaoDaCena(titulo: String, descricao: String) {
+        val alvo = _estado.value.editandoCena ?: return
+        if (alvo.salvando || alvo.carregando) return
+        val novoTitulo = titulo.trim()
+        if (novoTitulo.isEmpty()) {
+            _estado.update { it.copy(editandoCena = alvo.copy(erro = "O título não pode ficar vazio.")) }
+            return
+        }
+        _estado.update { it.copy(editandoCena = alvo.copy(salvando = true, erro = null)) }
+        viewModelScope.launch {
+            val resultado = if (alvo.sugestaoId != null) {
+                sugestoes.editarCena(alvo.sugestaoId, novoTitulo, descricao)
+            } else {
+                sugestoes.editarFrame(alvo.frameId ?: return@launch, novoTitulo, descricao)
+            }
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> {
+                    _estado.update { atual ->
+                        atual.copy(
+                            editandoCena = null,
+                            // o modal do frame mostra o título novo; o ícone no texto relê o rótulo
+                            modais = atual.modais.map { m -> if (m is ModalAberto.DeFrame && m.frameId == alvo.frameId) m.copy(rotulo = novoTitulo) else m },
+                            versaoDosFrames = atual.versaoDosFrames + 1,
+                        )
+                    }
+                    if (alvo.sugestaoId != null) reler()
+                }
+                is ResultadoDaChamada.Falha -> _estado.update { atual ->
+                    atual.copy(editandoCena = atual.editandoCena?.copy(salvando = false, erro = resultado.motivo))
                 }
             }
         }
