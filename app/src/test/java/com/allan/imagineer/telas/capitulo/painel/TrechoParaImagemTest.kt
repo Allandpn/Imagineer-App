@@ -174,6 +174,7 @@ class TrechoParaImagemNoPainelTest {
         assertEquals("Jon de costas\n\nTrecho do capítulo: «Jon entrou no pátio.»", pedida.descricao)
         assertEquals(120, pedida.posicao)
         assertEquals(listOf(9), pedida.estadosIds)
+        assertEquals("Jon entrou no pátio.", pedida.trecho)  // FD7: o trecho selecionado também vai separado, para o servidor guardar
         assertNull(vm.estado.value.trechoParaImagem)
         assertEquals(versaoAntes + 1, vm.estado.value.versaoDosFrames)
         assertEquals(listOf<ModalAberto>(ModalAberto.DeFrame(500, "Jon de costas")), vm.estado.value.modais)

@@ -50,7 +50,9 @@ interface RepositorioDeSugestoes {
      * `POST /capitulos/{id}/frames` (tipo `CENA`): a cena **avulsa** de um trecho selecionado (TR3), com a descrição da pessoa e o trecho,
      * a [posicao] do parágrafo e os [estadosIds] escolhidos. Não gasta IA; a análise e o prompt vêm depois, no botão de gerar.
      */
-    suspend fun criarCenaDoTrecho(capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>): ResultadoDaChamada<FrameCriado>
+    suspend fun criarCenaDoTrecho(
+        capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>, trecho: String? = null,
+    ): ResultadoDaChamada<FrameCriado>
 
     /** `PUT /frames/{id}/estados`: **substitui** os participantes de um frame, a cena (EV7). Não gasta IA. */
     suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit>
@@ -85,6 +87,16 @@ interface RepositorioDeSugestoes {
     /** `PUT /frames/{id}/vinculos`: **substitui** os vinculados do retrato (V4). Lista vazia tira todos. 422 = regra de personagem individual. */
     suspend fun definirVinculos(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<List<VinculadoDoFrame>>
 }
+
+/** O menor trecho que o servidor guarda como "trecho da cena" (FD7): abaixo disso não diz nada sobre a cena. */
+const val MINIMO_DO_TRECHO_DA_CENA = 10
+
+/**
+ * O trecho selecionado como vai ao servidor (FD7): espaços e quebras de linha juntados, ou `null` se é pequeno demais para valer.
+ * O servidor confere que ele está no capítulo e guarda **o texto do livro**; este só limpa o que a seleção traz de sobra.
+ */
+fun trechoParaOServidor(trecho: String?): String? =
+    trecho?.trim()?.replace(Regex("\\s+"), " ")?.takeIf { it.length >= MINIMO_DO_TRECHO_DA_CENA }
 
 /** A implementação de verdade, sobre o Retrofit. */
 class RepositorioDeSugestoesPeloRetrofit(
@@ -127,17 +139,25 @@ class RepositorioDeSugestoesPeloRetrofit(
     }
 
     override suspend fun criarCenaDoTrecho(
-        capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>,
+        capituloId: Int, titulo: String, descricao: String, posicao: Int?, estadosIds: List<Int>, trecho: String?,
     ): ResultadoDaChamada<FrameCriado> {
         val api = provedor.obter() ?: return provedor.semServidor()
-        val corpo: JsonObject = buildJsonObject {
+        fun corpo(comTrecho: String?): JsonObject = buildJsonObject {
             put("tipo", "CENA")
             put("titulo", titulo)
             put("descricao", descricao)
+            if (comTrecho != null) put("trecho", comTrecho)
             if (posicao != null) put("posicao_no_texto", posicao)
             put("estados_ids", buildJsonArray { estadosIds.forEach { add(JsonPrimitive(it)) } })
         }
-        return chamarApi { api.criarRetrato(capituloId, corpo) }
+        val limpo = trechoParaOServidor(trecho)
+        val resultado = chamarApi { api.criarRetrato(capituloId, corpo(limpo)) }
+        // O servidor confere que o trecho está no capítulo (422 se não está). A cena não pode deixar de nascer por causa disso: o trecho é
+        // um apoio, e a seleção copiada do texto pode diferir dele (hifenização, símbolos). Sem ele, a cena é criada como antes.
+        if (limpo != null && resultado is ResultadoDaChamada.Falha && resultado.codigoHttp == 422) {
+            return chamarApi { api.criarRetrato(capituloId, corpo(null)) }
+        }
+        return resultado
     }
 
     override suspend fun definirEstados(frameId: Int, estadosIds: List<Int>): ResultadoDaChamada<Unit> {

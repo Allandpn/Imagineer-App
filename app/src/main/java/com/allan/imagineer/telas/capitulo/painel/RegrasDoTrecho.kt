@@ -39,6 +39,9 @@ const val MINIMO_DO_COMECO_DO_TRECHO = 12
 
 private fun espacosColapsados(texto: String): String = texto.trim().replace(Regex("\\s+"), " ")
 
+/** O trecho da cena como se mostra (FD7): entre aspas, num parágrafo; nulo se a cena não tem trecho. */
+fun legendaDoTrecho(trecho: String?): String? = trecho?.trim()?.takeIf { it.isNotEmpty() }?.let { "“$it”" }
+
 /** O título da cena do trecho (TR3): o começo do que a pessoa quer ver, ou do próprio trecho se ela não escreveu nada. */
 fun tituloDaCenaDoTrecho(descricao: String, trecho: String): String {
     val base = espacosColapsados(descricao.ifBlank { trecho })

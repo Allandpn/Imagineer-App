@@ -93,6 +93,8 @@ data class CenaSugerida(
     val descartada: Boolean = false,
     /** O frame criado a partir da cena: **nulo = pendente (ou descartada); preenchido = confirmada** (item 6.7). */
     val frame_id: Int? = null,
+    /** A citação literal do capítulo que narra o momento (FD7), conferida pelo servidor; nula = a IA não citou. */
+    val trecho: String? = null,
     val modelo: String = "",
 )
 

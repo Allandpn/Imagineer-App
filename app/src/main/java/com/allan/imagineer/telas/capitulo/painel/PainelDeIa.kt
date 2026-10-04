@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -1469,6 +1470,10 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
         BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) })
     }
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    // FD7: as palavras do autor nesse momento; é o que a IA usa para conferir a cena, e dá para a pessoa conferir também.
+    legendaDoTrecho(cena.trecho)?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis)
+    }
     val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)
     if (situacao.isNotEmpty()) {
         Text(situacao.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -1745,6 +1745,7 @@ class PainelDeIaViewModel(
             val titulo = tituloDaCenaDoTrecho(trecho.descricao, trecho.trecho)
             val resultado = sugestoes.criarCenaDoTrecho(
                 capituloId, titulo, descricaoDaCenaDoTrecho(trecho.descricao, trecho.trecho), trecho.posicao, trecho.estadosEscolhidos.toList().sorted(),
+                trecho = trecho.trecho,
             )
             when (resultado) {
                 is ResultadoDaChamada.Sucesso -> _estado.update {
