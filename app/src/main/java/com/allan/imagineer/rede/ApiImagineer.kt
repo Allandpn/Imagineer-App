@@ -45,6 +45,14 @@ interface ApiImagineer {
     @GET("configuracao")
     suspend fun configuracao(): ConfiguracaoAtual
 
+    /** `GET /configuracao/modelos` — os modelos de **texto**, do mais barato para o mais caro (MT1). */
+    @GET("configuracao/modelos")
+    suspend fun modelosDeTexto(@Query("ordenar_por_custo") ordenarPorCusto: Boolean = true): List<ModeloDeTexto>
+
+    /** `PUT /configuracao` — grava só os campos enviados; texto vazio limpa o campo (MT1). */
+    @PUT("configuracao")
+    suspend fun gravarConfiguracao(@Body campos: Map<String, String>): ConfiguracaoAtual
+
     /** `GET /livros` — a biblioteca, em ordem alfabética de título (item 6.2). */
     @GET("livros")
     suspend fun livros(): List<LivroResumo>
@@ -451,6 +459,10 @@ data class ConfiguracaoAtual(
     val modelo_extracao: String? = null,
     val modelo_prompt: String? = null,
     val modelo_perfil: String? = null,
+    /** O modelo que reescreve um prompt recusado; vazio = usa o do prompt (MT1). */
+    val modelo_suavizacao: String? = null,
+    /** O modelo que traduz os prompts; vazio = o da suavização, senão o de extração, senão o de prompt (MT1). */
+    val modelo_traducao: String? = null,
     /** O modelo de imagem padrão do servidor (item 7.5b, Z2). */
     val modelo_imagem: String? = null,
     /** Os modelos de imagem que o usuário pode escolher (Z2). */

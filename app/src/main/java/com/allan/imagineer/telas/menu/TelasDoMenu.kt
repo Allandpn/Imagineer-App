@@ -57,6 +57,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.allan.imagineer.ImagineerApp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 
 /** A moldura das telas do menu: barra com Voltar, conteúdo centrado (largura máxima de tablet) e rolável. */
@@ -201,25 +210,100 @@ private fun LinhaDeConfiguracao(titulo: String, descricao: String, aoTocar: () -
     }
 }
 
-/** Os modelos de IA (MN4): só a interface — os três papéis, sem escolha ainda. */
+/**
+ * Os modelos de IA (MN4, MT1): o modelo de cada tarefa de **texto** — extração, prompt, perfil, suavização e **tradução** —, com a
+ * troca feita aqui mesmo, a partir da lista do servidor (do mais barato ao mais caro, com busca). A escolha do modelo de **imagem**
+ * (preço por imagem, moderado ou não) vem no item seguinte.
+ */
 @Composable
 fun TelaModelos(aoVoltar: () -> Unit) {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val viewModel: ModelosDeIaViewModel = viewModel(
+        factory = viewModelFactory { initializer { ModelosDeIaViewModel(aplicacao.repositorioDeModelos) } },
+    )
+    val estado by viewModel.estado.collectAsState()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
+
     TelaDoMenu("Modelos de IA", aoVoltar) {
-        listOf(
-            "Extração e análise" to "Lê o capítulo e sugere elementos e cenas. Barato e rápido.",
-            "Prompt de imagem" to "Escreve o prompt de cada imagem a partir do texto. É o passo mais caro.",
-            "Imagem" to "Gera a imagem do prompt (OpenRouter, fal.ai ou Replicate), com preço por imagem.",
-        ).forEach { (nome, descricao) ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Modelo atual: —", style = MaterialTheme.typography.bodyMedium)
+        when (val carga = estado.carga) {
+            CargaDosModelos.Carregando -> Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) { CircularProgressIndicator() }
+            is CargaDosModelos.Erro -> {
+                Text(carga.motivo, color = MaterialTheme.colorScheme.error)
+                Button(onClick = viewModel::carregar) { Text("Tentar de novo") }
+            }
+            is CargaDosModelos.Pronta -> {
+                estado.recado?.let { Text(it, color = if (estado.recadoEhErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary) }
+                TarefaDeTexto.entries.forEach { tarefa ->
+                    Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.abrirEscolha(tarefa) }) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(tarefa.titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(tarefa.descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(descricaoDoModeloAtual(carga.configuracao, tarefa), style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Imagem", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Gera a imagem do prompt (OpenRouter, fal.ai ou Replicate).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Modelo atual: ${carga.configuracao.modelo_imagem ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                AvisoDeEmBreve("Escolher o modelo de imagem, ver o preço por imagem e se é moderado vem em seguida.")
+                estado.escolhendo?.let { tarefa ->
+                    DialogoDeEscolhaDeModelo(tarefa, carga.configuracao, estado, viewModel)
                 }
             }
         }
-        AvisoDeEmBreve("Escolher o modelo, ver o preço por imagem e se é moderado vem em breve. Por enquanto vale o que está configurado no servidor.")
     }
+}
+
+/** A escolha do modelo de uma tarefa: busca, a lista (nome, id, preço de saída, "moderado") e, nas opcionais, "Usar o padrão". */
+@Composable
+private fun DialogoDeEscolhaDeModelo(tarefa: TarefaDeTexto, config: com.allan.imagineer.rede.ConfiguracaoAtual, estado: EstadoDosModelos, viewModel: ModelosDeIaViewModel) {
+    var busca by rememberSaveable { mutableStateOf("") }
+    val atual = modeloEscolhido(config, tarefa)
+    AlertDialog(
+        onDismissRequest = viewModel::fecharEscolha,
+        title = { Text(tarefa.titulo) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = busca, onValueChange = { busca = it }, label = { Text("Buscar modelo") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                estado.recado?.takeIf { estado.recadoEhErro }?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                when (val lista = estado.lista) {
+                    ListaDeModelos.Nao, ListaDeModelos.Carregando -> Box(Modifier.fillMaxWidth().padding(16.dp), Alignment.Center) { CircularProgressIndicator() }
+                    is ListaDeModelos.Erro -> {
+                        Text(lista.motivo, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = viewModel::carregarLista) { Text("Tentar de novo") }
+                    }
+                    is ListaDeModelos.Pronta -> {
+                        val modelos = filtrarModelos(lista.modelos, busca)
+                        LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                            items(modelos, key = { it.id }) { modelo ->
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().clickable(enabled = !estado.salvando) { viewModel.escolher(tarefa, modelo.id) }.padding(vertical = 8.dp),
+                                ) {
+                                    Text(modelo.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = if (modelo.id == atual) FontWeight.Bold else FontWeight.Normal)
+                                    Text(
+                                        listOfNotNull(modelo.id, precoDoModelo(modelo), if (modelo.moderado) "moderado" else null, if (modelo.id == atual) "em uso" else null).joinToString(" · "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                        if (modelos.isEmpty()) Text("Nenhum modelo combina com a busca.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (estado.salvando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            if (tarefa.opcional) TextButton(onClick = { viewModel.escolher(tarefa, null) }, enabled = !estado.salvando && atual != null) { Text("Usar o padrão") }
+        },
+        dismissButton = { TextButton(onClick = viewModel::fecharEscolha) { Text("Fechar") } },
+    )
 }
 
 // --------------------------------------------------------------------------- //

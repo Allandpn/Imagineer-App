@@ -93,6 +93,10 @@ class ImagineerApp : Application() {
         com.allan.imagineer.rede.RepositorioDaLixeiraDeFramesPeloRetrofit(provedorDeApi)
     }
 
+    val repositorioDeModelos: com.allan.imagineer.rede.RepositorioDeModelos by lazy {
+        com.allan.imagineer.rede.RepositorioDeModelosPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeCustos: com.allan.imagineer.rede.RepositorioDeCustos by lazy {
         com.allan.imagineer.rede.RepositorioDeCustosPeloRetrofit(provedorDeApi)
     }

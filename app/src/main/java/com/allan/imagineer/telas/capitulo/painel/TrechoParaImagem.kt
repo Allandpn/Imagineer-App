@@ -1,7 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.Icons
@@ -217,7 +217,7 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             // PM3: reposicionar, tirar a posição; editar e apagar a cena (só frames sem sugestão chegam a este modal). Quebra de linha, não corte.
             FlowRow {
                 BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) })
-                BotaoDeIcone(Icons.AutoMirrored.Filled.Undo, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, null, frameId) })
+                BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, null, frameId) })
                 BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDeFrame(frameId, rotulo) })
                 BotaoDeIcone(Icons.Filled.Delete, ROTULO_APAGAR_A_CENA, { acoes.aoPedirApagarFrame(frameId, rotulo, false) }, cor = MaterialTheme.colorScheme.error)
             }

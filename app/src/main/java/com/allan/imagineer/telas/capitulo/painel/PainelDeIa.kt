@@ -3,7 +3,7 @@ package com.allan.imagineer.telas.capitulo.painel
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import com.allan.imagineer.telas.comum.BotaoDeIcone
@@ -622,7 +622,7 @@ internal fun CartaoDeElemento(
             if (aberto) {
                 DetalhesDoElemento(elemento, situacao, cenas)
                 // O ícone do cabeçalho põe o artefato num parágrafo; aqui, desfazer a escolha (volta ao lugar achado sozinho).
-                BotaoDeIcone(Icons.AutoMirrored.Filled.Undo, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(false, elemento.id, null) })
+                BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(false, elemento.id, null) })
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     acoesDoElemento(situacao).forEachIndexed { indice, acao ->
                         val aoTocar: () -> Unit = {
@@ -1451,7 +1451,7 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     // Desfazer a posição escolhida e editar título e descrição: em toda cena, no cartão da lista e no modal. (O ícone de posicionar
     // fica no cabeçalho.) FlowRow: os botões passam para a linha de baixo em vez de sair da tela.
     FlowRow {
-        BotaoDeIcone(Icons.AutoMirrored.Filled.Undo, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, cena.id, null) })
+        BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, cena.id, null) })
         BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) })
     }
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }

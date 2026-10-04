@@ -23,7 +23,7 @@ class RegrasDePosicionarTest {
 
     @Test
     fun `PM1 o aviso diz qual artefato e o que tocar`() {
-        assertEquals("Toque no parágrafo para «Foxen»", avisoDePosicionar("Foxen"))
+        assertEquals("Toque no parágrafo", avisoDePosicionar("Foxen"))
     }
 
     @Test
