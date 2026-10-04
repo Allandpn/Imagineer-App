@@ -161,6 +161,14 @@ interface ApiImagineer {
     @PUT("livros/{id}/marcador")
     suspend fun gravarMarcador(@Path("id") livroId: Int, @Body corpo: MarcadorGravacao): JsonObject
 
+    /** `GET /dicionario/verbete` — procura a palavra nos dicionários do servidor (RL19); `idioma` é o do livro. */
+    @GET("dicionario/verbete")
+    suspend fun verbete(
+        @Query("palavra") palavra: String,
+        @Query("idioma") idioma: String? = null,
+        @Query("todos") todos: Boolean = false,
+    ): ConsultaDeDicionario
+
     /** `GET /estatisticas/leitura` — o tempo dos últimos 90 dias e o resumo de cada livro (RL17). */
     @GET("estatisticas/leitura")
     suspend fun estatisticasDeLeitura(): EstatisticasDeLeitura

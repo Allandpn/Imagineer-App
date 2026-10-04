@@ -151,6 +151,10 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.rede.RepositorioDeMarcadorPeloRetrofit(provedorDeApi)
     }
 
+    val repositorioDeDicionario: com.allan.imagineer.rede.RepositorioDeDicionario by lazy {
+        com.allan.imagineer.rede.RepositorioDeDicionarioPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeEstatisticas: com.allan.imagineer.rede.RepositorioDeEstatisticas by lazy {
         com.allan.imagineer.rede.RepositorioDeEstatisticasPeloRetrofit(provedorDeApi)
     }

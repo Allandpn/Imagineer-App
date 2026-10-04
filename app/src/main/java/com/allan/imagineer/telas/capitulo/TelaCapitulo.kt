@@ -816,6 +816,9 @@ private fun PaginaDoCapitulo(
                 avisoDosDestaques?.let { android.widget.Toast.makeText(contextoDaPagina, it, android.widget.Toast.LENGTH_LONG).show(); destaquesVm.avisoLido() }
             }
             var destaqueAberto by rememberSaveable(capituloId) { mutableStateOf<Int?>(null) }
+            // RL20: a palavra que está no dicionário (nula = folha fechada).
+            var palavraDoDicionario by remember(capituloId) { mutableStateOf<String?>(null) }
+            palavraDoDicionario?.let { FolhaDoDicionario(it, atual.capitulo.livro_id) { palavraDoDicionario = null } }
             destaques.firstOrNull { it.id == destaqueAberto }?.let { aberto ->
                 FolhaDoDestaque(
                     destaque = aberto,
@@ -849,6 +852,10 @@ private fun PaginaDoCapitulo(
             LeitorDeTexto(
                 estado = atual,
                 destaques = destaques,
+                aoConsultarDicionario = { selecao ->
+                    if (ehAtual) palavraParaProcurar(selecao)?.let { palavraDoDicionario = it }
+                        ?: android.widget.Toast.makeText(contextoDaPagina, "Selecione uma palavra para procurar no dicionário.", android.widget.Toast.LENGTH_SHORT).show()
+                },
                 aoDestacar = { lugar ->
                     destaquesVm.destacar(lugar) { novo ->
                         android.widget.Toast.makeText(contextoDaPagina, "Trecho destacado. Toque nele para anotar.", android.widget.Toast.LENGTH_SHORT).show()
@@ -907,6 +914,8 @@ private fun LeitorDeTexto(
     destaques: List<Destaque> = emptyList(),
     /** A pessoa pediu para destacar o que selecionou: já com o lugar no capítulo. */
     aoDestacar: (LugarDoTrecho) -> Unit = {},
+    /** A pessoa pediu o dicionário para o que selecionou (RL20). */
+    aoConsultarDicionario: (String) -> Unit = {},
     /** Tocou numa marca do texto: a etiqueta diz qual (um destaque ou o nome de um elemento). */
     aoTocarMarca: (String) -> Unit = {},
     /** Os nomes de elementos tocáveis (RL14); nulo = desligados. */
@@ -1057,6 +1066,7 @@ private fun LeitorDeTexto(
         val contextoDoDestaque = LocalContext.current
         ComAcaoDeGerarImagemDoTrecho(
             aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) },
+            aoConsultarDicionario = aoConsultarDicionario,
             aoDestacarTrecho = { trecho ->
                 val lugar = localizarTrecho(trechos, trecho)
                 if (lugar != null) aoDestacar(lugar)

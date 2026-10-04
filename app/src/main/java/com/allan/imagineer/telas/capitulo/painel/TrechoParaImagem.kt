@@ -53,11 +53,12 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
     val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
+    val aoConsultar by rememberUpdatedState(aoConsultarDicionario)
     Box(
         modifier = Modifier.appendTextContextMenuComponents {
             separator()
@@ -70,6 +71,11 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoDestacar(trecho) }
             }
+            // RL20: a palavra selecionada vai ao dicionário.
+            item(key = ChaveDeConsultarDicionario, label = ROTULO_DICIONARIO) {
+                close()
+                copiarSelecaoE(visao, contexto) { trecho -> aoConsultar(trecho) }
+            }
         },
     ) { conteudo() }
 }
@@ -77,6 +83,11 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
 private object ChaveDeGerarImagemDoTrecho
 
 private object ChaveDeDestacarTrecho
+
+private object ChaveDeConsultarDicionario
+
+/** O item do menu da seleção que procura a palavra no dicionário (RL20). */
+const val ROTULO_DICIONARIO = "Dicionário"
 
 /** O item do menu da seleção que grifa o trecho (RL9). */
 const val ROTULO_DESTACAR_TRECHO = "Destacar"
