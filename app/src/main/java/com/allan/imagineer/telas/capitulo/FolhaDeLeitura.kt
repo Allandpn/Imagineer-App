@@ -122,6 +122,9 @@ fun FolhaDeLeitura(preferencias: PreferenciasDeLeitura, aoMudar: (PreferenciasDe
                     }
                 }
             }
+            Linha("Nomes tocáveis") {
+                Switch(checked = preferencias.nomesTocaveis, onCheckedChange = { aoMudar(preferencias.copy(nomesTocaveis = it)) })
+            }
             Linha("Manter a tela acesa") {
                 Switch(checked = preferencias.telaAcesa, onCheckedChange = { aoMudar(preferencias.copy(telaAcesa = it)) })
             }

@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo
 
+import com.allan.imagineer.rede.ResultadoDaChamada
+import androidx.compose.runtime.produceState
 import com.allan.imagineer.rede.Destaque
 import kotlinx.coroutines.launch
 import com.allan.imagineer.dados.PreferenciasDeLeitura
@@ -644,6 +646,7 @@ private fun LeitorPaginado(
                             irParaPosicao = if (lista.completa && idDaPagina == lista.ids[lista.indiceInicial]) posicaoPendente else null,
                             aoAtenderPosicao = aoAtenderPosicao,
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
+                            aoAbrirElemento = { elementoId, livroId -> aoAbrirFicha(elementoId, livroId, idDaPagina) },
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -717,6 +720,8 @@ private fun PaginaDoCapitulo(
     irParaPosicao: Int?,
     aoAtenderPosicao: () -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
+    /** Tocou no nome de um elemento no texto (RL14): abre a ficha dele, do livro dado. */
+    aoAbrirElemento: (elementoId: Int, livroId: Int) -> Unit = { _, _ -> },
 ) {
     val viewModel = capituloViewModel(capituloId)
     val estado by viewModel.estado.collectAsState()
@@ -753,6 +758,11 @@ private fun PaginaDoCapitulo(
             }
 
             is EstadoDoCapitulo.Pronto -> {
+            // RL14: os elementos do livro, para marcar os nomes no texto; sem eles (ou sem conexão) o texto fica como está.
+            val nomesDoLivro by produceState<LocalizadorDeNomes?>(initialValue = null, atual.capitulo.livro_id) {
+                value = (aplicacaoDaPagina.repositorioDeElementos.listar(atual.capitulo.livro_id) as? ResultadoDaChamada.Sucesso)
+                    ?.dado?.let { LocalizadorDeNomes(it) }?.takeUnless { it.vazio }
+            }
             val destaquesVm = destaquesViewModel(atual.capitulo.livro_id, capituloId)
             val destaques by destaquesVm.destaques.collectAsState()
             val avisoDosDestaques by destaquesVm.aviso.collectAsState()
@@ -781,8 +791,10 @@ private fun PaginaDoCapitulo(
                         android.widget.Toast.makeText(contextoDaPagina, "Trecho destacado. Toque nele para anotar.", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
+                nomes = if (leitura.nomesTocaveis) nomesDoLivro else null,
                 aoTocarMarca = { etiqueta ->
                     if (etiqueta.startsWith(ETIQUETA_DO_DESTAQUE)) destaqueAberto = etiqueta.removePrefix(ETIQUETA_DO_DESTAQUE).toIntOrNull()
+                    else if (etiqueta.startsWith(ETIQUETA_DO_NOME)) etiqueta.removePrefix(ETIQUETA_DO_NOME).toIntOrNull()?.let { if (ehAtual) aoAbrirElemento(it, atual.capitulo.livro_id) }
                 },
                 artefatos = artefatos,
                 aoTocarArtefato = { if (ehAtual) aoTocarArtefato(it) },
@@ -831,8 +843,10 @@ private fun LeitorDeTexto(
     destaques: List<Destaque> = emptyList(),
     /** A pessoa pediu para destacar o que selecionou: já com o lugar no capítulo. */
     aoDestacar: (LugarDoTrecho) -> Unit = {},
-    /** Tocou numa marca do texto: a etiqueta diz qual (hoje, o id de um destaque). */
+    /** Tocou numa marca do texto: a etiqueta diz qual (um destaque ou o nome de um elemento). */
     aoTocarMarca: (String) -> Unit = {},
+    /** Os nomes de elementos tocáveis (RL14); nulo = desligados. */
+    nomes: LocalizadorDeNomes? = null,
     /** Esta página é a que a pessoa está lendo (o pager parou nela). */
     emFoco: Boolean,
     /** Chegou ao fim do texto: o capítulo vira lido (LE4, LE7). */
@@ -1045,6 +1059,11 @@ private fun LeitorDeTexto(
                             destaques = destaques,
                             inicioDo = { trechos.getOrNull(it)?.inicio ?: 0 },
                             aoTocarMarca = aoTocarMarca,
+                            nomes = nomes,
+                            estiloDosNomes = androidx.compose.ui.text.SpanStyle(
+                                color = MaterialTheme.colorScheme.primary,
+                                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                            ),
                         )
                     }
                     if (posicionando != null) {

@@ -48,6 +48,8 @@ data class PreferenciasDeLeitura(
     val telaAcesa: Boolean = true,
     /** O brilho do app de 0,05 a 1; `null` = o do aparelho (RL8). */
     val brilho: Float? = null,
+    /** Os nomes dos elementos do livro aparecem sublinhados e abrem a ficha ao toque (RL14, RL15f). */
+    val nomesTocaveis: Boolean = true,
 ) {
     /** A mesma preferência com todos os valores dentro dos limites. */
     fun normalizada(): PreferenciasDeLeitura = copy(

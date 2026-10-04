@@ -98,6 +98,9 @@ internal data class MarcaNoTexto(val de: Int, val ate: Int, val etiqueta: String
 /** O começo da etiqueta de um destaque; o resto é o id dele. */
 internal const val ETIQUETA_DO_DESTAQUE = "destaque:"
 
+/** O começo da etiqueta de um nome de elemento; o resto é o id dele (RL14). */
+internal const val ETIQUETA_DO_NOME = "nome:"
+
 /** Um ícone de artefato dentro da linha de texto: o desenho do tipo, a cor da situação, tocável (leva ao painel). */
 @Composable
 private fun IconeNaLinha(artefato: Artefato, aoTocar: (Artefato) -> Unit) {
@@ -173,14 +176,21 @@ internal fun BlocoDoTextoNaTela(
     destaques: List<Destaque> = emptyList(),
     inicioDo: (Int) -> Int = { 0 },
     aoTocarMarca: (etiqueta: String) -> Unit = {},
+    /** Os nomes de elementos tocáveis (RL14); nulo = nomes desligados. */
+    nomes: LocalizadorDeNomes? = null,
+    estiloDosNomes: SpanStyle = SpanStyle(),
 ) {
     @Composable
     fun fatia(f: FatiaDeParagrafo, modifier: Modifier = Modifier) {
         val completo = textoDe(f.indice)
         val mostrado = f.recortar(completo)
-        val marcas = remember(destaques, f, mostrado) {
-            if (destaques.isEmpty()) emptyList() else destaquesDaFatia(destaques, inicioDo(f.indice), f.de, f.esquerdaCortada(completo), mostrado.length)
+        val marcas = remember(destaques, f, mostrado, nomes, estiloDosNomes) {
+            val dosDestaques = if (destaques.isEmpty()) emptyList() else destaquesDaFatia(destaques, inicioDo(f.indice), f.de, f.esquerdaCortada(completo), mostrado.length)
                 .map { MarcaNoTexto(it.de, it.ate, ETIQUETA_DO_DESTAQUE + it.id, SpanStyle(background = corDeFundoDoDestaque(it.cor))) }
+            // RL15e: onde há destaque, o nome não é marcado.
+            val dosNomes = nomes?.acharEm(mostrado)?.let { semSobreposicao(it, dosDestaques.map { m -> m.de until m.ate }) }.orEmpty()
+                .map { MarcaNoTexto(it.de, it.ate, ETIQUETA_DO_NOME + it.elementoId, estiloDosNomes) }
+            (dosDestaques + dosNomes).sortedBy { it.de }
         }
         TextoDoParagrafo(
             texto = mostrado,
