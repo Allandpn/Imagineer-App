@@ -430,8 +430,8 @@ private fun IconeDaBarra(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
-        // O botão tem 12 dp de folga embaixo do ícone; subir a legenda 7 dp encurta o espaço em cerca de 60%.
-        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.offset(y = (-7).dp))
+        // O botão tem 12 dp de folga embaixo do ícone; subir a legenda 9,5 dp encurta o espaço em cerca de 80%.
+        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.offset(y = (-9.5).dp))
     }
 }
 

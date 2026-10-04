@@ -182,6 +182,10 @@ interface RepositorioDePrompts {
     /** `GET /frames/{id}/elementos-para-vincular`: os elementos e as imagens do seletor (EV6). Nunca gasta IA. */
     suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular>
 
+    /** `GET /capitulos/{id}/elementos-para-cena`: o mesmo seletor para uma cena que ainda não existe (LV8). Nunca gasta IA. */
+    suspend fun elementosParaCena(capituloId: Int): ResultadoDaChamada<ElementosParaVincular> =
+        ResultadoDaChamada.Falha("Os elementos do capítulo não estão disponíveis.")
+
     /** `GET /frames/{id}/referencias-candidatas`: as imagens dos elementos da cena que podem ir como referência (W2). Nunca gasta IA. */
     suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas>
 
@@ -290,6 +294,11 @@ class RepositorioDePromptsPeloRetrofit(
     override suspend fun elementosParaVincular(frameId: Int): ResultadoDaChamada<ElementosParaVincular> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.elementosParaVincular(frameId) }
+    }
+
+    override suspend fun elementosParaCena(capituloId: Int): ResultadoDaChamada<ElementosParaVincular> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.elementosParaCena(capituloId) }
     }
 
     override suspend fun modelosDeImagem(): ResultadoDaChamada<ModelosDeImagem> {

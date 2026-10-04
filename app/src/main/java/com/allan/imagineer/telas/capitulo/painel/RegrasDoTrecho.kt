@@ -65,6 +65,15 @@ fun opcoesDeElementosDoTrecho(elementos: List<ElementoSugerido>): List<OpcaoDeEl
         .distinctBy { it.estadoId }
         .sortedBy { semAcentos(it.nome) }
 
+/**
+ * Todos os elementos que o seletor oferece a uma cena nova (LV8): os identificados, os outros do capítulo e os de outros capítulos. É o
+ * mesmo seletor de qualquer cena; o estado de cada um é o que o servidor indicou.
+ */
+fun opcoesDoSeletorDoTrecho(dados: com.allan.imagineer.rede.ElementosParaVincular): List<OpcaoDeElementoDoTrecho> =
+    (dados.identificados + dados.outros + dados.de_outros_capitulos)
+        .map { OpcaoDeElementoDoTrecho(it.estado_id, it.nome) }
+        .distinctBy { it.estadoId }
+
 /** Os estados cujos nomes aparecem no [trecho]: já vêm marcados ao abrir, para a pessoa só desmarcar o que não quer (TR2). */
 fun estadosCitadosNoTrecho(opcoes: List<OpcaoDeElementoDoTrecho>, trecho: String): Set<Int> {
     val texto = semAcentos(trecho)

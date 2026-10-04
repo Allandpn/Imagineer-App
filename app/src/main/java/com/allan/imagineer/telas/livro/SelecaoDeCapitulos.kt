@@ -1,5 +1,9 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Deselect
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,8 +53,8 @@ fun LinhaDeCapitulo(
     ajustando: Boolean,
     aoTocar: () -> Unit,
     aoSegurar: () -> Unit,
-    /** LV7: com ele, a linha mostra só o título e um ícone de informação (com selo se há pendências); sem ele, a linha de detalhes de antes. */
-    aoInformacoes: (() -> Unit)? = null,
+    /** `false` na lista do livro (minimalista): só o título. Os detalhes do capítulo vão para o botão de metadados dentro dele. */
+    detalhes: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -76,7 +80,7 @@ fun LinhaDeCapitulo(
                 tituloDoCapitulo(capitulo.titulo, capitulo.ordem),
                 style = MaterialTheme.typography.bodyLarge,
             )
-            if (aoInformacoes == null) {
+            if (detalhes) {
                 Text(
                     listOfNotNull(
                         descreverTamanho(capitulo.tamanho_do_texto),
@@ -86,15 +90,6 @@ fun LinhaDeCapitulo(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-
-        if (aoInformacoes != null && !emSelecao) {
-            IconeComSelo(
-                icone = Icons.Outlined.Info,
-                descricao = "Informações do capítulo",
-                selo = capitulo.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
-                aoTocar = aoInformacoes,
-            )
         }
 
         if (ajustando) {
@@ -121,7 +116,8 @@ fun BarraDeSelecao(
     aoConfirmar: () -> Unit,
 ) {
     TopAppBar(
-        title = { Text(descreverSelecionados(selecao.ids.size)) },
+        // Só o número, numa linha: "Nenhum selecionado" quebrava o texto.
+        title = { Text(selecao.ids.size.toString(), maxLines = 1) },
         navigationIcon = {
             IconButton(onClick = aoCancelar, enabled = !selecao.executando) {
                 Icon(Icons.Filled.Close, contentDescription = "Cancelar seleção")
@@ -133,12 +129,18 @@ fun BarraDeSelecao(
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 }
             } else {
-                // O rótulo diz o que vai acontecer: marcar todos ou desmarcar todos.
-                TextButton(onClick = aoAlternarTodos) {
-                    Text(if (todosMarcados) "Desmarcar todos" else "Selecionar todos")
+                // Ícones: o que cada um faz fica na descrição (leitor de tela).
+                IconButton(onClick = aoAlternarTodos) {
+                    Icon(
+                        if (todosMarcados) Icons.Filled.Deselect else Icons.Filled.SelectAll,
+                        contentDescription = if (todosMarcados) "Desmarcar todos" else "Selecionar todos",
+                    )
                 }
-                TextButton(onClick = aoConfirmar, enabled = selecao.ids.isNotEmpty()) {
-                    Text("$rotuloDaAcao (${selecao.ids.size})")
+                IconButton(onClick = aoConfirmar, enabled = selecao.ids.isNotEmpty()) {
+                    Icon(
+                        if (rotuloDaAcao == "Arquivar") Icons.Filled.Archive else Icons.Filled.Unarchive,
+                        contentDescription = "$rotuloDaAcao (${selecao.ids.size})",
+                    )
                 }
             }
         },

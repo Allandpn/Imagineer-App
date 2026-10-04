@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.layout.FlowRow
 import android.content.ClipboardManager
 import android.content.Context
 import android.view.KeyEvent
@@ -117,19 +118,26 @@ internal fun DialogoDoTrecho(trecho: TrechoParaImagem, estado: EstadoDoPainel, a
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text("Elementos na cena", style = MaterialTheme.typography.titleSmall)
-                if (opcoes.isEmpty()) {
-                    Text(
-                        "Ainda não há elementos confirmados neste capítulo. A cena pode ser criada sem eles.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                opcoes.forEach { opcao ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable(enabled = !trecho.criando) { acoes.aoAlternarElementoDoTrecho(opcao.estadoId) },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Checkbox(checked = opcao.estadoId in trecho.estadosEscolhidos, onCheckedChange = null)
-                        Text(opcao.nome, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                val dados = (trecho.candidatos as? CandidatosDoSeletor.Prontos)?.dados
+                if (dados == null) {
+                    // O seletor completo ainda não chegou (ou falhou): enquanto isso, os elementos confirmados do capítulo.
+                    if (trecho.candidatos is CandidatosDoSeletor.Erro) {
+                        Text("Não consegui ler os outros elementos: ${trecho.candidatos.motivo}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    }
+                    if (opcoes.isEmpty()) {
+                        Text(
+                            "Ainda não há elementos confirmados neste capítulo. A cena pode ser criada sem eles.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    opcoes.forEach { opcao -> LinhaDeElementoDoTrecho(opcao.estadoId, opcao.nome, "", trecho, acoes) }
+                } else {
+                    // LV8: o mesmo seletor de qualquer cena: os identificados, os outros do capítulo e os de outros capítulos.
+                    SecaoDeElementosDoTrecho("Identificados neste capítulo", dados.identificados, trecho, acoes)
+                    SecaoDeElementosDoTrecho("Outros deste capítulo", dados.outros, trecho, acoes)
+                    SecaoDeElementosDoTrecho("De outros capítulos", dados.de_outros_capitulos, trecho, acoes, recolhida = true)
+                    if (dados.identificados.isEmpty() && dados.outros.isEmpty() && dados.de_outros_capitulos.isEmpty()) {
+                        Text("Ainda não há elementos neste livro. A cena pode ser criada sem eles.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
                 Text(
@@ -148,11 +156,47 @@ internal fun DialogoDoTrecho(trecho: TrechoParaImagem, estado: EstadoDoPainel, a
     )
 }
 
+/** Uma seção do seletor de elementos da cena do trecho; a de outros capítulos começa **recolhida** (a lista pode ser longa). */
+@Composable
+private fun SecaoDeElementosDoTrecho(
+    titulo: String,
+    elementos: List<com.allan.imagineer.rede.ElementoParaVincular>,
+    trecho: TrechoParaImagem,
+    acoes: AcoesDoPainel,
+    recolhida: Boolean = false,
+) {
+    if (elementos.isEmpty()) return
+    var aberta by remember { mutableStateOf(!recolhida) }
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { aberta = !aberta },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("$titulo (${elementos.size})", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+        Text(if (aberta) "▾" else "▸", style = MaterialTheme.typography.labelLarge)
+    }
+    if (aberta) elementos.forEach { LinhaDeElementoDoTrecho(it.estado_id, it.nome, rotuloDoTipo(it.tipo), trecho, acoes) }
+}
+
+@Composable
+private fun LinhaDeElementoDoTrecho(estadoId: Int, nome: String, tipo: String, trecho: TrechoParaImagem, acoes: AcoesDoPainel) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = !trecho.criando) { acoes.aoAlternarElementoDoTrecho(estadoId) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = estadoId in trecho.estadosEscolhidos, onCheckedChange = null)
+        Text(
+            if (tipo.isBlank()) nome else "$nome · $tipo",
+            modifier = Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
 /**
  * O modal de um **frame sem sugestão** (a cena de um trecho, TR4): o título e a mesma área de prompts e imagens da cena (G1 a G13,
  * Q1 a Q7): **Gerar imagem**, **Só o prompt**, importar, referências. Fechar volta ao texto onde estava.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId: Int, rotulo: String) {
     ModalBottomSheet(
@@ -164,8 +208,8 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(rotulo, style = MaterialTheme.typography.titleLarge)
-            // PM3: reposicionar, tirar a posição; e apagar a cena (só frames sem sugestão chegam a este modal).
-            Row {
+            // PM3: reposicionar, tirar a posição; editar e apagar a cena (só frames sem sugestão chegam a este modal). Quebra de linha, não corte.
+            FlowRow {
                 TextButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) }) { Text(ROTULO_POSICIONAR) }
                 TextButton(onClick = { acoes.aoTirarPosicao(true, null, frameId) }) { Text(ROTULO_TIRAR_POSICAO) }
                 TextButton(onClick = { acoes.aoAbrirEdicaoDeFrame(frameId, rotulo) }) { Text(ROTULO_EDITAR_A_CENA) }

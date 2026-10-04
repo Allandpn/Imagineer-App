@@ -14,14 +14,14 @@ class TempoDeLeituraTest {
 
     @Test
     fun `LV7 minutos arredondam para cima`() {
-        assertEquals("~1 min", descreverTempoDeLeitura(1300))
-        assertEquals("~2 min", descreverTempoDeLeitura(1301))
-        assertEquals("~12 min", descreverTempoDeLeitura(15_000))
+        assertEquals("1 min", descreverTempoDeLeitura(1300))
+        assertEquals("2 min", descreverTempoDeLeitura(1301))
+        assertEquals("12 min", descreverTempoDeLeitura(15_000))
     }
 
     @Test
     fun `LV7 uma hora ou mais vira horas e minutos`() {
-        assertEquals("~1 h", descreverTempoDeLeitura(78_000))
-        assertEquals("~1 h 20 min", descreverTempoDeLeitura(104_000))
+        assertEquals("1 h", descreverTempoDeLeitura(78_000))
+        assertEquals("1 h 20 min", descreverTempoDeLeitura(104_000))
     }
 }

@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.capitulo
 
+import com.allan.imagineer.telas.livro.DialogoDoCapitulo
+import com.allan.imagineer.telas.livro.IconesDaTelaDoLivro
+import com.allan.imagineer.telas.livro.IconeComSelo
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -313,6 +316,19 @@ private fun LeitorPaginado(
         }
     }
 
+    var infoAberta by remember { mutableStateOf(false) }
+    if (infoAberta && capituloDaTela != null) {
+        DialogoDoCapitulo(
+            titulo = tituloDoCapitulo(capituloDaTela.titulo, capituloDaTela.ordem),
+            ordem = capituloDaTela.ordem,
+            totalDeCapitulos = lista.ids.size.takeIf { lista.completa },
+            caracteres = capituloDaTela.tamanho_do_texto,
+            sugestoesPendentes = capituloDaTela.sugestoes_pendentes,
+            arquivado = capituloDaTela.ignorado,
+            aoFechar = { infoAberta = false },
+        )
+    }
+
     val titulo = (estadoDoTitulo as? EstadoDoCapitulo.Pronto)?.capitulo
         ?.let { tituloDoCapitulo(it.titulo, it.ordem) }
         ?: "Capítulo"
@@ -428,6 +444,15 @@ private fun LeitorPaginado(
                     }
                 },
                 actions = {
+                    // LV7: os metadados do capítulo (número, tamanho, tempo de leitura, pendências), ao lado de pesquisar.
+                    if (capituloDaTela != null) {
+                        IconeComSelo(
+                            icone = IconesDaTelaDoLivro.metadados,
+                            descricao = "Metadados do capítulo",
+                            selo = capituloDaTela.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
+                            aoTocar = { infoAberta = true },
+                        )
+                    }
                     // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
                     if (livroDoCapitulo != null) {
                         IconButton(onClick = { aoPesquisar(livroDoCapitulo, idDaTela) }) {
@@ -905,11 +930,6 @@ private val LARGURA_MAXIMA_DA_LEITURA = 600.dp
 @Composable
 private fun CabecalhoDoCapitulo(capitulo: CapituloDetalhe) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            "Capítulo ${capitulo.ordem} · ${descreverTamanho(capitulo.tamanho_do_texto)}",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         if (capitulo.ignorado) {
             // Abre-se um capítulo arquivado pela área de arquivados; a leitura não é bloqueada.
             Text(

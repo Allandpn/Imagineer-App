@@ -1324,8 +1324,9 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
     }
-    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo.
-    Row {
+    // PM1, PM3: pôr (ou mudar) o artefato de lugar no texto, tocando no parágrafo. FlowRow: os botões passam para a linha de baixo em vez
+    // de sair da tela (o "Editar a cena" ficava escondido).
+    FlowRow {
         TextButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }) { Text(ROTULO_POSICIONAR) }
         TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
         TextButton(onClick = { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) }) { Text(ROTULO_EDITAR_A_CENA) }

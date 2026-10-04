@@ -70,6 +70,8 @@ data class TrechoParaImagem(
     val estadosEscolhidos: Set<Int> = emptySet(),
     val criando: Boolean = false,
     val erro: String? = null,
+    /** Os elementos que o seletor oferece à cena (identificados, outros do capítulo, de outros capítulos), lidos ao abrir (LV8). */
+    val candidatos: CandidatosDoSeletor = CandidatosDoSeletor.Carregando,
 )
 
 /**
@@ -1645,6 +1647,31 @@ class PainelDeIaViewModel(
         val opcoes = opcoesDeElementosDoTrecho((_estado.value.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes?.elementos.orEmpty())
         _estado.update { it.copy(trechoParaImagem = TrechoParaImagem(limpo, posicao, estadosEscolhidos = estadosCitadosNoTrecho(opcoes, limpo))) }
         if (_estado.value.conteudo is ConteudoDoPainel.NaoCarregado) aoAbrirPainel()
+        carregarCandidatosDoTrecho(limpo)
+    }
+
+    /** Lê o seletor de elementos da cena nova (LV8): o mesmo de qualquer cena. Os citados no trecho já vêm marcados. */
+    private fun carregarCandidatosDoTrecho(trecho: String) {
+        viewModelScope.launch {
+            val lido = prompts.elementosParaCena(capituloId)
+            _estado.update { atual ->
+                val aberto = atual.trechoParaImagem?.takeIf { it.trecho == trecho } ?: return@update atual
+                when (lido) {
+                    is ResultadoDaChamada.Sucesso -> {
+                        val opcoes = opcoesDoSeletorDoTrecho(lido.dado)
+                        val validos = opcoes.map { it.estadoId }.toSet()
+                        atual.copy(
+                            trechoParaImagem = aberto.copy(
+                                candidatos = CandidatosDoSeletor.Prontos(lido.dado),
+                                // o que a pessoa já marcou fica; o resto vem dos citados no trecho
+                                estadosEscolhidos = (aberto.estadosEscolhidos intersect validos) + estadosCitadosNoTrecho(opcoes, trecho),
+                            ),
+                        )
+                    }
+                    is ResultadoDaChamada.Falha -> atual.copy(trechoParaImagem = aberto.copy(candidatos = CandidatosDoSeletor.Erro(lido.motivo)))
+                }
+            }
+        }
     }
 
     fun fecharTrecho() {

@@ -194,6 +194,10 @@ interface ApiImagineer {
     @GET("frames/{id}/elementos-para-vincular")
     suspend fun elementosParaVincular(@Path("id") frameId: Int): ElementosParaVincular
 
+    /** `GET /capitulos/{id}/elementos-para-cena` — o mesmo seletor, para uma cena que ainda não tem frame (LV8). Nunca gasta IA. */
+    @GET("capitulos/{id}/elementos-para-cena")
+    suspend fun elementosParaCena(@Path("id") capituloId: Int): ElementosParaVincular
+
     /** `PUT /frames/{id}/estados` — substitui os estados (os participantes) de um frame (item 6.4). Não gasta IA. */
     @PUT("frames/{id}/estados")
     suspend fun definirEstados(@Path("id") frameId: Int, @Body corpo: JsonObject): FrameComVinculados
