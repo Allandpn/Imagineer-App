@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.material3.Switch
@@ -134,11 +137,22 @@ fun DialogoDoCapitulo(
                     color = if (sugestoesPendentes > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (arquivado) Text("Este capítulo está arquivado.", color = MaterialTheme.colorScheme.error)
-                // Lido: um interruptor (o padrão de mercado), em vez de botões de texto.
+                // Lido: um ícone discreto que **muda** ao tocar (círculo vazio = não lido; marcado = lido), com o estado ao lado.
                 if (aoAlternarLido != null) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Lido", modifier = Modifier.weight(1f))
-                        Switch(checked = lido, onCheckedChange = { aoAlternarLido() })
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(onClick = aoAlternarLido).padding(top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (lido) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
+                            contentDescription = if (lido) "Marcar como não lido" else "Marcar como lido",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (lido) 0.7f else 0.4f),
+                        )
+                        Text(
+                            if (lido) "Lido" else "Não lido",
+                            modifier = Modifier.padding(start = 12.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 } else {
                     Text(if (lido) "Lido" else "Ainda não lido", color = MaterialTheme.colorScheme.onSurfaceVariant)
