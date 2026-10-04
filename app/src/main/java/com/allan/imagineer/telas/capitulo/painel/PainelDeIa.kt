@@ -1,8 +1,14 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.Traducao
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -346,7 +352,7 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
             frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false,
             aoEscolherElementos = if (aceitaVinculos(elemento)) ({ acoes.aoAbrirSeletorDoRetrato(elemento, frameId) }) else null,
         )
-        TextButton(onClick = { acoes.aoAbrirImagemExistente(elemento, frameId) }) { Text(ROTULO_USAR_IMAGEM_EXISTENTE, maxLines = 1, softWrap = false) }
+        BotaoDeIcone(Icons.Filled.PhotoLibrary, ROTULO_USAR_IMAGEM_EXISTENTE, { acoes.aoAbrirImagemExistente(elemento, frameId) })
     }
 }
 
@@ -589,7 +595,7 @@ internal fun CartaoDeElemento(
                 // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
                 if (!elemento.descartada) {
                     IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
-                        Icon(Icons.Filled.PushPin, contentDescription = ROTULO_POSICIONAR)
+                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
                     }
                 }
             }
@@ -616,7 +622,7 @@ internal fun CartaoDeElemento(
             if (aberto) {
                 DetalhesDoElemento(elemento, situacao, cenas)
                 // O ícone do cabeçalho põe o artefato num parágrafo; aqui, desfazer a escolha (volta ao lugar achado sozinho).
-                TextButton(onClick = { acoes.aoTirarPosicao(false, elemento.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
+                BotaoDeIcone(Icons.AutoMirrored.Filled.Undo, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(false, elemento.id, null) })
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     acoesDoElemento(situacao).forEachIndexed { indice, acao ->
                         val aoTocar: () -> Unit = {
@@ -707,7 +713,7 @@ internal fun CartaoDeElementoDescartado(elemento: ElementoSugerido, estado: Esta
                     Text(rotuloDoTipo(elemento.tipo), style = MaterialTheme.typography.labelMedium)
                     Text(elemento.nome, style = MaterialTheme.typography.titleSmall)
                 }
-                TextButton(onClick = { acoes.aoRestaurar(elemento) }, enabled = !ocupado) { Text("Restaurar") }
+                BotaoDeIcone(Icons.Filled.Restore, "Restaurar", { acoes.aoRestaurar(elemento) }, habilitado = !ocupado)
             }
             estado.mensagens[elemento.id]?.let {
                 Text(it.texto, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -949,7 +955,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
                 IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
-                    Icon(Icons.Filled.PushPin, contentDescription = ROTULO_POSICIONAR)
+                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
                 }
             }
             // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
@@ -1100,14 +1106,14 @@ private fun CartaoDePrompt(
             aoEscolherElementos?.let { LinhaDoSeletorDeElementos(frameId, ehCena, estado, acoes, aoEscolher = it, ocupado = ocupado) }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = aoCompartilhar) { Text("Compartilhar", maxLines = 1, softWrap = false) }
+                BotaoDeIcone(Icons.Filled.Share, "Compartilhar", aoCompartilhar)
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
                 OutlinedButton(
                     onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
-                OutlinedButton(onClick = { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) }) { Text("Editar", maxLines = 1, softWrap = false) }
+                BotaoDeIcone(Icons.Filled.Edit, "Editar o prompt", { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) })
             }
             ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -1422,15 +1428,13 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
         IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
-            Icon(Icons.Filled.PushPin, contentDescription = ROTULO_POSICIONAR)
+            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
         }
     }
     CorpoDaCena(cena, estado, acoes)
     // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.
     cena.frame_id?.let { frameId ->
-        TextButton(onClick = { acoes.aoPedirApagarFrame(frameId, cena.titulo, true) }) {
-            Text(ROTULO_APAGAR_A_CENA, color = MaterialTheme.colorScheme.error)
-        }
+        BotaoDeIcone(Icons.Filled.Delete, ROTULO_APAGAR_A_CENA, { acoes.aoPedirApagarFrame(frameId, cena.titulo, true) }, cor = MaterialTheme.colorScheme.error)
     }
 }
 
@@ -1447,8 +1451,8 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     // Desfazer a posição escolhida e editar título e descrição: em toda cena, no cartão da lista e no modal. (O ícone de posicionar
     // fica no cabeçalho.) FlowRow: os botões passam para a linha de baixo em vez de sair da tela.
     FlowRow {
-        TextButton(onClick = { acoes.aoTirarPosicao(true, cena.id, null) }) { Text(ROTULO_TIRAR_POSICAO) }
-        TextButton(onClick = { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) }) { Text(ROTULO_EDITAR_A_CENA) }
+        BotaoDeIcone(Icons.AutoMirrored.Filled.Undo, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, cena.id, null) })
+        BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) })
     }
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     val situacao = listOfNotNull(cena.horario, cena.clima, cena.humor)

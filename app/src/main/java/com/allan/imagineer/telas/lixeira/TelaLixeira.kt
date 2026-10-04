@@ -53,6 +53,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ImagemNaLixeira
+import com.allan.imagineer.rede.RepositorioDaLixeiraDeFramesDoLivro
+import com.allan.imagineer.rede.RepositorioDaLixeiraDoLivro
 import com.allan.imagineer.rede.enderecoDaCapa
 import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
@@ -71,19 +73,29 @@ enum class TipoDaLixeira(val rotulo: String) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TelaLixeira(aoVoltar: () -> Unit) {
+fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val imagens: LixeiraViewModel = viewModel(
-        key = "lixeira-imagens",
-        factory = viewModelFactory { initializer { LixeiraViewModel(aplicacao.repositorioDaLixeira) } },
+        key = "lixeira-imagens-$livroId",
+        factory = viewModelFactory {
+            initializer {
+                // AJ3: a lixeira do livro (pelo menu ⋮ dele) só traz o que é dele.
+                LixeiraViewModel(livroId?.let { RepositorioDaLixeiraDoLivro(aplicacao.repositorioDaLixeira, it) } ?: aplicacao.repositorioDaLixeira)
+            }
+        },
     )
     val livros: LixeiraDeItensViewModel<LivroDaLixeira> = viewModel(
         key = "lixeira-livros",
         factory = viewModelFactory { initializer { LixeiraDeItensViewModel(FonteDaLixeiraDeLivros(aplicacao.repositorioDaLixeiraDeLivros)) } },
     )
     val cenas: LixeiraDeItensViewModel<FrameDaLixeira> = viewModel(
-        key = "lixeira-cenas",
-        factory = viewModelFactory { initializer { LixeiraDeItensViewModel(FonteDaLixeiraDeFrames(aplicacao.repositorioDaLixeiraDeFrames)) } },
+        key = "lixeira-cenas-$livroId",
+        factory = viewModelFactory {
+            initializer {
+                val base = aplicacao.repositorioDaLixeiraDeFrames
+                LixeiraDeItensViewModel(FonteDaLixeiraDeFrames(livroId?.let { RepositorioDaLixeiraDeFramesDoLivro(base, it) } ?: base))
+            }
+        },
     )
     val estadoDasCenas by cenas.estado.collectAsState()
     val estadoDasImagens by imagens.estado.collectAsState()
@@ -92,7 +104,7 @@ fun TelaLixeira(aoVoltar: () -> Unit) {
     // Relê toda vez que a tela fica visível: o que se apagou nos capítulos e na biblioteca aparece aqui.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         imagens.carregar()
-        livros.carregar()
+        if (livroId == null) livros.carregar()
         cenas.carregar()
     }
 
@@ -105,12 +117,13 @@ fun TelaLixeira(aoVoltar: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lixeira") },
+                title = { Text(if (livroId == null) "Lixeira" else "Lixeira do livro") },
                 navigationIcon = {
                     IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
                 },
                 actions = {
-                    if (temAlgo) {
+                    // Esvaziar apaga a lixeira inteira no servidor; na do livro, só item a item (para não levar o de outro livro).
+                    if (temAlgo && livroId == null) {
                         TextButton(
                             onClick = {
                                 when (tipo) {
@@ -129,7 +142,7 @@ fun TelaLixeira(aoVoltar: () -> Unit) {
         Column(modifier = Modifier.padding(margens).fillMaxSize()) {
             // O tipo: Imagens, Livros...
             Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TipoDaLixeira.entries.forEach { opcao ->
+                TipoDaLixeira.entries.filter { livroId == null || it != TipoDaLixeira.LIVROS }.forEach { opcao ->
                     FilterChip(selected = tipo == opcao, onClick = { tipo = opcao }, label = { Text(opcao.rotulo) })
                 }
             }

@@ -3,7 +3,7 @@ package com.allan.imagineer.telas.capitulo
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.shape.CircleShape
 import android.widget.Toast
-import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.flow.debounce
@@ -920,7 +920,7 @@ private fun LeitorDeTexto(
                                     // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele. Um pin, sem texto.
                                     if (artefato.sugestao_id != null || artefato.frame_id != null) {
                                         IconButton(onClick = { aoIniciarPosicionamento(artefato) }) {
-                                            Icon(Icons.Filled.PushPin, contentDescription = ROTULO_POSICIONAR)
+                                            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
                                         }
                                     }
                                 }
@@ -972,6 +972,8 @@ private fun LeitorDeTexto(
             }
         }
         }
+        // AJ2: o puxador da rolagem, na borda direita.
+        PuxadorDeRolagem(listaDeParagrafos)
     }
     // LV4: a barra de ícones dos parágrafos marcados; some quando o último é desmarcado.
     if (marcados.isNotEmpty() && posicionando == null) {

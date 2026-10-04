@@ -67,3 +67,18 @@ class RepositorioDaLixeiraDeFramesPeloRetrofit(private val provedor: ProvedorDeA
         return chamarApi { api.esvaziarLixeiraDeFrames() }
     }
 }
+
+/** A lixeira de cenas e retratos **de um livro só** (a do menu ⋮ do livro): lê tudo e fica com o que é dele. O resto repassa. */
+class RepositorioDaLixeiraDeFramesDoLivro(
+    private val base: RepositorioDaLixeiraDeFrames,
+    private val livroId: Int,
+) : RepositorioDaLixeiraDeFrames by base {
+    override suspend fun listar(): ResultadoDaChamada<FramesDaLixeira> =
+        when (val r = base.listar()) {
+            is ResultadoDaChamada.Sucesso -> {
+                val dele = r.dado.frames.filter { it.livro_id == livroId }
+                ResultadoDaChamada.Sucesso(FramesDaLixeira(dele, dele.sumOf { it.tamanho_em_bytes }))
+            }
+            is ResultadoDaChamada.Falha -> r
+        }
+}

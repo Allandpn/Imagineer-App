@@ -86,3 +86,15 @@ class RepositorioDaLixeiraPeloRetrofit(
         return chamarApi { api.esvaziarALixeira() }
     }
 }
+
+/** A lixeira de imagens **de um livro só** (a do menu ⋮ do livro): lê a lixeira toda e fica com o que é dele. O resto repassa. */
+class RepositorioDaLixeiraDoLivro(private val base: RepositorioDaLixeira, private val livroId: Int) : RepositorioDaLixeira by base {
+    override suspend fun listar(): ResultadoDaChamada<Lixeira> =
+        when (val r = base.listar()) {
+            is ResultadoDaChamada.Sucesso -> {
+                val dele = r.dado.imagens.filter { it.livro_id == livroId }
+                ResultadoDaChamada.Sucesso(Lixeira(dele, dele.sumOf { it.tamanho_em_bytes ?: 0L }))
+            }
+            is ResultadoDaChamada.Falha -> r
+        }
+}

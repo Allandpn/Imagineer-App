@@ -144,6 +144,7 @@ fun TelaLivro(
     aoAbrirElementos: () -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    aoAbrirLixeira: (() -> Unit)? = null,
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     viewModel: LivroViewModel = livroViewModel(livroId),
@@ -191,6 +192,7 @@ fun TelaLivro(
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPesquisa = aoAbrirPesquisa,
+        aoAbrirLixeira = aoAbrirLixeira,
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
         aoContinuarLendo = aoContinuarLendo,
@@ -235,6 +237,7 @@ fun ConteudoDoLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    aoAbrirLixeira: (() -> Unit)? = null,
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
@@ -287,6 +290,7 @@ fun ConteudoDoLivro(
                                 aoDefinirCapa = aoDefinirCapa,
                                 aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
                                 aoAbrirArquivo = aoAbrirArquivados,
+                                aoAbrirLixeira = aoAbrirLixeira,
                                 aoApagar = aoApagar,
                             )
                         }

@@ -80,6 +80,10 @@ data class CapitulosArquivados(val livroId: Int)
 @Serializable
 object Lixeira
 
+/** A lixeira **de um livro** (imagens e cenas dele), aberta pelo menu ⋮ do livro (AJ3). */
+@Serializable
+data class LixeiraDoLivro(val livroId: Int)
+
 /** Configuração do app: endereço do servidor, chave própria, modelos (item 7.10). */
 @Serializable
 object Configuracao

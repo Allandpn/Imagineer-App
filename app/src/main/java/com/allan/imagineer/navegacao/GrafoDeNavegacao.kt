@@ -109,6 +109,9 @@ fun GrafoDeNavegacao() {
         composable<Lixeira> {
             TelaLixeira(aoVoltar = { controle.popBackStack() })
         }
+        composable<LixeiraDoLivro> { entrada ->
+            TelaLixeira(livroId = entrada.toRoute<LixeiraDoLivro>().livroId, aoVoltar = { controle.popBackStack() })
+        }
         composable<Livro> { entrada ->
             val destino = entrada.toRoute<Livro>()
             TelaLivro(
@@ -118,6 +121,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
                 aoAbrirArquivados = { controle.navigate(CapitulosArquivados(destino.livroId)) },
                 aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
+                aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }

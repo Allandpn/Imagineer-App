@@ -37,6 +37,7 @@ fun MenuDoLivro(
     aoDefinirCapa: (() -> Unit)? = null,
     aoEscolherPerfilPadrao: (() -> Unit)? = null,
     aoAbrirArquivo: (() -> Unit)? = null,
+    aoAbrirLixeira: (() -> Unit)? = null,
     aoApagar: (() -> Unit)? = null,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -55,6 +56,7 @@ fun MenuDoLivro(
             aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, onClick = { aberto = false; it() }) }
             aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, onClick = { aberto = false; it() }) }
             aoAbrirArquivo?.let { DropdownMenuItem(text = { Text("Arquivo") }, onClick = { aberto = false; it() }) }
+            aoAbrirLixeira?.let { DropdownMenuItem(text = { Text("Lixeira") }, onClick = { aberto = false; it() }) }
             aoApagar?.let { DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; it() }) }
         }
     }

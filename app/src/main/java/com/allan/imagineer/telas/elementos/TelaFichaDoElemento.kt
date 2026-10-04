@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.elementos
 
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -199,12 +200,8 @@ private fun ConteudoDaFicha(
                     )
                     Text(acrescimo.texto, style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ACRESCIMO, acrescimoId = acrescimo.id) }) {
-                            Text("Editar")
-                        }
-                        TextButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ACRESCIMO, acrescimoId = acrescimo.id) }) {
-                            Text("Apagar")
-                        }
+                        BotaoDeIcone(Icons.Filled.Edit, "Editar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ACRESCIMO, acrescimoId = acrescimo.id) })
+                        BotaoDeIcone(Icons.Filled.Delete, "Apagar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ACRESCIMO, acrescimoId = acrescimo.id) }, cor = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -249,12 +246,8 @@ private fun ConteudoDaFicha(
                     )
                     Text(estado.descricao, style = MaterialTheme.typography.bodyMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ESTADO, estado.id) }) {
-                            Text("Editar")
-                        }
-                        TextButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ESTADO, estado.id) }) {
-                            Text("Apagar")
-                        }
+                        BotaoDeIcone(Icons.Filled.Edit, "Editar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ESTADO, estado.id) })
+                        BotaoDeIcone(Icons.Filled.Delete, "Apagar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ESTADO, estado.id) }, cor = MaterialTheme.colorScheme.error)
                     }
                 }
             }
