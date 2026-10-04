@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
 import com.allan.imagineer.telas.menu.ModoDaBiblioteca
 import com.allan.imagineer.telas.menu.ItemDoMenu
 import com.allan.imagineer.telas.menu.GavetaDaBiblioteca
@@ -330,12 +332,15 @@ private fun CartaoDeLivro(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(livro.titulo, style = MaterialTheme.typography.titleMedium)
+                // O autor na mesma fonte da tela do livro (serifada, itálico).
                 Text(
                     livro.autor ?: "Autor desconhecido",
                     style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Serif,
+                    fontStyle = FontStyle.Italic,
                 )
                 Text(
-                    descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados),
+                    resumoDoLivroNaLista(livro),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

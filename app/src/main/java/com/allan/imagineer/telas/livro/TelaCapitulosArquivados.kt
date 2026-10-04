@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -92,7 +93,7 @@ fun ConteudoDosArquivados(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
 ) {
     Scaffold(
-        snackbarHost = { SnackbarHost(avisos) },
+        snackbarHost = { HostDeAvisos(avisos) },
         topBar = {
             if (selecao != null) {
                 BarraDeSelecao(

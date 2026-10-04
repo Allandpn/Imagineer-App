@@ -100,8 +100,8 @@ fun LinhaDeCapitulo(
             Icon(
                 Icons.Filled.Check,
                 contentDescription = "Lido",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                modifier = Modifier.padding(end = 16.dp).size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                modifier = Modifier.padding(end = 16.dp).size(20.dp),
             )
         }
 

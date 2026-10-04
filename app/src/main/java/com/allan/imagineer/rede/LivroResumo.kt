@@ -25,6 +25,8 @@ data class LivroResumo(
     val tem_capa: Boolean = false,
     /** Quantos capítulos ativos estão lidos (LE6). */
     val capitulos_lidos: Int = 0,
+    /** A soma dos caracteres dos capítulos ativos: vira o tempo estimado de leitura (lista da biblioteca). */
+    val total_de_caracteres: Int = 0,
     /** Sobe a cada mudança no livro: vai na URL da capa para o Coil buscar de novo quando ela muda. */
     val revisao: Int = 0,
 )

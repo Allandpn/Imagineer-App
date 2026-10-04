@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.activity.result.contract.ActivityResultContracts
@@ -249,7 +250,7 @@ fun ConteudoDoLivro(
         DialogoDosMetadados(livro = pronto.livro, perfil = pronto.perfil, aoFechar = { metadadosAbertos = false })
     }
     Scaffold(
-        snackbarHost = { SnackbarHost(avisos) },
+        snackbarHost = { HostDeAvisos(avisos) },
         topBar = {
             if (selecao != null) {
                 // Modo de seleção: enquanto seleciona, as outras ações ficam indisponíveis.
@@ -364,8 +365,7 @@ private fun ListaDoLivro(
             }
 
             itemsIndexed(ativos, key = { _, capitulo -> capitulo.id }) { indice, capitulo ->
-                // Sem divisores: a separação vem do espaço e de uma faixa bem leve nas linhas pares (para testar no tablet).
-                Box(modifier = if (indice % 2 == 1) Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)) else Modifier) {
+                // Sem divisores nem faixas: a separação vem só do espaço.
                 LinhaDeCapitulo(
                     capitulo = capitulo,
                     emSelecao = selecao != null,
@@ -381,7 +381,6 @@ private fun ListaDoLivro(
                     },
                     detalhes = false,
                 )
-                }
             }
         }
     }
