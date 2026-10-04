@@ -116,7 +116,6 @@ fun GrafoDeNavegacao() {
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
                 aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
-                aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
                 aoAbrirArquivados = { controle.navigate(CapitulosArquivados(destino.livroId)) },
                 aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },

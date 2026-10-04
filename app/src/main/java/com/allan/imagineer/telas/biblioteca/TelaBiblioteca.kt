@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.biblioteca
 
+import com.allan.imagineer.telas.livro.MenuDoLivro
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import com.allan.imagineer.telas.menu.ModoDaBiblioteca
@@ -107,6 +108,19 @@ fun TelaBiblioteca(
     val modoGuardado by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
     val escopoDoModo = rememberCoroutineScope()
 
+    // "Definir capa…" no ⋮ de um livro: o seletor de arquivos (uma imagem ou o EPUB) e o livro que o pediu.
+    var livroDaCapa by remember { mutableStateOf<Int?>(null) }
+    val contexto = LocalContext.current
+    val seletorDeCapa = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val livroId = livroDaCapa
+        livroDaCapa = null
+        if (uri != null && livroId != null) {
+            viewModel.definirCapa(livroId, aplicacao.leitorDeArquivos.descrever(uri.toString())) { aviso ->
+                android.widget.Toast.makeText(contexto, aviso, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // O seletor de arquivos do sistema. Aceita "octet-stream" também: alguns
     // gerenciadores de arquivos classificam EPUB assim, e com o filtro estrito o
     // arquivo apareceria acinzentado. A extensão é conferida no ViewModel.
@@ -152,6 +166,10 @@ fun TelaBiblioteca(
             escopoDoModo.launch { aplicacao.armazenamento.salvarModoDaBiblioteca(novo.name) }
         },
         aoPedirRemocao = viewModel::pedirRemocao,
+        aoDefinirCapa = { livro ->
+            livroDaCapa = livro.id
+            seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream"))
+        },
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
         aoImportar = {
@@ -182,6 +200,7 @@ fun ConteudoDaBiblioteca(
     modo: ModoDaBiblioteca,
     aoAlternarModo: () -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
+    aoDefinirCapa: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
@@ -241,9 +260,9 @@ fun ConteudoDaBiblioteca(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     if (modo == ModoDaBiblioteca.CAPAS) {
-                        GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                        GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
                     } else {
-                        ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                        ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
                     }
                 }
 
@@ -298,6 +317,7 @@ private fun ListaDeLivros(
     livros: List<LivroResumo>,
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
+    aoDefinirCapa: (LivroResumo) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -310,6 +330,7 @@ private fun ListaDeLivros(
                     livro,
                     aoTocar = { aoAbrirLivro(livro.id) },
                     aoPedirRemocao = { aoPedirRemocao(livro) },
+                    aoDefinirCapa = { aoDefinirCapa(livro) },
                 )
             }
         }
@@ -321,6 +342,7 @@ private fun CartaoDeLivro(
     livro: LivroResumo,
     aoTocar: () -> Unit,
     aoPedirRemocao: () -> Unit,
+    aoDefinirCapa: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar)) {
         Row(
@@ -345,27 +367,7 @@ private fun CartaoDeLivro(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            MenuDoCartao(aoPedirRemocao)
-        }
-    }
-}
-
-/** O menu de três pontos (⋮) do cartão. Hoje só tem "Remover". */
-@Composable
-private fun MenuDoCartao(aoPedirRemocao: () -> Unit) {
-    var aberto by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { aberto = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
-        }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            DropdownMenuItem(
-                text = { Text("Remover") },
-                onClick = {
-                    aberto = false
-                    aoPedirRemocao()
-                },
-            )
+            MenuDoLivro(aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
         }
     }
 }

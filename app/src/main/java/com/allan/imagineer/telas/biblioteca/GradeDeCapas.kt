@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.biblioteca
 
+import com.allan.imagineer.telas.livro.MenuDoLivro
 import com.allan.imagineer.telas.livro.progressoDoLivro
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator
@@ -60,6 +61,7 @@ fun GradeDeLivros(
     livros: List<LivroResumo>,
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
+    aoDefinirCapa: (LivroResumo) -> Unit,
 ) {
     val urlBase = urlDoServidorEmUso()
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -71,18 +73,18 @@ fun GradeDeLivros(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             items(livros, key = { it.id }) { livro ->
-                CapaNaGrade(livro, urlBase, aoTocar = { aoAbrirLivro(livro.id) }, aoPedirRemocao = { aoPedirRemocao(livro) })
+                CapaNaGrade(livro, urlBase, aoTocar = { aoAbrirLivro(livro.id) }, aoPedirRemocao = { aoPedirRemocao(livro) }, aoDefinirCapa = { aoDefinirCapa(livro) })
             }
         }
     }
 }
 
 @Composable
-private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Unit, aoPedirRemocao: () -> Unit) {
+private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Unit, aoPedirRemocao: () -> Unit, aoDefinirCapa: () -> Unit) {
     // Só a capa, com o ⋮ de remover (sem legenda embaixo): a capa sem imagem já traz o título e o autor dentro dela.
     Box(modifier = Modifier.clickable(onClick = aoTocar)) {
         CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
-        MenuSobreACapa(aoPedirRemocao, Modifier.align(Alignment.TopEnd))
+        MenuDoLivro(Modifier.align(Alignment.TopEnd), sobreACapa = true, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
         // LE6: a barrinha do progresso (lidos ÷ ativos) no pé da capa; some quando nada foi lido.
         progressoDoLivro(livro)?.let { progresso ->
             LinearProgressIndicator(
@@ -145,18 +147,3 @@ fun corDaCapaSemImagem(titulo: String): Color = Color.hsv(matizDoTitulo(titulo),
 
 /** O matiz (0 a 360) de um título: o mesmo título dá sempre a mesma cor, e títulos diferentes se espalham pelo círculo. */
 fun matizDoTitulo(titulo: String): Float = ((titulo.fold(7) { soma, c -> soma * 31 + c.code } and 0x7fffffff) % 360).toFloat()
-
-@Composable
-private fun MenuSobreACapa(aoPedirRemocao: () -> Unit, modifier: Modifier) {
-    var aberto by remember { mutableStateOf(false) }
-    Box(modifier) {
-        Surface(color = Color.Black.copy(alpha = 0.35f), shape = CircleShape, modifier = Modifier.padding(4.dp).size(28.dp)) {
-            IconButton(onClick = { aberto = true }, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções", tint = Color.White, modifier = Modifier.size(18.dp))
-            }
-        }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            DropdownMenuItem(text = { Text("Remover") }, onClick = { aberto = false; aoPedirRemocao() })
-        }
-    }
-}

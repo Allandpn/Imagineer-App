@@ -142,7 +142,6 @@ fun TelaLivro(
     aoVoltar: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
     aoAbrirArquivados: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
@@ -191,7 +190,6 @@ fun TelaLivro(
         aoAbrirArquivados = aoAbrirArquivados,
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
-        aoAbrirPerfis = aoAbrirPerfis,
         aoAbrirPesquisa = aoAbrirPesquisa,
         marcador = marcador,
         aoContinuarLendo = aoContinuarLendo,
@@ -235,7 +233,6 @@ fun ConteudoDoLivro(
     aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
@@ -281,16 +278,13 @@ fun ConteudoDoLivro(
                                 aoPesquisar = aoAbrirPesquisa,
                                 aoAbrirMetadados = { metadadosAbertos = true },
                             )
+                            // O mesmo menu ⋮ da biblioteca, com os itens que só valem dentro do livro. "Arquivo" abre os capítulos
+                            // arquivados (de lá também se arquivam mais).
                             MenuDoLivro(
-                                // O botão só faz sentido se há capítulos ativos para arquivar.
-                                podeArquivar = estado.livro.capitulos.any { !it.ignorado },
-                                aoArquivar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) },
-                                arquivados = estado.livro.capitulos.count { it.ignorado },
-                                aoAbrirArquivados = aoAbrirArquivados,
-                                aoDefinirCapa = aoDefinirCapa,
-                                aoAbrirPerfis = aoAbrirPerfis,
                                 aoEditar = aoEditar,
+                                aoDefinirCapa = aoDefinirCapa,
                                 aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
+                                aoAbrirArquivo = aoAbrirArquivados,
                                 aoApagar = aoApagar,
                             )
                         }
@@ -401,38 +395,5 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe) {
             fontFamily = FontFamily.Serif,
             fontStyle = FontStyle.Italic,
         )
-    }
-}
-
-/** O menu ⋮ da barra superior: **tudo o que é configuração do livro** (LV2), inclusive os perfis. */
-@Composable
-private fun MenuDoLivro(
-    podeArquivar: Boolean,
-    aoArquivar: () -> Unit,
-    arquivados: Int,
-    aoAbrirArquivados: () -> Unit,
-    aoDefinirCapa: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
-    aoEditar: () -> Unit,
-    aoEscolherPerfilPadrao: () -> Unit,
-    aoApagar: () -> Unit,
-) {
-    var aberto by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { aberto = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
-        }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; aoEditar() })
-            DropdownMenuItem(text = { Text("Definir capa…") }, onClick = { aberto = false; aoDefinirCapa() })
-            DropdownMenuItem(text = { Text("Perfis de renderização") }, onClick = { aberto = false; aoAbrirPerfis() })
-            DropdownMenuItem(
-                text = { Text("Perfil padrão…") },
-                onClick = { aberto = false; aoEscolherPerfilPadrao() },
-            )
-            if (podeArquivar) DropdownMenuItem(text = { Text("Arquivar capítulos…") }, onClick = { aberto = false; aoArquivar() })
-            if (arquivados > 0) DropdownMenuItem(text = { Text("Capítulos arquivados ($arquivados)") }, onClick = { aberto = false; aoAbrirArquivados() })
-            DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; aoApagar() })
-        }
     }
 }

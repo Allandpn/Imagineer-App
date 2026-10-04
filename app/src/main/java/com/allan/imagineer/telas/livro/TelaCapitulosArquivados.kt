@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.Archive
 import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -113,6 +114,10 @@ fun ConteudoDosArquivados(
                         }
                     },
                     actions = {
+                        // Arquivar mais capítulos: volta à lista do livro já no modo de seleção para arquivar.
+                        IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }) {
+                            Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
+                        }
                         // O botão só faz sentido se há capítulos arquivados para restaurar.
                         if (estado is EstadoDoLivro.Pronto && estado.livro.capitulos.any { it.ignorado }) {
                             IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }) {

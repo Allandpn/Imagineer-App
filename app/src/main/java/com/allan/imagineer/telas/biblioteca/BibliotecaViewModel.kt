@@ -62,6 +62,23 @@ class BibliotecaViewModel(
      * Se já há uma lista na tela, a recarga é silenciosa (a lista antiga fica
      * visível); nos demais casos, mostra o indicador de carregando.
      */
+    /** "Definir capa…" no menu do livro: manda o arquivo (uma imagem ou o EPUB) e avisa como foi; recarrega a lista para a capa nova aparecer. */
+    fun definirCapa(livroId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?, aoTerminar: (String) -> Unit) {
+        if (arquivo == null) {
+            aoTerminar("Não consegui abrir o arquivo escolhido.")
+            return
+        }
+        viewModelScope.launch {
+            when (val resultado = repositorio.definirCapa(livroId, arquivo)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    aoTerminar("Capa definida.")
+                    carregar()
+                }
+                is ResultadoDaChamada.Falha -> aoTerminar(resultado.motivo)
+            }
+        }
+    }
+
     fun carregar() {
         carregamentoEmAndamento?.cancel()
 

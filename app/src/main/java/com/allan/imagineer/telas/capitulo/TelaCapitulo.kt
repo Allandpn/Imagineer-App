@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import kotlinx.coroutines.flow.debounce
@@ -508,7 +509,7 @@ private fun LeitorPaginado(
                             IconeComSelo(
                                 icone = IconesDaTelaDoLivro.metadados,
                                 descricao = "Metadados do capítulo",
-                                selo = capituloDaTela.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
+                                selo = null,
                                 aoTocar = { infoAberta = true },
                             )
                         }
@@ -906,9 +907,11 @@ private fun LeitorDeTexto(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconeDoArtefato(artefato, aoTocarArtefato)
                                     Text(artefato.rotulo, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
-                                    // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele.
+                                    // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele. Um pin, sem texto.
                                     if (artefato.sugestao_id != null || artefato.frame_id != null) {
-                                        TextButton(onClick = { aoIniciarPosicionamento(artefato) }) { Text(ROTULO_POSICIONAR, maxLines = 1, softWrap = false) }
+                                        IconButton(onClick = { aoIniciarPosicionamento(artefato) }) {
+                                            Icon(Icons.Filled.PushPin, contentDescription = ROTULO_POSICIONAR)
+                                        }
                                     }
                                 }
                             }

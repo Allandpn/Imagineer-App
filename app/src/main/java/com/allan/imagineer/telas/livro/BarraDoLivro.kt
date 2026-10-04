@@ -1,5 +1,12 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Switch
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -73,7 +80,7 @@ fun AcoesDaBarraDoLivro(
 fun DialogoDosMetadados(livro: LivroDetalhe, perfil: PerfilRenderizacao?, aoFechar: () -> Unit) {
     AlertDialog(
         onDismissRequest = aoFechar,
-        title = { Text("Metadados") },
+        title = { TituloComFechar("Metadados", aoFechar) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(livro.titulo, style = MaterialTheme.typography.titleMedium)
@@ -93,7 +100,7 @@ fun DialogoDosMetadados(livro: LivroDetalhe, perfil: PerfilRenderizacao?, aoFech
                 )
             }
         },
-        confirmButton = { TextButton(onClick = aoFechar) { Text("Fechar") } },
+        confirmButton = {},
     )
 }
 
@@ -116,7 +123,7 @@ fun DialogoDoCapitulo(
 ) {
     AlertDialog(
         onDismissRequest = aoFechar,
-        title = { Text(titulo) },
+        title = { TituloComFechar(titulo, aoFechar) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(if (totalDeCapitulos != null) "Capítulo $ordem de $totalDeCapitulos" else "Capítulo $ordem")
@@ -126,13 +133,27 @@ fun DialogoDoCapitulo(
                     descreverSugestoes(sugestoesPendentes) ?: "Nenhuma sugestão a confirmar.",
                     color = if (sugestoesPendentes > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(if (lido) "Lido ✓" else "Ainda não lido", color = if (lido) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (arquivado) Text("Este capítulo está arquivado.", color = MaterialTheme.colorScheme.error)
+                // Lido: um interruptor (o padrão de mercado), em vez de botões de texto.
+                if (aoAlternarLido != null) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Lido", modifier = Modifier.weight(1f))
+                        Switch(checked = lido, onCheckedChange = { aoAlternarLido() })
+                    }
+                } else {
+                    Text(if (lido) "Lido" else "Ainda não lido", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         },
-        confirmButton = { TextButton(onClick = aoFechar) { Text("Fechar") } },
-        dismissButton = aoAlternarLido?.let { alternar ->
-            { TextButton(onClick = { alternar(); aoFechar() }) { Text(if (lido) "Marcar como não lido" else "Marcar como lido") } }
-        },
+        confirmButton = {},
     )
+}
+
+/** O título de um diálogo de informação, com um **X** à direita para fechar (no lugar do botão "Fechar" de texto). */
+@Composable
+private fun TituloComFechar(titulo: String, aoFechar: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(titulo, modifier = Modifier.weight(1f))
+        IconButton(onClick = aoFechar) { Icon(Icons.Filled.Close, contentDescription = "Fechar") }
+    }
 }
