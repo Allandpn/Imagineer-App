@@ -61,6 +61,10 @@ data class CenasDoLivro(val livroId: Int)
 @Serializable
 data class PendenciasDoLivro(val livroId: Int)
 
+/** As estatísticas de leitura (RL17). */
+@Serializable
+object Estatisticas
+
 /** Os destaques e notas de um livro, por capítulo (RL12). */
 @Serializable
 data class DestaquesDoLivro(val livroId: Int)

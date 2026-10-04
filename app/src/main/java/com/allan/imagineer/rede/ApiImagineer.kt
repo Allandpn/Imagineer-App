@@ -161,6 +161,14 @@ interface ApiImagineer {
     @PUT("livros/{id}/marcador")
     suspend fun gravarMarcador(@Path("id") livroId: Int, @Body corpo: MarcadorGravacao): JsonObject
 
+    /** `GET /estatisticas/leitura` — o tempo dos últimos 90 dias e o resumo de cada livro (RL17). */
+    @GET("estatisticas/leitura")
+    suspend fun estatisticasDeLeitura(): EstatisticasDeLeitura
+
+    /** `POST /livros/{id}/leitura/tempo` — soma segundos a um dia do livro (RL16). */
+    @POST("livros/{id}/leitura/tempo")
+    suspend fun somarTempoDeLeitura(@Path("id") livroId: Int, @Body corpo: JsonObject): JsonObject
+
     /** `GET /livros/{id}/destaques` — os trechos destacados do livro; com `capitulo_id`, só os de um capítulo (RL9 a RL13). */
     @GET("livros/{id}/destaques")
     suspend fun destaques(@Path("id") livroId: Int, @Query("capitulo_id") capituloId: Int? = null): List<Destaque>

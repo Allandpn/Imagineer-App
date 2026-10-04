@@ -151,6 +151,49 @@ private fun capituloViewModel(capituloId: Int): CapituloViewModel {
     )
 }
 
+/**
+ * Conta o tempo de leitura da página que está à frente (RL16): a cada 5 segundos soma ao que passou **se houve movimento** (rolar ou
+ * trocar de página nos últimos 3 minutos, ver [CronometroDeLeitura]); a cada minuto contado e ao sair, entrega ao [RegistroDeTempoDeLeitura].
+ * Só conta com o app em primeiro plano (`RESUMED`): tela apagada ou outro app por cima não somam.
+ */
+@Composable
+private fun ContadorDeTempoDeLeitura(livroId: Int, contando: Boolean, posicao: androidx.compose.foundation.lazy.LazyListState) {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val registro = aplicacao.registroDeTempoDeLeitura
+    val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val aFrente = contando && estadoDoCiclo == Lifecycle.State.RESUMED
+    val cronometro = remember { CronometroDeLeitura() }
+    var acumuladoMs by remember { mutableStateOf(0L) }
+
+    // Qualquer movimento da lista (rolar, pular para um ponto) é atividade.
+    LaunchedEffect(aFrente, posicao) {
+        if (!aFrente) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { posicao.firstVisibleItemIndex to posicao.firstVisibleItemScrollOffset }
+            .collect { cronometro.atividade(android.os.SystemClock.elapsedRealtime()) }
+    }
+    LaunchedEffect(aFrente, livroId) {
+        if (!aFrente) return@LaunchedEffect
+        cronometro.retomar(android.os.SystemClock.elapsedRealtime())
+        try {
+            while (true) {
+                kotlinx.coroutines.delay(5_000)
+                acumuladoMs += cronometro.tique(android.os.SystemClock.elapsedRealtime())
+                if (acumuladoMs >= RegistroDeTempoDeLeitura.ENVIAR_A_CADA_SEGUNDOS * 1000L) {
+                    val segundos = (acumuladoMs / 1000).toInt()
+                    acumuladoMs -= segundos * 1000L
+                    registro.registrar(livroId, segundos)
+                }
+            }
+        } finally {
+            // Saiu da frente (outra tela, tela apagada, outro capítulo): entrega o que já foi contado, sem esperar o minuto fechar.
+            acumuladoMs += cronometro.tique(android.os.SystemClock.elapsedRealtime())
+            val segundos = (acumuladoMs / 1000).toInt()
+            acumuladoMs -= segundos * 1000L
+            if (segundos > 0) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { registro.registrar(livroId, segundos) }
+        }
+    }
+}
+
 /** O ViewModel dos destaques de um capítulo (RL9 a RL13). */
 @Composable
 private fun destaquesViewModel(livroId: Int, capituloId: Int): DestaquesDoCapituloViewModel {
@@ -783,6 +826,11 @@ private fun PaginaDoCapitulo(
                     aoFechar = { destaqueAberto = null },
                 )
             }
+            ContadorDeTempoDeLeitura(
+                livroId = atual.capitulo.livro_id,
+                contando = ehAssentada,
+                posicao = posicaoDeLeitura,
+            )
             LeitorDeTexto(
                 estado = atual,
                 destaques = destaques,

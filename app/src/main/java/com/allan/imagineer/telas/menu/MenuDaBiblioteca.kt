@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ enum class ItemDoMenu(val rotulo: String, val icone: ImageVector) {
     CONFIGURACOES("Configurações", Icons.Filled.Settings),
     LIXEIRA("Lixeira", Icons.Filled.Delete),
     CUSTOS("Custos", Icons.Filled.Payments),
+    ESTATISTICAS("Estatísticas", Icons.Filled.Insights),
 }
 
 /**

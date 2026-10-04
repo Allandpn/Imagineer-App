@@ -89,6 +89,7 @@ fun TelaBiblioteca(
     aoAbrirPerfil: () -> Unit,
     aoAbrirConfiguracoes: () -> Unit,
     aoAbrirLixeira: () -> Unit,
+    aoAbrirEstatisticas: () -> Unit = {},
     aoAbrirCustos: () -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
@@ -161,6 +162,7 @@ fun TelaBiblioteca(
                 ItemDoMenu.CONFIGURACOES -> aoAbrirConfiguracoes()
                 ItemDoMenu.LIXEIRA -> aoAbrirLixeira()
                 ItemDoMenu.CUSTOS -> aoAbrirCustos()
+                ItemDoMenu.ESTATISTICAS -> aoAbrirEstatisticas()
             }
         },
         modo = ModoDaBiblioteca.deTexto(modoGuardado),

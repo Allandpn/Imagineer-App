@@ -38,6 +38,11 @@ interface ArmazenamentoDeConfiguracao {
     val preferenciasDeLeitura: Flow<PreferenciasDeLeitura> get() = flowOf(PreferenciasDeLeitura())
 
     suspend fun salvarPreferenciasDeLeitura(preferencias: PreferenciasDeLeitura) {}
+
+    /** O tempo de leitura ainda **não enviado** ao servidor (RL16), em JSON `{"livro|dia": segundos}`; `null` = nada pendente. */
+    val tempoPendente: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarTempoPendente(texto: String) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -73,7 +78,15 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
         contexto.armazenamento.edit { it[CHAVE_PREFERENCIAS_DE_LEITURA] = preferencias.paraTexto() }
     }
 
+    override val tempoPendente: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_TEMPO_PENDENTE] }
+
+    override suspend fun salvarTempoPendente(texto: String) {
+        contexto.armazenamento.edit { it[CHAVE_TEMPO_PENDENTE] = texto }
+    }
+
     private companion object {
+        val CHAVE_TEMPO_PENDENTE = stringPreferencesKey("tempo_de_leitura_pendente")
         val CHAVE_PREFERENCIAS_DE_LEITURA = stringPreferencesKey("preferencias_de_leitura")
         val CHAVE_COR_DE_DESTAQUE = stringPreferencesKey("cor_de_destaque")
         val CHAVE_URL = stringPreferencesKey("url_do_servidor")

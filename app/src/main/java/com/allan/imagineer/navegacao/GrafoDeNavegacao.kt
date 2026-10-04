@@ -1,5 +1,6 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
@@ -128,10 +129,12 @@ fun GrafoDeNavegacao() {
                 aoAbrirConfiguracoes = { controle.navigate(Configuracoes) },
                 aoAbrirLixeira = { controle.navigate(Lixeira) },
                 aoAbrirCustos = { controle.navigate(Custos) },
+                aoAbrirEstatisticas = { controle.navigate(Estatisticas) },
             )
         }
         composable<Perfil> { TelaPerfil(aoVoltar = { controle.popBackStack() }) }
         composable<Custos> { TelaCustos(aoVoltar = { controle.popBackStack() }) }
+        composable<Estatisticas> { TelaEstatisticas(aoVoltar = { controle.popBackStack() }) }
         composable<ModelosDeIa> { entrada ->
             TelaModelos(
                 aoVoltar = { controle.popBackStack() },

@@ -151,6 +151,15 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.rede.RepositorioDeMarcadorPeloRetrofit(provedorDeApi)
     }
 
+    val repositorioDeEstatisticas: com.allan.imagineer.rede.RepositorioDeEstatisticas by lazy {
+        com.allan.imagineer.rede.RepositorioDeEstatisticasPeloRetrofit(provedorDeApi)
+    }
+
+    /** O tempo de leitura (RL16): conta no aparelho e envia ao servidor, guardando o que não foi enviado. */
+    val registroDeTempoDeLeitura: com.allan.imagineer.telas.capitulo.RegistroDeTempoDeLeitura by lazy {
+        com.allan.imagineer.telas.capitulo.RegistroDeTempoDeLeitura(armazenamento, repositorioDeEstatisticas)
+    }
+
     val repositorioDeDestaques: com.allan.imagineer.rede.RepositorioDeDestaques by lazy {
         com.allan.imagineer.rede.RepositorioDeDestaquesPeloRetrofit(provedorDeApi)
     }

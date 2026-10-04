@@ -8,7 +8,7 @@ class MenuDaBibliotecaTest {
 
     @Test
     fun `MN2 a gaveta tem perfil, configuracoes, lixeira e custos, nessa ordem`() {
-        assertEquals(listOf("Perfil", "Configurações", "Lixeira", "Custos"), ItemDoMenu.entries.map { it.rotulo })
+        assertEquals(listOf("Perfil", "Configurações", "Lixeira", "Custos", "Estatísticas"), ItemDoMenu.entries.map { it.rotulo })
     }
 
     @Test
