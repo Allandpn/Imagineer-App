@@ -49,6 +49,19 @@ interface ApiImagineer {
     @GET("configuracao/modelos")
     suspend fun modelosDeTexto(@Query("ordenar_por_custo") ordenarPorCusto: Boolean = true): List<ModeloDeTexto>
 
+    /** `GET /configuracao/modelos-de-imagem` — o catálogo, com preço por imagem, moderação e resolução (MI1). */
+    @GET("configuracao/modelos-de-imagem")
+    suspend fun catalogoDeImagem(): CatalogoDeImagem
+
+    /** `POST /configuracao/modelos-de-imagem/testar` — gera **uma** imagem de teste (gasta ~1 centavo) e mede resolução e custo (MI5). */
+    @Headers("X-Timeout-Leitura: 660")
+    @POST("configuracao/modelos-de-imagem/testar")
+    suspend fun testarModeloDeImagem(@Body corpo: Map<String, String>): TesteDeImagem
+
+    /** `PUT /configuracao` com a lista de modelos de imagem que se pode escolher ao gerar (MI6). */
+    @PUT("configuracao")
+    suspend fun gravarModelosDeImagem(@Body corpo: ListaDeModelosDeImagem): ConfiguracaoAtual
+
     /** `PUT /configuracao` — grava só os campos enviados; texto vazio limpa o campo (MT1). */
     @PUT("configuracao")
     suspend fun gravarConfiguracao(@Body campos: Map<String, String>): ConfiguracaoAtual

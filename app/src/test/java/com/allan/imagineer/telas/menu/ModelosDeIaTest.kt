@@ -37,6 +37,9 @@ private class ModelosFalsos(var configuracao: ConfiguracaoAtual) : RepositorioDe
 
     override suspend fun configuracao() = ResultadoDaChamada.Sucesso(configuracao)
     override suspend fun modelosDeTexto() = ResultadoDaChamada.Sucesso(MODELOS)
+    override suspend fun catalogoDeImagem() = ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.CatalogoDeImagem())
+    override suspend fun testarImagem(modelo: String): ResultadoDaChamada<com.allan.imagineer.rede.TesteDeImagem> = ResultadoDaChamada.Falha("não usado")
+    override suspend fun definirModelosDeImagem(modelos: List<String>): ResultadoDaChamada<ConfiguracaoAtual> = ResultadoDaChamada.Sucesso(configuracao)
     override suspend fun escolher(campo: String, modelo: String?): ResultadoDaChamada<ConfiguracaoAtual> {
         falhaAoGravar?.let { return ResultadoDaChamada.Falha(it) }
         gravados += campo to modelo

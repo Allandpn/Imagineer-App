@@ -100,6 +100,10 @@ object Configuracoes
 @Serializable
 object ModelosDeIa
 
+/** O catálogo dos modelos de imagem, com preço, moderação e teste de resolução (MI6). */
+@Serializable
+object ModelosDeImagem
+
 /** Os custos de IA (MN6): só interface. */
 @Serializable
 object Custos

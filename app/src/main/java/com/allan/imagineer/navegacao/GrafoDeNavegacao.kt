@@ -35,6 +35,7 @@ import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
 import com.allan.imagineer.telas.lixeira.TelaLixeira
+import com.allan.imagineer.telas.menu.TelaModelosDeImagem
 import com.allan.imagineer.telas.elementos.TelaElementos
 import com.allan.imagineer.telas.pesquisa.TelaPesquisa
 import com.allan.imagineer.telas.elementos.TelaFichaDoElemento
@@ -97,7 +98,13 @@ fun GrafoDeNavegacao() {
         }
         composable<Perfil> { TelaPerfil(aoVoltar = { controle.popBackStack() }) }
         composable<Custos> { TelaCustos(aoVoltar = { controle.popBackStack() }) }
-        composable<ModelosDeIa> { TelaModelos(aoVoltar = { controle.popBackStack() }) }
+        composable<ModelosDeIa> { entrada ->
+            TelaModelos(
+                aoVoltar = { controle.popBackStack() },
+                aoEscolherModeloDeImagem = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeImagem) },
+            )
+        }
+        composable<ModelosDeImagem> { TelaModelosDeImagem(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracoes> { entrada ->
             TelaConfiguracoes(
                 aoVoltar = { controle.popBackStack() },

@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 /** A moldura das telas do menu: barra com Voltar, conteúdo centrado (largura máxima de tablet) e rolável. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TelaDoMenu(titulo: String, aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
+internal fun TelaDoMenu(titulo: String, aoVoltar: () -> Unit, conteudo: @Composable () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -216,7 +216,7 @@ private fun LinhaDeConfiguracao(titulo: String, descricao: String, aoTocar: () -
  * (preço por imagem, moderado ou não) vem no item seguinte.
  */
 @Composable
-fun TelaModelos(aoVoltar: () -> Unit) {
+fun TelaModelos(aoVoltar: () -> Unit, aoEscolherModeloDeImagem: () -> Unit = {}) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: ModelosDeIaViewModel = viewModel(
         factory = viewModelFactory { initializer { ModelosDeIaViewModel(aplicacao.repositorioDeModelos) } },
@@ -247,9 +247,10 @@ fun TelaModelos(aoVoltar: () -> Unit) {
                         Text("Imagem", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Gera a imagem do prompt (OpenRouter, fal.ai ou Replicate).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("Modelo atual: ${carga.configuracao.modelo_imagem ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+                        // MI6: o preço por imagem, a moderação e o teste de resolução moram na tela do catálogo.
+                        TextButton(onClick = aoEscolherModeloDeImagem) { Text("Escolher o modelo de imagem") }
                     }
                 }
-                AvisoDeEmBreve("Escolher o modelo de imagem, ver o preço por imagem e se é moderado vem em seguida.")
                 estado.escolhendo?.let { tarefa ->
                     DialogoDeEscolhaDeModelo(tarefa, carga.configuracao, estado, viewModel)
                 }
