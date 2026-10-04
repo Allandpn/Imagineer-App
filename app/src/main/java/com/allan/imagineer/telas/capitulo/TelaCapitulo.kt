@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import com.allan.imagineer.telas.capitulo.voz.ControleDeNarracao
 import com.allan.imagineer.rede.ResultadoDaChamada
 import androidx.compose.runtime.produceState
 import com.allan.imagineer.rede.Destaque
@@ -831,6 +832,20 @@ private fun PaginaDoCapitulo(
                 contando = ehAssentada,
                 posicao = posicaoDeLeitura,
             )
+            // RL18: ouvir o capítulo. A voz começa do parágrafo em que a pessoa está e a página acompanha o parágrafo falado.
+            var ultimaPosicao by remember(capituloId) { mutableStateOf(0) }
+            var posicaoDaVoz by remember(capituloId) { mutableStateOf<Int?>(null) }
+            val paragrafosDaVoz = remember(atual.capitulo.id) { dividirEmParagrafosComInicio(atual.capitulo.texto) }
+            val escopoDaVoz = androidx.compose.runtime.rememberCoroutineScope()
+            ControleDeNarracao(
+                livroId = atual.capitulo.livro_id,
+                paragrafos = paragrafosDaVoz,
+                ativa = ehAtual,
+                posicaoAtual = { ultimaPosicao },
+                velocidade = leitura.velocidadeDaVoz,
+                aoMudarVelocidade = { v -> escopoDaVoz.launch { aplicacaoDaPagina.armazenamento.salvarPreferenciasDeLeitura(leitura.copy(velocidadeDaVoz = v)) } },
+                aoSeguirParagrafo = { posicaoDaVoz = it },
+            )
             LeitorDeTexto(
                 estado = atual,
                 destaques = destaques,
@@ -853,11 +868,12 @@ private fun PaginaDoCapitulo(
                 aoCancelarPosicionamento = aoCancelarPosicionamento,
                 aoGerarImagemDoTrecho = { trecho, posicao -> if (ehAtual) aoGerarImagemDoTrecho(trecho, posicao) },
                 aoVerPerfilDoArtefato = aoVerPerfilDoArtefato,
-                irParaPosicao = irParaPosicao,
-                aoAtenderPosicao = aoAtenderPosicao,
+                // Falando, a página segue o parágrafo da voz (e não consome o pedido de rolar da pesquisa).
+                irParaPosicao = posicaoDaVoz ?: irParaPosicao,
+                aoAtenderPosicao = { if (posicaoDaVoz == null) aoAtenderPosicao() },
                 emFoco = ehAssentada,
                 aoChegarAoFim = viewModel::chegouAoFim,
-                aoLerAte = viewModel::gravarPosicao,
+                aoLerAte = { posicao -> ultimaPosicao = posicao; viewModel.gravarPosicao(posicao) },
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },

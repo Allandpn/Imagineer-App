@@ -5,6 +5,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Ouvir o capítulo (RL18): a partir do Android 11 o app só enxerga os motores de voz instalados se declarar que os procura. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".ImagineerApp"
         android:allowBackup="true"

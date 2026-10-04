@@ -50,12 +50,15 @@ data class PreferenciasDeLeitura(
     val brilho: Float? = null,
     /** Os nomes dos elementos do livro aparecem sublinhados e abrem a ficha ao toque (RL14, RL15f). */
     val nomesTocaveis: Boolean = true,
+    /** A velocidade da voz ao ouvir o capítulo (RL18): de 0,5 a 2,0. */
+    val velocidadeDaVoz: Float = 1f,
 ) {
     /** A mesma preferência com todos os valores dentro dos limites. */
     fun normalizada(): PreferenciasDeLeitura = copy(
         tamanho = (tamanho.coerceIn(TAMANHO_MINIMO, TAMANHO_MAXIMO) / PASSO_DO_TAMANHO) * PASSO_DO_TAMANHO,
         entrelinha = (Math.round(entrelinha.coerceIn(ENTRELINHA_MINIMA, ENTRELINHA_MAXIMA) * 10) / 10f),
         brilho = brilho?.coerceIn(BRILHO_MINIMO, 1f),
+        velocidadeDaVoz = velocidadeDaVoz.coerceIn(0.5f, 2f),
     )
 
     fun maisLetra(): PreferenciasDeLeitura = copy(tamanho = tamanho + PASSO_DO_TAMANHO).normalizada()
