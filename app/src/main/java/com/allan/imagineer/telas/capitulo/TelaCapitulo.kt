@@ -82,6 +82,14 @@ import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel
 import com.allan.imagineer.telas.capitulo.painel.EstadoDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ComAcaoDeGerarImagemDoTrecho
+import com.allan.imagineer.telas.capitulo.painel.indicesDoBloco
+import com.allan.imagineer.telas.capitulo.painel.ComMarcaDeParagrafo
+import com.allan.imagineer.telas.capitulo.painel.blocoMarcado
+import com.allan.imagineer.telas.capitulo.painel.alternarBloco
+import com.allan.imagineer.telas.capitulo.painel.BarraDeParagrafos
+import com.allan.imagineer.telas.capitulo.painel.copiarParaAAreaDeTransferencia
+import com.allan.imagineer.telas.capitulo.painel.trechoDosParagrafos
+import com.allan.imagineer.telas.capitulo.painel.posicaoDosParagrafos
 import com.allan.imagineer.telas.capitulo.painel.paragrafoDoTrecho
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -606,6 +614,13 @@ private fun LeitorDeTexto(
     // I1 a I6: a imagem ampliada (tela cheia, tamanho normal) e o endereço do servidor para montar as URLs.
     val urlBase = urlDoServidorEmUso()
     var ampliada by remember { mutableStateOf<Artefato?>(null) }
+    // LV4: os parágrafos marcados (índices em [trechos]); vazio = leitura normal, sem barra.
+    var marcados by remember(capitulo.id) { mutableStateOf(emptySet<Int>()) }
+    // O modo de posicionar tem prioridade: ao ligá-lo, a marcação some.
+    LaunchedEffect(posicionando) { if (posicionando != null) marcados = emptySet() }
+    // Voltar (do aparelho) desfaz a marcação antes de sair do capítulo.
+    BackHandler(enabled = marcados.isNotEmpty()) { marcados = emptySet() }
+    val contextoDaTela = LocalContext.current
 
     // Escuta a rolagem da lista para o botão de IA (P3). O sinal do deslocamento do Compose é o
     // contrário do que a regra espera (dedo para cima = y negativo = rolando para baixo), por
@@ -709,15 +724,8 @@ private fun LeitorDeTexto(
                 items(blocos) { bloco ->
                     // PM1: no modo "toque no parágrafo", cada bloco é um alvo; tocar grava a posição do parágrafo em que ele começa.
                     val inicio = if (posicionando != null) indiceInicialDoBloco(bloco)?.let { trechos.getOrNull(it)?.inicio } else null
-                    Box(
-                        modifier = if (posicionando != null && inicio != null) {
-                            Modifier
-                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                .clickable { aoEscolherParagrafo(inicio) }
-                        } else {
-                            Modifier
-                        },
-                    ) {
+                    val indices = indicesDoBloco(bloco)
+                    val conteudoDoBloco: @Composable () -> Unit = {
                         BlocoDoTextoNaTela(
                             bloco = bloco,
                             textoDe = { trechos[it].texto },
@@ -729,9 +737,43 @@ private fun LeitorDeTexto(
                             aoAmpliar = { ampliada = it },
                         )
                     }
+                    if (posicionando != null) {
+                        Box(
+                            modifier = if (inicio != null) {
+                                Modifier
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .clickable { aoEscolherParagrafo(inicio) }
+                            } else {
+                                Modifier
+                            },
+                        ) { conteudoDoBloco() }
+                    } else {
+                        // LV4: toque longo marca o parágrafo; no modo, o toque simples soma ou tira.
+                        ComMarcaDeParagrafo(
+                            marcado = blocoMarcado(marcados, indices),
+                            emModo = marcados.isNotEmpty(),
+                            aoTocar = { if (marcados.isNotEmpty()) marcados = alternarBloco(marcados, indices) },
+                            aoSegurar = { if (marcados.isEmpty()) marcados = marcados + indices },
+                            conteudo = conteudoDoBloco,
+                        )
+                    }
                 }
             }
         }
+        }
+    }
+    // LV4: a barra de ícones dos parágrafos marcados; some quando o último é desmarcado.
+    if (marcados.isNotEmpty() && posicionando == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            BarraDeParagrafos(
+                aoCopiar = { copiarParaAAreaDeTransferencia(contextoDaTela, trechoDosParagrafos(trechos, marcados)) },
+                aoGerarPrompt = {
+                    aoGerarImagemDoTrecho(trechoDosParagrafos(trechos, marcados), posicaoDosParagrafos(trechos, marcados))
+                    marcados = emptySet()
+                },
+                aoVoltarAoNormal = { marcados = emptySet() },
+                modifier = Modifier.padding(16.dp),
+            )
         }
     }
     // PM1: o aviso fixo do modo de posicionar, com o Cancelar; fica à vista mesmo com o texto rolado.
