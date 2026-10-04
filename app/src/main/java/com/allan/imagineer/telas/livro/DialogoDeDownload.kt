@@ -126,3 +126,31 @@ fun DialogoDeDownload(livroId: Int, baixador: BaixadorDeLivros, estado: EstadoDo
         },
     )
 }
+
+/**
+ * O ⋮ de um livro **na biblioteca**, com o **Baixar para ler offline** (PL3) como na tela do livro: o rótulo e o diálogo seguem o estado do
+ * download daquele livro, que o baixador guarda no escopo do app.
+ */
+@Composable
+fun MenuDoLivroDaBiblioteca(
+    livroId: Int,
+    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    sobreACapa: Boolean = false,
+    aoDefinirCapa: () -> Unit,
+    aoApagar: () -> Unit,
+) {
+    val baixador = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp).baixadorDeLivros
+    val estados by baixador.estados.collectAsState()
+    val estado = estados[livroId] ?: EstadoDoDownload.NaoBaixado
+    var dialogo by remember { mutableStateOf(false) }
+    LaunchedEffect(livroId) { baixador.carregar(livroId) }
+    MenuDoLivro(
+        modifier = modifier,
+        sobreACapa = sobreACapa,
+        aoDefinirCapa = aoDefinirCapa,
+        aoAbrirOffline = { dialogo = true },
+        rotuloDoOffline = rotuloDoOffline(estado),
+        aoApagar = aoApagar,
+    )
+    if (dialogo) DialogoDeDownload(livroId, baixador, estado, aoFechar = { dialogo = false })
+}

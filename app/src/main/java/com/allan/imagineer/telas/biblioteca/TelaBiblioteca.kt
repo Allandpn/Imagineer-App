@@ -375,7 +375,7 @@ private fun CartaoDeLivro(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            MenuDoLivro(aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
+            com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
         }
     }
 }

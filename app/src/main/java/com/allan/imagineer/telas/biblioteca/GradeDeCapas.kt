@@ -84,7 +84,7 @@ private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Uni
     // Só a capa, com o ⋮ de remover (sem legenda embaixo): a capa sem imagem já traz o título e o autor dentro dela.
     Box(modifier = Modifier.clickable(onClick = aoTocar)) {
         CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
-        MenuDoLivro(Modifier.align(Alignment.TopEnd), sobreACapa = true, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
+        com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, Modifier.align(Alignment.TopEnd), sobreACapa = true, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
         // LE6: a barrinha do progresso (lidos ÷ ativos) no pé da capa; some quando nada foi lido.
         progressoDoLivro(livro)?.let { progresso ->
             LinearProgressIndicator(
