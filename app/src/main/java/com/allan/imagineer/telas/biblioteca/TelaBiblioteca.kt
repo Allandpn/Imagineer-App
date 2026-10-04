@@ -357,7 +357,7 @@ private fun CartaoDeLivro(
                 // O autor na mesma fonte da tela do livro (serifada, itálico).
                 Text(
                     livro.autor ?: "Autor desconhecido",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     fontFamily = FontFamily.Serif,
                     fontStyle = FontStyle.Italic,
                 )
