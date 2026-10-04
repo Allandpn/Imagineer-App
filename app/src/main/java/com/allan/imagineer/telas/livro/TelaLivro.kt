@@ -191,6 +191,7 @@ fun TelaLivro(
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPesquisa = aoAbrirPesquisa,
+        aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
         aoContinuarLendo = aoContinuarLendo,
         aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
@@ -234,6 +235,7 @@ fun ConteudoDoLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirElementos: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     aoDefinirCapa: () -> Unit = {},
@@ -321,6 +323,7 @@ fun ConteudoDoLivro(
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
+                    aoAlternarLido = aoAlternarLido,
                 )
             }
         }
@@ -334,6 +337,7 @@ private fun ListaDoLivro(
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
+    aoAlternarLido: (Int) -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -374,6 +378,7 @@ private fun ListaDoLivro(
                         if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
                     },
                     detalhes = false,
+                    aoAlternarLido = { aoAlternarLido(capitulo.id) },
                 )
             }
         }

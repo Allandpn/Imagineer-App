@@ -58,6 +58,8 @@ fun LinhaDeCapitulo(
     aoSegurar: () -> Unit,
     /** `false` na lista do livro (minimalista): só o título. Os detalhes do capítulo vão para o botão de metadados dentro dele. */
     detalhes: Boolean = true,
+    /** Tocar no ícone de lido marca e desmarca (LE5); nulo = o ícone é só um sinal. */
+    aoAlternarLido: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -98,12 +100,16 @@ fun LinhaDeCapitulo(
         // LE5: **todo** capítulo mostra se foi lido, de forma discreta: o lido com um círculo marcado, o não lido com um círculo vazio, bem
         // apagado. Assim se vê de relance o que já foi lido.
         if (!emSelecao) {
-            Icon(
-                if (capitulo.lido) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                contentDescription = if (capitulo.lido) "Lido" else "Não lido",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (capitulo.lido) 0.6f else 0.25f),
-                modifier = Modifier.padding(end = 16.dp).size(20.dp),
-            )
+            val icone = if (capitulo.lido) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle
+            val descricao = if (capitulo.lido) "Lido: tocar para marcar como não lido" else "Não lido: tocar para marcar como lido"
+            val cor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (capitulo.lido) 0.6f else 0.25f)
+            if (aoAlternarLido != null) {
+                IconButton(onClick = aoAlternarLido, modifier = Modifier.padding(end = 8.dp)) {
+                    Icon(icone, contentDescription = descricao, tint = cor, modifier = Modifier.size(22.dp))
+                }
+            } else {
+                Icon(icone, contentDescription = if (capitulo.lido) "Lido" else "Não lido", tint = cor, modifier = Modifier.padding(end = 16.dp).size(20.dp))
+            }
         }
 
         if (ajustando) {

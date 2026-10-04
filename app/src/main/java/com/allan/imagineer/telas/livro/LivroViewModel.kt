@@ -665,6 +665,33 @@ class LivroViewModel(
         }
     }
 
+    /**
+     * Marca ou desmarca um capítulo como lido tocando no ícone da lista (LE5). **Otimista**: o ícone muda na hora; se o servidor recusar,
+     * volta ao que era e um aviso diz o que houve.
+     */
+    fun alternarLido(capituloId: Int) {
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        val atual = pronto.livro.capitulos.firstOrNull { it.id == capituloId } ?: return
+        val novo = !atual.lido
+        definirLidoNaTela(capituloId, novo)
+        viewModelScope.launch {
+            when (capitulos.ajustarCapitulo(capituloId, CapituloAjuste(lido = novo))) {
+                is ResultadoDaChamada.Sucesso -> alteracoesConfirmadas++
+                is ResultadoDaChamada.Falha -> {
+                    definirLidoNaTela(capituloId, !novo)
+                    _avisos.trySend(Aviso("Não consegui marcar o capítulo."))
+                }
+            }
+        }
+    }
+
+    private fun definirLidoNaTela(capituloId: Int, lido: Boolean) {
+        atualizarSePronto { pronto ->
+            val capitulos = pronto.livro.capitulos.map { if (it.id == capituloId) it.copy(lido = lido) else it }
+            pronto.copy(livro = pronto.livro.copy(capitulos = capitulos, capitulos_lidos = capitulos.count { it.lido && !it.ignorado }))
+        }
+    }
+
     private fun atualizarSePronto(transformacao: (EstadoDoLivro.Pronto) -> EstadoDoLivro.Pronto) {
         _estado.update { if (it is EstadoDoLivro.Pronto) transformacao(it) else it }
     }

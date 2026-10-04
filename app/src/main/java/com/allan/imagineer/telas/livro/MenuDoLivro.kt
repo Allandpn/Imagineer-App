@@ -23,8 +23,8 @@ import androidx.compose.ui.unit.dp
 
 /**
  * O menu ⋮ **de um livro**, o mesmo na **biblioteca** (no cartão e sobre a capa) e dentro do **livro** (barra de cima). Cada item só
- * aparece se a tela der a ação dele: na biblioteca ficam os que não dependem de abrir o livro (**Definir capa…** e **Apagar livro**);
- * dentro do livro entram também **Editar**, **Perfil padrão…** e **Arquivo**. As configurações do aplicativo (perfis de renderização)
+ * aparece se a tela der a ação dele: na biblioteca ficam os que não dependem de abrir o livro (**Definir capa** e **Apagar livro**);
+ * dentro do livro entram também **Editar**, **Perfil de Renderização** e **Arquivo**. As configurações do aplicativo (perfis de renderização)
  * não estão aqui: moram no menu da biblioteca.
  *
  * @param sobreACapa o ⋮ desenhado sobre a imagem de uma capa: um círculo escuro translúcido, com o ícone branco.
@@ -52,8 +52,8 @@ fun MenuDoLivro(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; it() }) }
-            aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa…") }, onClick = { aberto = false; it() }) }
-            aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil padrão…") }, onClick = { aberto = false; it() }) }
+            aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, onClick = { aberto = false; it() }) }
+            aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, onClick = { aberto = false; it() }) }
             aoAbrirArquivo?.let { DropdownMenuItem(text = { Text("Arquivo") }, onClick = { aberto = false; it() }) }
             aoApagar?.let { DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; it() }) }
         }
