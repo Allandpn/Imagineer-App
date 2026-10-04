@@ -1,13 +1,14 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.material3.LocalContentColor
 import com.allan.imagineer.telas.capitulo.voz.ControleDeNarracao
 import com.allan.imagineer.rede.ResultadoDaChamada
 import androidx.compose.runtime.produceState
 import com.allan.imagineer.rede.Destaque
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import kotlinx.coroutines.launch
 import com.allan.imagineer.dados.PreferenciasDeLeitura
 import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.shape.CircleShape
 import android.widget.Toast
 import androidx.compose.material.icons.filled.Place
@@ -53,7 +54,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -118,7 +118,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import com.allan.imagineer.telas.capitulo.painel.PosicionandoArtefato
 import com.allan.imagineer.telas.capitulo.painel.ROTULO_POSICIONAR
 import com.allan.imagineer.telas.capitulo.painel.avisoDePosicionar
@@ -137,6 +136,7 @@ import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
 import com.allan.imagineer.telas.capitulo.painel.usarAside
 import com.allan.imagineer.telas.livro.descreverTamanho
 import com.allan.imagineer.telas.livro.tituloDoCapitulo
+import com.allan.imagineer.telas.comum.BotaoFlutuante
 
 /** O ViewModel de um capítulo; a mesma chave devolve o mesmo, então a página e a tela enxergam o mesmo estado. */
 @Composable
@@ -592,15 +592,11 @@ private fun LeitorPaginado(
                 TopAppBar(
                     title = { Text(titulo) },
                     navigationIcon = {
-                        IconButton(onClick = aoVoltar) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                        }
+                        BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                     },
                     actions = {
                         // RL1: a aparência da leitura (letra, tema, tela acesa).
-                        IconButton(onClick = { folhaDeLeitura = true }) {
-                            Icon(Icons.Filled.TextFields, contentDescription = "Aparência da leitura")
-                        }
+                        BotaoDeIcone(Icons.Filled.TextFields, "Aparência da leitura", aoTocar = { folhaDeLeitura = true }, cor = LocalContentColor.current)
                         // LV7: os metadados do capítulo (número, tamanho, tempo de leitura, pendências), ao lado de pesquisar.
                         if (capituloDaTela != null) {
                             IconeComSelo(
@@ -612,9 +608,7 @@ private fun LeitorPaginado(
                         }
                         // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
                         if (livroDoCapitulo != null) {
-                            IconButton(onClick = { aoPesquisar(livroDoCapitulo, idDaTela) }) {
-                                Icon(Icons.Filled.Search, contentDescription = "Pesquisar")
-                            }
+                            BotaoDeIcone(Icons.Filled.Search, "Pesquisar", aoTocar = { aoPesquisar(livroDoCapitulo, idDaTela) }, cor = LocalContentColor.current)
                         }
                     },
                 )
@@ -627,18 +621,12 @@ private fun LeitorPaginado(
                     // Tablet com o aside aberto: quem fecha é o "X" do próprio painel.
                     painelAberto && aside -> Unit
                     // Celular com o painel aberto: no MESMO canto, o botão de voltar ao texto (P4).
-                    painelAberto -> FloatingActionButton(onClick = aoAlternarPainel, shape = CircleShape) {
-                        // Só o ícone (um documento): já se entende que volta ao texto; o texto fica como descrição para leitor de tela.
-                        Icon(Icons.Filled.Description, contentDescription = "Voltar ao texto")
-                    }
+                    // Só o ícone (um documento): já se entende que volta ao texto; o nome fica na dica e para leitor de tela (PB5).
+                    painelAberto -> BotaoFlutuante(Icons.Filled.Description, "Voltar ao texto", aoAlternarPainel)
                     // Fechado: aparece e some conforme a rolagem.
+                    // Só o brilho ✦, como os outros botões flutuantes (PB5); "Abrir o painel de IA" fica na dica.
                     else -> AnimatedVisibility(visible = botaoVisivel, enter = fadeIn(), exit = fadeOut()) {
-                        ExtendedFloatingActionButton(
-                            onClick = aoAlternarPainel,
-                            shape = CircleShape,
-                            icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
-                            text = { Text("IA") },
-                        )
+                        BotaoFlutuante(Icons.Filled.AutoAwesome, "Abrir o painel de IA", aoAlternarPainel)
                     }
                 }
             }
@@ -1107,9 +1095,7 @@ private fun LeitorDeTexto(
                                     Text(artefato.rotulo, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
                                     // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele. Um pin, sem texto.
                                     if (artefato.sugestao_id != null || artefato.frame_id != null) {
-                                        IconButton(onClick = { aoIniciarPosicionamento(artefato) }) {
-                                            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                                        }
+                                        BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { aoIniciarPosicionamento(artefato) }, cor = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }

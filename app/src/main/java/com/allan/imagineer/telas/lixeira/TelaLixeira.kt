@@ -18,14 +18,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -62,6 +62,7 @@ import com.allan.imagineer.rede.RepositorioDaLixeiraDoLivro
 import com.allan.imagineer.rede.enderecoDaCapa
 import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 /** O que a Lixeira guarda, por tipo (LT1). Cada tipo novo (cenas, elementos) entra aqui, um de cada vez. */
 enum class TipoDaLixeira(val rotulo: String) {
@@ -136,13 +137,16 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
             TopAppBar(
                 title = { Text(if (livroId == null) "Lixeira" else "Lixeira do livro") },
                 navigationIcon = {
-                    IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
+                    BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                 },
                 actions = {
                     // Esvaziar apaga a lixeira inteira no servidor; na do livro, só item a item (para não levar o de outro livro).
                     if (temAlgo && livroId == null) {
-                        TextButton(
-                            onClick = {
+                        // Na barra, só ícone (PB4): esvaziar, em vermelho por apagar; o nome fica na dica.
+                        BotaoDeIcone(
+                            Icons.Filled.DeleteSweep,
+                            "Esvaziar a lixeira",
+                            aoTocar = {
                                 when (tipo) {
                                     TipoDaLixeira.IMAGENS -> imagens.pedirEsvaziar()
                                     TipoDaLixeira.LIVROS -> livros.pedirEsvaziar()
@@ -150,8 +154,9 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
                                     TipoDaLixeira.ELEMENTOS -> elementos.pedirEsvaziar()
                                 }
                             },
-                            enabled = !esvaziando,
-                        ) { Text("Esvaziar") }
+                            habilitado = !esvaziando,
+                            cor = MaterialTheme.colorScheme.error,
+                        )
                     }
                 },
             )

@@ -1,8 +1,9 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.FloatingActionButton
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.telas.livro.MenuDoLivro
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -37,17 +38,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -72,6 +66,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.telas.comum.BotaoFlutuante
 import com.allan.imagineer.telas.comum.DialogoDeRemocao
 import com.allan.imagineer.telas.comum.EstadoDaRemocao
 import com.allan.imagineer.telas.importacao.DialogosDeImportacao
@@ -230,30 +225,22 @@ fun ConteudoDaBiblioteca(
             // Só o ícone: o "+" já diz que é para adicionar (o texto fica como descrição para leitor de tela).
             // PL9: importar precisa do servidor; sem conexão o botão fica apagado e não faz nada.
             val online by (LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp).conexao.online.collectAsState()
-            FloatingActionButton(
-                onClick = { if (online) aoImportar() },
-                shape = CircleShape,
+            BotaoFlutuante(
+                Icons.Filled.Add,
+                "Importar livro",
+                { if (online) aoImportar() },
                 modifier = Modifier.alpha(if (online) 1f else 0.38f),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Importar livro")
-            }
+            )
         },
         topBar = {
             TopAppBar(
                 title = { Text("Biblioteca") },
                 navigationIcon = {
-                    IconButton(onClick = { escopo.launch { gaveta.open() } }) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Menu")
-                    }
+                    BotaoDeIcone(Icons.Filled.Menu, "Menu", aoTocar = { escopo.launch { gaveta.open() } }, cor = LocalContentColor.current)
                 },
                 actions = {
                     // Capas ou lista: o mesmo modo que a tela de Configurações guarda.
-                    IconButton(onClick = aoAlternarModo) {
-                        Icon(
-                            if (modo == ModoDaBiblioteca.CAPAS) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
-                            contentDescription = if (modo == ModoDaBiblioteca.CAPAS) "Ver em lista" else "Ver em capas",
-                        )
-                    }
+                    BotaoDeIcone(if (modo == ModoDaBiblioteca.CAPAS) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView, if (modo == ModoDaBiblioteca.CAPAS) "Ver em lista" else "Ver em capas", aoAlternarModo, cor = LocalContentColor.current)
                 },
             )
         },

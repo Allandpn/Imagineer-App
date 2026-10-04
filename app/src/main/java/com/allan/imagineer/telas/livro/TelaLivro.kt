@@ -1,6 +1,8 @@
 package com.allan.imagineer.telas.livro
 
-import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.LocalContentColor
+import com.allan.imagineer.telas.comum.BotaoDeIcone
+import com.allan.imagineer.telas.comum.BotaoFlutuante
 import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -28,20 +30,13 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -285,12 +280,13 @@ fun ConteudoDoLivro(
         // LY3: "Continuar lendo" é um botão pequeno, só com o ícone, no canto de baixo.
         floatingActionButton = {
             if (selecao == null && continuar != null) {
-                SmallFloatingActionButton(
-                    onClick = { aoContinuarLendo(continuar.capituloId, continuar.posicao) },
-                    shape = androidx.compose.foundation.shape.CircleShape, // redondo, como os outros botões (os menus é que são quadrados)
-                ) {
-                    Icon(IconesDaTelaDoLivro.continuar, contentDescription = continuar.rotulo)
-                }
+                // Redondo, como os outros botões flutuantes (os menus é que são quadrados); pequeno por ser atalho (PB5).
+                BotaoFlutuante(
+                    IconesDaTelaDoLivro.continuar,
+                    continuar.rotulo,
+                    { aoContinuarLendo(continuar.capituloId, continuar.posicao) },
+                    pequeno = true,
+                )
             }
         },
         topBar = {
@@ -308,9 +304,7 @@ fun ConteudoDoLivro(
                 TopAppBar(
                     title = { Text("Capítulos") },
                     navigationIcon = {
-                        IconButton(onClick = aoVoltar) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                        }
+                        BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                     },
                     actions = {
                         // Só com o livro na tela: os atalhos não fazem sentido em erro.
@@ -453,8 +447,6 @@ private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirMetadados: () -> Unit) 
             )
         }
         // LY4: o ícone que abre o modal com os demais metadados do livro.
-        IconButton(onClick = aoAbrirMetadados) {
-            Icon(IconesDaTelaDoLivro.metadados, contentDescription = "Metadados do livro", tint = MaterialTheme.colorScheme.primary)
-        }
+        BotaoDeIcone(IconesDaTelaDoLivro.metadados, "Metadados do livro", aoAbrirMetadados, cor = MaterialTheme.colorScheme.primary)
     }
 }

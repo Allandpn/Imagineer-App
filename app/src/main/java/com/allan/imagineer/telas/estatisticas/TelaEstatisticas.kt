@@ -16,9 +16,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +42,7 @@ import com.allan.imagineer.rede.RepositorioDeEstatisticas
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.telas.capitulo.RegistroDeTempoDeLeitura
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -104,7 +104,7 @@ fun TelaEstatisticas(aoVoltar: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Estatísticas de leitura") },
-                navigationIcon = { IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") } },
+                navigationIcon = { BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current) },
             )
         },
     ) { margens ->

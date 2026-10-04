@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.LocalContentColor
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.Traducao
@@ -41,7 +42,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -372,9 +372,7 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?) {
             Text("IA do capítulo", style = MaterialTheme.typography.titleMedium)
         }
         if (aoFechar != null) {
-            IconButton(onClick = aoFechar) {
-                Icon(Icons.Filled.Close, contentDescription = "Fechar o painel de IA")
-            }
+            BotaoDeIcone(Icons.Filled.Close, "Fechar o painel de IA", aoFechar, cor = LocalContentColor.current)
         }
     }
 }
@@ -598,9 +596,7 @@ internal fun CartaoDeElemento(
                 Etiqueta(etiquetaDaSituacao(elemento), situacao)
                 // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
                 if (!elemento.descartada) {
-                    IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
-                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                    }
+                    BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, habilitado = !ocupado, cor = MaterialTheme.colorScheme.primary)
                 }
             }
             descreverCenasDoElemento(cenas)?.let {
@@ -958,9 +954,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                     )
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
-                IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
-                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                }
+                BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, habilitado = !ocupada, cor = MaterialTheme.colorScheme.primary)
             }
             // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
             if (!aberto) {
@@ -1015,7 +1009,7 @@ internal fun BlocoDePrompts(
             null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             is PromptsDoFrame.Erro -> {
                 Text(conteudo.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
+                Button(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
             }
             is PromptsDoFrame.Pronto -> {
                 if (conteudo.lista.isEmpty()) {
@@ -1441,9 +1435,7 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     ) {
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
-        IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
-            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-        }
+        BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, habilitado = cena.id !in estado.cenasOcupadas, cor = MaterialTheme.colorScheme.primary)
     }
     CorpoDaCena(cena, estado, acoes)
     // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.
@@ -1565,9 +1557,7 @@ private fun ResultadoDoLote(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(resumo, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = acoes.aoDispensarResultadoDoLote) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dispensar o resumo")
-                }
+                BotaoDeIcone(Icons.Filled.Close, "Dispensar o resumo", acoes.aoDispensarResultadoDoLote, cor = LocalContentColor.current)
             }
         }
     }

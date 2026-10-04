@@ -20,7 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -47,6 +47,7 @@ import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.iconeDoArtefato
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 /**
  * As telas **Pendências** (LY7) e **Cenas** (LY8) do livro: os artefatos do livro inteiro, **por capítulo**, com a barra de baixo do livro.
@@ -75,7 +76,7 @@ fun TelaDaListaDoLivro(
         topBar = {
             TopAppBar(
                 title = { Text(tipo.titulo) },
-                navigationIcon = { IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") } },
+                navigationIcon = { BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current) },
             )
         },
         bottomBar = {

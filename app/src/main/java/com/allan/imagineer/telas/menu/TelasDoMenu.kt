@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.material3.LocalContentColor
 import com.allan.imagineer.rede.GastoAgrupado
 import com.allan.imagineer.rede.CustosDoMes
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -9,6 +10,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.ui.theme.DestaqueEscolhido
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -38,7 +40,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -77,7 +78,7 @@ internal fun TelaDoMenu(titulo: String, aoVoltar: () -> Unit, conteudo: @Composa
             TopAppBar(
                 title = { Text(titulo) },
                 navigationIcon = {
-                    IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
+                    BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                 },
             )
         },
@@ -347,13 +348,9 @@ private fun ConteudoDosCustos(dados: CustosDoMes, aoVoltarUmMes: () -> Unit, aoA
     val estimado = (dados.estimado.toDoubleOrNull() ?: 0.0) > 0.0
     // O mês, com as setas.
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = aoVoltarUmMes, enabled = temMesAnterior(dados)) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mês anterior")
-        }
+        BotaoDeIcone(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Mês anterior", aoVoltarUmMes, habilitado = temMesAnterior(dados), cor = LocalContentColor.current)
         Text(nomeDoMes(dados.mes), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        IconButton(onClick = aoAvancarUmMes, enabled = temMesSeguinte(dados)) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Próximo mês")
-        }
+        BotaoDeIcone(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Próximo mês", aoAvancarUmMes, habilitado = temMesSeguinte(dados), cor = LocalContentColor.current)
     }
     // O total.
     Card(modifier = Modifier.fillMaxWidth()) {

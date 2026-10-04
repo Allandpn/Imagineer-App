@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -7,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.telas.comum.MarcaDeLido
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -15,7 +17,6 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.compose.material3.Switch
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -160,8 +160,8 @@ fun DialogoDoCapitulo(
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = { aoRenomear(texto); editando = false }) { Icon(Icons.Filled.Check, contentDescription = "Salvar o título") }
-                    IconButton(onClick = { texto = tituloGuardado; editando = false }) { Icon(Icons.Filled.Close, contentDescription = "Cancelar") }
+                    BotaoDeIcone(Icons.Filled.Check, "Salvar o título", aoTocar = { aoRenomear(texto); editando = false }, cor = LocalContentColor.current)
+                    BotaoDeIcone(Icons.Filled.Close, "Cancelar", aoTocar = { texto = tituloGuardado; editando = false }, cor = LocalContentColor.current)
                 }
             } else {
                 TituloComFechar(titulo, aoFechar, aoEditar = aoRenomear?.let { { editando = true } })
@@ -205,7 +205,7 @@ private fun TituloComFechar(titulo: String, aoFechar: () -> Unit, aoEditar: (() 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(titulo, modifier = Modifier.weight(1f))
         // O lápis: indica que o título pode ser renomeado.
-        aoEditar?.let { IconButton(onClick = it) { Icon(Icons.Filled.Edit, contentDescription = "Renomear o capítulo") } }
-        IconButton(onClick = aoFechar) { Icon(Icons.Filled.Close, contentDescription = "Fechar") }
+        aoEditar?.let { BotaoDeIcone(Icons.Filled.Edit, "Renomear o capítulo", it, cor = LocalContentColor.current) }
+        BotaoDeIcone(Icons.Filled.Close, "Fechar", aoFechar, cor = LocalContentColor.current)
     }
 }

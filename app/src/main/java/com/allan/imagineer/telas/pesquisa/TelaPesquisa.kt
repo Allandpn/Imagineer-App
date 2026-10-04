@@ -20,8 +20,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
@@ -49,6 +48,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.OcorrenciaNoTexto
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.telas.livro.tituloDoCapitulo
 import kotlinx.coroutines.launch
 
@@ -97,16 +97,14 @@ fun TelaPesquisa(
                         ),
                         trailingIcon = {
                             if (estado.termo.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.alterarTermo("") }) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Limpar")
-                                }
+                                BotaoDeIcone(Icons.Filled.Close, "Limpar", aoTocar = { viewModel.alterarTermo("") }, cor = LocalContentColor.current)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().focusRequester(foco),
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
+                    BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                 },
             )
         },
