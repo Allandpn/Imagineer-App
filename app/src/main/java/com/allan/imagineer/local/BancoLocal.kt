@@ -35,6 +35,16 @@ data class TextoLocal(
     val guardadoEm: Long,
 )
 
+/** O registro de que um livro está **Baixado** (PL4); [imagensIds] são os ids separados por vírgula. */
+@Entity(tableName = "download_local", primaryKeys = ["chave", "livroId"])
+data class DownloadLocal(
+    val chave: String,
+    val livroId: Int,
+    val baixadoEm: Long,
+    val bytes: Long,
+    val imagensIds: String,
+)
+
 /** As consultas ao banco. Classe abstrata para poder ter uma função com `@Transaction`. */
 @Dao
 abstract class DaoLocal {
@@ -50,6 +60,15 @@ abstract class DaoLocal {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun guardarTexto(texto: TextoLocal)
+
+    @Query("SELECT * FROM download_local WHERE chave = :chave AND livroId = :livroId")
+    abstract suspend fun download(chave: String, livroId: Int): DownloadLocal?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun guardarDownload(download: DownloadLocal)
+
+    @Query("DELETE FROM download_local WHERE chave = :chave AND livroId = :livroId")
+    abstract suspend fun apagarDownload(chave: String, livroId: Int)
 
     @Query("DELETE FROM livro_local WHERE chave = :chave AND livroId = :livroId")
     abstract suspend fun apagarLivroGuardado(chave: String, livroId: Int)
@@ -70,8 +89,8 @@ abstract class DaoLocal {
  * A10 e L8) — se o formato mudar, o banco é apagado e refeito, sem migração à mão.
  */
 @Database(
-    entities = [LivroLocal::class, TextoLocal::class],
-    version = 3,
+    entities = [LivroLocal::class, TextoLocal::class, DownloadLocal::class],
+    version = 4,
     exportSchema = false,
 )
 abstract class BancoLocal : RoomDatabase() {

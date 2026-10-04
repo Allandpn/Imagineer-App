@@ -163,6 +163,16 @@ fun TelaLivro(
     val avisos = remember { SnackbarHostState() }
     val marcador by viewModel.marcador.collectAsState()
 
+    // PL3 a PL5: o download para ler offline. Ao abrir, lê se o livro já está baixado e, com Wi-Fi, completa o que faltar.
+    val baixador = aplicacaoDaCapa.baixadorDeLivros
+    val downloads by baixador.estados.collectAsState()
+    val download = downloads[livroId] ?: com.allan.imagineer.local.EstadoDoDownload.NaoBaixado
+    var dialogoDeDownload by remember { mutableStateOf(false) }
+    LaunchedEffect(livroId) {
+        baixador.carregar(livroId)
+        baixador.completarSeBaixado(livroId)
+    }
+
     // O botão voltar do aparelho, no modo de seleção, cancela a seleção em vez de sair
     // da tela.
     BackHandler(enabled = selecao != null) { viewModel.cancelarSelecao() }
@@ -196,11 +206,15 @@ fun TelaLivro(
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
         aoContinuarLendo = aoContinuarLendo,
+        estadoDoDownload = download,
+        aoAbrirOffline = { dialogoDeDownload = true },
         aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
         aoEditar = viewModel::abrirEdicao,
         aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
         aoApagar = viewModel::pedirRemocao,
     )
+
+    if (dialogoDeDownload) DialogoDeDownload(livroId, baixador, download, aoFechar = { dialogoDeDownload = false })
 
     val livro = (estado as? EstadoDoLivro.Pronto)?.livro
     if (livro != null && edicao is EstadoDaEdicao.Editando) {
@@ -240,6 +254,8 @@ fun ConteudoDoLivro(
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
+    estadoDoDownload: com.allan.imagineer.local.EstadoDoDownload = com.allan.imagineer.local.EstadoDoDownload.NaoBaixado,
+    aoAbrirOffline: (() -> Unit)? = null,
     aoDefinirCapa: () -> Unit = {},
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
@@ -248,7 +264,12 @@ fun ConteudoDoLivro(
     var metadadosAbertos by remember { mutableStateOf(false) }
     val pronto = estado as? EstadoDoLivro.Pronto
     if (metadadosAbertos && pronto != null) {
-        DialogoDosMetadados(livro = pronto.livro, perfil = pronto.perfil, aoFechar = { metadadosAbertos = false })
+        DialogoDosMetadados(
+            livro = pronto.livro,
+            perfil = pronto.perfil,
+            aoFechar = { metadadosAbertos = false },
+            baixado = estadoDoDownload as? com.allan.imagineer.local.EstadoDoDownload.Baixado,
+        )
     }
     val continuar = pronto?.let { continuarLendo(it.livro, marcador) }
     Scaffold(
@@ -292,6 +313,8 @@ fun ConteudoDoLivro(
                             // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
                             MenuDoLivro(
                                 aoPesquisar = aoAbrirPesquisa,
+                                aoAbrirOffline = aoAbrirOffline,
+                                rotuloDoOffline = rotuloDoOffline(estadoDoDownload),
                                 aoEditar = aoEditar,
                                 aoDefinirCapa = aoDefinirCapa,
                                 aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,

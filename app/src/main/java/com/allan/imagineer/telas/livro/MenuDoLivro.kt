@@ -39,6 +39,9 @@ fun MenuDoLivro(
     aoAbrirArquivo: (() -> Unit)? = null,
     aoAbrirLixeira: (() -> Unit)? = null,
     aoPesquisar: (() -> Unit)? = null,
+    /** PL3: o item de ler offline (nulo = sem o item) e o texto dele conforme o estado do download. */
+    aoAbrirOffline: (() -> Unit)? = null,
+    rotuloDoOffline: String = "Baixar para ler offline",
     aoApagar: (() -> Unit)? = null,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -54,6 +57,7 @@ fun MenuDoLivro(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, onClick = { aberto = false; it() }) }
+            aoAbrirOffline?.let { DropdownMenuItem(text = { Text(rotuloDoOffline) }, onClick = { aberto = false; it() }) }
             aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; it() }) }
             aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, onClick = { aberto = false; it() }) }
             aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, onClick = { aberto = false; it() }) }

@@ -42,7 +42,7 @@ import com.allan.imagineer.rede.ServidorPeloRetrofit
  * Hilt). Os ViewModels as recebem pelo construtor, montados por uma fábrica na
  * hora de criar cada tela.
  */
-class ImagineerApp : Application() {
+class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
 
     /** Criado só na primeira vez que alguém precisa (`lazy`). */
     val armazenamento: ArmazenamentoDeConfiguracao by lazy { ArmazenamentoNoDataStore(this) }
@@ -62,6 +62,17 @@ class ImagineerApp : Application() {
     private val armazemDeTextos: ArmazemDeTextos by lazy {
         ArmazemDeTextosEmArquivos(File(noBackupFilesDir, "textos"))
     }
+
+    /** As imagens baixadas (PL1): na pasta "sem backup", como os textos (A12). */
+    val armazemDeImagens: com.allan.imagineer.local.ArmazemDeImagens by lazy {
+        com.allan.imagineer.local.ArmazemDeImagensEmArquivos(File(noBackupFilesDir, "imagens"))
+    }
+
+    /** O carregador de imagens com o passo local antes da rede (PL2, regra A3). */
+    override fun newImageLoader(context: coil3.PlatformContext): coil3.ImageLoader =
+        coil3.ImageLoader.Builder(context)
+            .components { add(com.allan.imagineer.local.FetcherDeImagemLocal.Factory(armazemDeImagens)) }
+            .build()
 
     /** Vive tanto quanto o app: o adiantamento do próximo capítulo não pode morrer com a tela. */
     private val escopoDeFundo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -99,6 +110,19 @@ class ImagineerApp : Application() {
 
     val repositorioDaLixeiraDeElementos: com.allan.imagineer.rede.RepositorioDaLixeiraDeElementos by lazy {
         com.allan.imagineer.rede.RepositorioDaLixeiraDeElementosPeloRetrofit(provedorDeApi)
+    }
+
+    /** "Baixar para ler offline" (PL3 a PL5): vive no escopo do app, então sair da tela não interrompe o download. */
+    val baixadorDeLivros: com.allan.imagineer.local.BaixadorDeLivros by lazy {
+        com.allan.imagineer.local.BaixadorDeLivros(
+            fonte = com.allan.imagineer.local.FonteDoDownloadPelaApi(provedorDeApi),
+            textos = armazemDeTextos,
+            indice = indiceLocal,
+            imagens = armazemDeImagens,
+            registro = com.allan.imagineer.local.RegistroDeDownloadsPeloRoom(banco.dao()),
+            rede = com.allan.imagineer.local.EstadoDaRedeDoAndroid(this),
+            escopo = escopoDeFundo,
+        )
     }
 
     val repositorioDeArtefatosDoLivro: com.allan.imagineer.rede.RepositorioDeArtefatosDoLivro by lazy {

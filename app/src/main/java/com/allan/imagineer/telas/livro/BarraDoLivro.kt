@@ -90,7 +90,13 @@ fun AcoesDaBarraDoLivro(
 
 /** Os metadados do livro (LV2): tudo o que é informação dele — título, autor, idioma, capítulos, caracteres, tempo de leitura e perfil. */
 @Composable
-fun DialogoDosMetadados(livro: LivroDetalhe, perfil: PerfilRenderizacao?, aoFechar: () -> Unit) {
+fun DialogoDosMetadados(
+    livro: LivroDetalhe,
+    perfil: PerfilRenderizacao?,
+    aoFechar: () -> Unit,
+    /** PL4: se o livro está baixado para ler offline, quando e quanto ocupa. */
+    baixado: com.allan.imagineer.local.EstadoDoDownload.Baixado? = null,
+) {
     AlertDialog(
         onDismissRequest = aoFechar,
         title = { TituloComFechar("Metadados", aoFechar) },
@@ -104,6 +110,7 @@ fun DialogoDosMetadados(livro: LivroDetalhe, perfil: PerfilRenderizacao?, aoFech
                 Text("Tamanho: ${descreverTamanho(totalDeCaracteres(livro))} nos capítulos ativos")
                 Text("Tempo de leitura: ${descreverTempoDeLeitura(totalDeCaracteres(livro))}")
                 Text("Arquivo: ${livro.nome_arquivo}")
+                baixado?.let { Text("Offline: baixado em ${descreverDataDoDownload(it.em)} (${com.allan.imagineer.telas.lixeira.descreverTamanho(it.bytes)})") }
                 Text(
                     when {
                         livro.perfil_renderizacao_padrao_id == null -> "Perfil de renderização padrão: nenhum definido"

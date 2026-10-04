@@ -49,6 +49,14 @@ interface ApiImagineer {
     @GET("configuracao/modelos")
     suspend fun modelosDeTexto(@Query("ordenar_por_custo") ordenarPorCusto: Boolean = true): List<ModeloDeTexto>
 
+    /** `GET /livros/{id}/textos` — o texto de todos os capítulos, numa chamada (PL3). */
+    @GET("livros/{id}/textos")
+    suspend fun textosDoLivro(@Path("id") livroId: Int): List<TextoDoCapitulo>
+
+    /** `GET /livros/{id}/midias` — o manifesto das imagens do livro, com o tamanho de cada original (PL3). */
+    @GET("livros/{id}/midias")
+    suspend fun midiasDoLivro(@Path("id") livroId: Int): MidiasDoLivro
+
     /** `GET /livros/{id}/pendencias` — as sugestões ainda não confirmadas do livro, por capítulo (LY7). */
     @GET("livros/{id}/pendencias")
     suspend fun pendenciasDoLivro(@Path("id") livroId: Int): ArtefatosDoLivro
