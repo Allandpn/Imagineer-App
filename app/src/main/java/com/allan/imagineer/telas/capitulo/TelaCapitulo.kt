@@ -1068,6 +1068,14 @@ private fun LeitorDeTexto(
         ComAcaoDeGerarImagemDoTrecho(
             aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) },
             aoConsultarDicionario = aoConsultarDicionario,
+            // LV4: o parágrafo onde a seleção está entra no modo de marcar (depois, o toque soma ou tira outros).
+            aoMarcarParagrafo = { trecho ->
+                val inicio = paragrafoDoTrecho(trechos, trecho)
+                val paragrafo = if (inicio == null) -1 else trechos.indexOfLast { it.inicio <= inicio }
+                val bloco = blocos.firstOrNull { paragrafo in indicesDoBloco(it) }
+                if (bloco != null) marcados = marcados + indicesDoBloco(bloco)
+                else android.widget.Toast.makeText(contextoDoDestaque, "Não achei esse parágrafo no texto.", android.widget.Toast.LENGTH_SHORT).show()
+            },
             aoDestacarTrecho = { trecho ->
                 val lugar = localizarTrecho(trechos, trecho)
                 if (lugar != null) aoDestacar(lugar)
@@ -1157,7 +1165,6 @@ private fun LeitorDeTexto(
                             marcado = blocoMarcado(marcados, indices),
                             emModo = marcados.isNotEmpty(),
                             aoTocar = { if (marcados.isNotEmpty()) marcados = alternarBloco(marcados, indices) },
-                            aoSegurar = { if (marcados.isEmpty()) marcados = marcados + indices },
                             destacado = destacado != null && destacado in indices,
                             conteudo = conteudoDoBloco,
                         )

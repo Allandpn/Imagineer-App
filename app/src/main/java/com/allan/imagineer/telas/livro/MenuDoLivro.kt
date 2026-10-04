@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 fun MenuDoLivro(
     modifier: Modifier = Modifier,
     sobreACapa: Boolean = false,
+    /** Os dados e metadados do livro (título, autor, idioma, capítulos, tamanho, arquivo, perfil). Funciona sem servidor: é o que já está na tela. */
+    aoAbrirDados: (() -> Unit)? = null,
     aoEditar: (() -> Unit)? = null,
     aoDefinirCapa: (() -> Unit)? = null,
     aoEscolherPerfilPadrao: (() -> Unit)? = null,
@@ -63,6 +65,7 @@ fun MenuDoLivro(
             IconButton(onClick = { aberto = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções") }
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            aoAbrirDados?.let { DropdownMenuItem(text = { Text("Dados e metadados") }, onClick = { aberto = false; it() }) }
             aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
             aoAbrirDestaques?.let { DropdownMenuItem(text = { Text("Destaques e notas") }, enabled = !offline, onClick = { aberto = false; it() }) }
             // Sem conexão só dá para **remover** um download (o item "Baixado · remover download"); baixar precisa do servidor.

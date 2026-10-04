@@ -306,7 +306,7 @@ fun ConteudoDoLivro(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Capítulos") },
+                    title = { Text("Livro") },
                     navigationIcon = {
                         IconButton(onClick = aoVoltar) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -318,6 +318,7 @@ fun ConteudoDoLivro(
                             // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
                             // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
                             MenuDoLivro(
+                                aoAbrirDados = { metadadosAbertos = true },
                                 aoPesquisar = aoAbrirPesquisa,
                                 aoAbrirOffline = aoAbrirOffline,
                                 rotuloDoOffline = rotuloDoOffline(estadoDoDownload),

@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -33,7 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.allan.imagineer.telas.capitulo.BlocoDoTexto
 import com.allan.imagineer.telas.capitulo.ParagrafoDoTexto
 
-// A seleção por parágrafo (LV4): toque longo marca, toque simples soma ou tira, e uma barra de ícones aparece embaixo.
+// A seleção por parágrafo (LV4): o item "Marcar parágrafo" do menu da seleção de texto liga o modo; no modo, o toque simples soma ou tira,
+// e uma barra de ícones aparece embaixo. (Antes era o toque longo, que disputava com a seleção de texto e a fazia sumir.)
 
 /** Os ícones da barra de parágrafos marcados, num lugar só (o Allan quer poder trocá-los). */
 object IconesDaSelecao {
@@ -64,21 +66,20 @@ fun posicaoDosParagrafos(paragrafos: List<ParagrafoDoTexto>, marcados: Set<Int>)
     marcados.minOrNull()?.let { paragrafos.getOrNull(it)?.inicio }
 
 /** Quanto tempo de toque vale como "segurar" o parágrafo (menor que o da seleção de texto do sistema, que é 400 ms). */
-const val TEMPO_DO_TOQUE_LONGO_DO_PARAGRAFO_MS = 300L
 
 /** O quanto os parágrafos **não** marcados escurecem enquanto há marcados. */
 const val OPACIDADE_DO_PARAGRAFO_NAO_MARCADO = 0.35f
 
 /**
- * Envolve um bloco do texto com a marca de seleção: **toque longo** o marca (entra no modo), e **no modo** o toque simples marca ou
+ * Envolve um bloco do texto com a marca de seleção: **no modo** (ligado pelo menu da seleção de texto), o toque simples marca ou
  * desmarca. Os não marcados escurecem. No modo a seleção de texto nativa fica desligada, para o toque não disputar com ela.
+ * **Fora do modo o bloco não reage a toque nem a toque longo**: o toque longo é da seleção de texto (destacar, dicionário, copiar).
  */
 @Composable
 internal fun ComMarcaDeParagrafo(
     marcado: Boolean,
     emModo: Boolean,
     aoTocar: () -> Unit,
-    aoSegurar: () -> Unit,
     /** O parágrafo achado pela pesquisa (LV5): fica com um fundo de destaque por alguns segundos. */
     destacado: Boolean = false,
     conteudo: @Composable () -> Unit,
@@ -88,31 +89,16 @@ internal fun ComMarcaDeParagrafo(
         destacado -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.28f)
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
-    val haptico = LocalHapticFeedback.current
-    // O toque longo do parágrafo (300 ms) vem antes do da seleção nativa de texto (400 ms): quando ela tentaria começar, o modo já a desligou,
-    // e não piscam a alça nem a barra dela.
-    val configuracao = LocalViewConfiguration.current
-    val maisRapida = remember(configuracao) {
-        object : ViewConfiguration by configuracao {
-            override val longPressTimeoutMillis: Long get() = TEMPO_DO_TOQUE_LONGO_DO_PARAGRAFO_MS
-        }
-    }
     val modificador = Modifier
         .alpha(if (emModo && !marcado) OPACIDADE_DO_PARAGRAFO_NAO_MARCADO else 1f)
         .background(fundo, RoundedCornerShape(8.dp))
-        .combinedClickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onLongClick = {
-                haptico.performHapticFeedback(HapticFeedbackType.LongPress)
-                aoSegurar()
-            },
-            onClick = aoTocar,
+        // Só no modo o bloco é tocável: fora dele, um clicável aqui disputaria o toque longo com a seleção de texto.
+        .then(
+            if (emModo) Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = aoTocar)
+            else Modifier,
         )
-    CompositionLocalProvider(LocalViewConfiguration provides maisRapida) {
-        androidx.compose.foundation.layout.Box(modifier = modificador) {
-            if (emModo) DisableSelection { conteudo() } else conteudo()
-        }
+    androidx.compose.foundation.layout.Box(modifier = modificador) {
+        if (emModo) DisableSelection { conteudo() } else conteudo()
     }
 }
 

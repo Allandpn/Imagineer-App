@@ -298,4 +298,26 @@ class PerfisTest {
         assertEquals("Japanese anime illustration.", perfil.bloco_tecnico)
         assertFalse(json.decodeFromString<PerfilRenderizacao>("""{"id":1,"nome":"x"}""").de_fabrica)  // servidor antigo
     }
+
+    @Test
+    fun da_para_editar_o_mesmo_perfil_proprio_varias_vezes() = runTest {
+        val falso = PerfisFalsos(listOf(perfil(7, "Meu", "ANIME")))
+        val vm = PerfisViewModel(falso)
+        vm.carregar()
+        advanceUntilIdle()
+
+        repeat(3) { vez ->
+            val atual = (vm.estado.value.carga as CargaDosPerfis.Pronta).perfis.single()
+            vm.ver(atual)
+            vm.editar(atual)
+            vm.mudarFormulario(vm.estado.value.formulario!!.edicao.copy(estilo = "texto $vez"))
+            vm.salvar()
+            advanceUntilIdle()
+
+            assertNull(vm.estado.value.formulario)
+            assertNull(vm.estado.value.detalhe)
+        }
+        assertEquals(3, falso.ajustados.size)
+        assertTrue(falso.ajustados.all { it.first == 7 })
+    }
 }

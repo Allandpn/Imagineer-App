@@ -53,12 +53,13 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
     val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
     val aoConsultar by rememberUpdatedState(aoConsultarDicionario)
+    val aoMarcar by rememberUpdatedState(aoMarcarParagrafo)
     Box(
         modifier = Modifier.appendTextContextMenuComponents {
             separator()
@@ -76,6 +77,11 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoConsultar(trecho) }
             }
+            // LV4: liga o modo de marcar parágrafos (copiar vários, gerar imagem de um trecho maior) a partir da seleção.
+            item(key = ChaveDeMarcarParagrafo, label = ROTULO_MARCAR_PARAGRAFO) {
+                close()
+                copiarSelecaoE(visao, contexto) { trecho -> aoMarcar(trecho) }
+            }
         },
     ) { conteudo() }
 }
@@ -85,6 +91,11 @@ private object ChaveDeGerarImagemDoTrecho
 private object ChaveDeDestacarTrecho
 
 private object ChaveDeConsultarDicionario
+
+private object ChaveDeMarcarParagrafo
+
+/** O item do menu da seleção que entra no modo de marcar parágrafos (LV4). */
+const val ROTULO_MARCAR_PARAGRAFO = "Marcar parágrafo"
 
 /** O item do menu da seleção que procura a palavra no dicionário (RL20). */
 const val ROTULO_DICIONARIO = "Dicionário"
