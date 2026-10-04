@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import com.allan.imagineer.rede.Destaque
 import kotlinx.coroutines.launch
 import com.allan.imagineer.dados.PreferenciasDeLeitura
 import androidx.compose.material.icons.filled.TextFields
@@ -145,6 +146,16 @@ private fun capituloViewModel(capituloId: Int): CapituloViewModel {
                 CapituloViewModel(capituloId, aplicacao.repositorioDeCapitulos, aplicacao.repositorioDeArtefatos, aplicacao.repositorioDeMarcador)
             }
         },
+    )
+}
+
+/** O ViewModel dos destaques de um capítulo (RL9 a RL13). */
+@Composable
+private fun destaquesViewModel(livroId: Int, capituloId: Int): DestaquesDoCapituloViewModel {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    return viewModel(
+        key = "destaques$capituloId",
+        factory = viewModelFactory { initializer { DestaquesDoCapituloViewModel(livroId, capituloId, aplicacao.repositorioDeDestaques) } },
     )
 }
 
@@ -741,8 +752,38 @@ private fun PaginaDoCapitulo(
                 }
             }
 
-            is EstadoDoCapitulo.Pronto -> LeitorDeTexto(
+            is EstadoDoCapitulo.Pronto -> {
+            val destaquesVm = destaquesViewModel(atual.capitulo.livro_id, capituloId)
+            val destaques by destaquesVm.destaques.collectAsState()
+            val avisoDosDestaques by destaquesVm.aviso.collectAsState()
+            val contextoDaPagina = LocalContext.current
+            LaunchedEffect(destaquesVm) { destaquesVm.carregar() }
+            LaunchedEffect(avisoDosDestaques) {
+                avisoDosDestaques?.let { android.widget.Toast.makeText(contextoDaPagina, it, android.widget.Toast.LENGTH_LONG).show(); destaquesVm.avisoLido() }
+            }
+            var destaqueAberto by rememberSaveable(capituloId) { mutableStateOf<Int?>(null) }
+            destaques.firstOrNull { it.id == destaqueAberto }?.let { aberto ->
+                FolhaDoDestaque(
+                    destaque = aberto,
+                    elementos = aplicacaoDaPagina.repositorioDeElementos,
+                    aoMudarCor = { destaquesVm.mudarCor(aberto.id, it) },
+                    aoMudarNota = { destaquesVm.mudarNota(aberto.id, it) },
+                    aoLigar = { destaquesVm.ligarAoElemento(aberto.id, it) },
+                    aoRemover = { destaquesVm.remover(aberto.id); destaqueAberto = null },
+                    aoFechar = { destaqueAberto = null },
+                )
+            }
+            LeitorDeTexto(
                 estado = atual,
+                destaques = destaques,
+                aoDestacar = { lugar ->
+                    destaquesVm.destacar(lugar) { novo ->
+                        android.widget.Toast.makeText(contextoDaPagina, "Trecho destacado. Toque nele para anotar.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                aoTocarMarca = { etiqueta ->
+                    if (etiqueta.startsWith(ETIQUETA_DO_DESTAQUE)) destaqueAberto = etiqueta.removePrefix(ETIQUETA_DO_DESTAQUE).toIntOrNull()
+                },
                 artefatos = artefatos,
                 aoTocarArtefato = { if (ehAtual) aoTocarArtefato(it) },
                 aoOcultarImagem = aoOcultarImagem,
@@ -761,6 +802,7 @@ private fun PaginaDoCapitulo(
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
             )
+            }
         }
     }
     }
@@ -785,6 +827,12 @@ private fun LeitorDeTexto(
     aoVerPerfilDoArtefato: (Artefato) -> Unit,
     irParaPosicao: Int?,
     aoAtenderPosicao: () -> Unit,
+    /** Os trechos destacados do capítulo (RL9), pintados no texto. */
+    destaques: List<Destaque> = emptyList(),
+    /** A pessoa pediu para destacar o que selecionou: já com o lugar no capítulo. */
+    aoDestacar: (LugarDoTrecho) -> Unit = {},
+    /** Tocou numa marca do texto: a etiqueta diz qual (hoje, o id de um destaque). */
+    aoTocarMarca: (String) -> Unit = {},
     /** Esta página é a que a pessoa está lendo (o pager parou nela). */
     emFoco: Boolean,
     /** Chegou ao fim do texto: o capítulo vira lido (LE4, LE7). */
@@ -928,7 +976,15 @@ private fun LeitorDeTexto(
 
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
         // (cada um é um item da lista), mas dentro de um funciona.
-        ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) }) {
+        val contextoDoDestaque = LocalContext.current
+        ComAcaoDeGerarImagemDoTrecho(
+            aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) },
+            aoDestacarTrecho = { trecho ->
+                val lugar = localizarTrecho(trechos, trecho)
+                if (lugar != null) aoDestacar(lugar)
+                else android.widget.Toast.makeText(contextoDoDestaque, "Não achei esse trecho no texto. Selecione dentro de um só parágrafo.", android.widget.Toast.LENGTH_LONG).show()
+            },
+        ) {
         SelectionContainer(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().nestedScroll(ouvinte)) {
             LazyColumn(
                 state = listaDeParagrafos,
@@ -986,6 +1042,9 @@ private fun LeitorDeTexto(
                             estilo = estiloDoParagrafo,
                             aoTocarArtefato = aoTocarArtefato,
                             aoAmpliar = { ampliada = it },
+                            destaques = destaques,
+                            inicioDo = { trechos.getOrNull(it)?.inicio ?: 0 },
+                            aoTocarMarca = aoTocarMarca,
                         )
                     }
                     if (posicionando != null) {

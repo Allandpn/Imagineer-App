@@ -77,6 +77,8 @@ fun TelaFichaDoElemento(
     elementoId: Int,
     capituloId: Int?,
     aoVoltar: () -> Unit,
+    /** RL11: tocou numa passagem destacada ligada ao elemento; abre o capítulo naquele ponto. */
+    aoAbrirPassagem: (capituloId: Int, posicao: Int) -> Unit = { _, _ -> },
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: FichaDoElementoViewModel = viewModel(
@@ -134,7 +136,7 @@ fun TelaFichaDoElemento(
                             Button(onClick = viewModel::tentarDeNovo) { Text("Tentar de novo") }
                         }
                     }
-                    is CargaDaFicha.Pronta -> ConteudoDaFicha(carga.detalhe, capituloId, viewModel, estado.galeria, estado.recadoDaGaleria)
+                    is CargaDaFicha.Pronta -> ConteudoDaFicha(carga.detalhe, capituloId, viewModel, estado.galeria, estado.recadoDaGaleria, aoAbrirPassagem)
                 }
             }
         }
@@ -152,6 +154,7 @@ private fun ConteudoDaFicha(
     viewModel: FichaDoElementoViewModel,
     galeria: CargaDaGaleria,
     recadoDaGaleria: String?,
+    aoAbrirPassagem: (capituloId: Int, posicao: Int) -> Unit,
 ) {
     val estados = estadosEmOrdem(detalhe)
     val acrescimos = acrescimosDeIdentidade(detalhe)
@@ -255,6 +258,9 @@ private fun ConteudoDaFicha(
 
         // --- Cenas em que aparece (FI5) ------------------------------------------------------------
         item { SecaoDeCenasDaFicha(galeria, viewModel::tentarDeNovoAGaleria) }
+
+        // --- Passagens destacadas (RL11) -----------------------------------------------------------
+        item { SecaoDePassagensDaFicha(detalhe.id, aoAbrirPassagem) }
     }
 }
 

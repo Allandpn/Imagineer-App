@@ -161,6 +161,26 @@ interface ApiImagineer {
     @PUT("livros/{id}/marcador")
     suspend fun gravarMarcador(@Path("id") livroId: Int, @Body corpo: MarcadorGravacao): JsonObject
 
+    /** `GET /livros/{id}/destaques` — os trechos destacados do livro; com `capitulo_id`, só os de um capítulo (RL9 a RL13). */
+    @GET("livros/{id}/destaques")
+    suspend fun destaques(@Path("id") livroId: Int, @Query("capitulo_id") capituloId: Int? = null): List<Destaque>
+
+    /** `POST /livros/{id}/destaques` — destaca um trecho; o servidor copia o texto do capítulo. */
+    @POST("livros/{id}/destaques")
+    suspend fun criarDestaque(@Path("id") livroId: Int, @Body corpo: JsonObject): Destaque
+
+    /** `PATCH /destaques/{id}` — só o que for enviado muda (cor, nota, elemento_id). */
+    @PATCH("destaques/{id}")
+    suspend fun ajustarDestaque(@Path("id") destaqueId: Int, @Body corpo: JsonObject): Destaque
+
+    /** `DELETE /destaques/{id}`. */
+    @DELETE("destaques/{id}")
+    suspend fun removerDestaque(@Path("id") destaqueId: Int)
+
+    /** `GET /elementos/{id}/destaques` — as passagens destacadas ligadas a um elemento. */
+    @GET("elementos/{id}/destaques")
+    suspend fun destaquesDoElemento(@Path("id") elementoId: Int): List<Destaque>
+
     /** `GET /perfis-renderizacao` — os perfis, compartilhados entre livros. */
     @GET("perfis-renderizacao")
     suspend fun perfis(): List<PerfilRenderizacao>

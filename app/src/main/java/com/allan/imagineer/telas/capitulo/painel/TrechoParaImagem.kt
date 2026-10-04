@@ -53,10 +53,11 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
+    val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
     Box(
         modifier = Modifier.appendTextContextMenuComponents {
             separator()
@@ -64,11 +65,21 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, con
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoGerar(trecho) }
             }
+            // RL9: o mesmo caminho (copiar e ler o trecho), agora para grifar o trecho no texto.
+            item(key = ChaveDeDestacarTrecho, label = ROTULO_DESTACAR_TRECHO) {
+                close()
+                copiarSelecaoE(visao, contexto) { trecho -> aoDestacar(trecho) }
+            }
         },
     ) { conteudo() }
 }
 
 private object ChaveDeGerarImagemDoTrecho
+
+private object ChaveDeDestacarTrecho
+
+/** O item do menu da seleção que grifa o trecho (RL9). */
+const val ROTULO_DESTACAR_TRECHO = "Destacar"
 
 /** Aciona o Copiar da seleção atual e entrega o texto copiado a [aoTerOTrecho]; sem texto, avisa o que fazer. */
 private fun copiarSelecaoE(visao: View, contexto: Context, aoTerOTrecho: (String) -> Unit) {

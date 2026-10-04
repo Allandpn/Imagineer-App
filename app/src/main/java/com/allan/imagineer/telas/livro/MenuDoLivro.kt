@@ -40,6 +40,8 @@ fun MenuDoLivro(
     aoEscolherPerfilPadrao: (() -> Unit)? = null,
     aoAbrirArquivo: (() -> Unit)? = null,
     aoAbrirLixeira: (() -> Unit)? = null,
+    /** RL12: a lista de destaques e notas do livro. */
+    aoAbrirDestaques: (() -> Unit)? = null,
     aoPesquisar: (() -> Unit)? = null,
     /** PL3: o item de ler offline (nulo = sem o item) e o texto dele conforme o estado do download. */
     aoAbrirOffline: (() -> Unit)? = null,
@@ -62,6 +64,7 @@ fun MenuDoLivro(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoAbrirDestaques?.let { DropdownMenuItem(text = { Text("Destaques e notas") }, enabled = !offline, onClick = { aberto = false; it() }) }
             // Sem conexão só dá para **remover** um download (o item "Baixado · remover download"); baixar precisa do servidor.
             aoAbrirOffline?.let { DropdownMenuItem(text = { Text(rotuloDoOffline) }, enabled = !offline || rotuloDoOffline.startsWith("Baixado"), onClick = { aberto = false; it() }) }
             aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, enabled = !offline, onClick = { aberto = false; it() }) }

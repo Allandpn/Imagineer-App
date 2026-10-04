@@ -61,6 +61,10 @@ data class CenasDoLivro(val livroId: Int)
 @Serializable
 data class PendenciasDoLivro(val livroId: Int)
 
+/** Os destaques e notas de um livro, por capítulo (RL12). */
+@Serializable
+data class DestaquesDoLivro(val livroId: Int)
+
 /** Os elementos de um livro (item 7.8). */
 @Serializable
 data class ElementosDoLivro(val livroId: Int)

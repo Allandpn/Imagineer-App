@@ -1,5 +1,6 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -163,7 +164,15 @@ fun GrafoDeNavegacao() {
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
                 aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
                 aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
+                aoAbrirDestaques = { controle.navigate(DestaquesDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
+            )
+        }
+        composable<DestaquesDoLivro> { entrada ->
+            TelaDestaquesDoLivro(
+                livroId = entrada.toRoute<DestaquesDoLivro>().livroId,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrir = { capituloId, posicao -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }
         composable<CenasDoLivro> { entrada ->
@@ -274,6 +283,9 @@ fun GrafoDeNavegacao() {
                 capituloId = destino.capituloId,
                 // Só volta uma vez: um segundo toque na seta durante a transição desempilharia também o capítulo.
                 aoVoltar = { if (entrada.estaNaFrente()) controle.popBackStack() },
+                aoAbrirPassagem = { capituloIdDaPassagem, posicao ->
+                    if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloIdDaPassagem, irParaPosicao = posicao))
+                },
             )
         }
         composable<PerfisDeRenderizacao> {

@@ -50,6 +50,12 @@ fun dividirAoRedorDaImagem(
 data class FatiaDeParagrafo(val indice: Int, val de: Int = 0, val ate: Int? = null) {
     /** O pedaço do [texto] do parágrafo, sem espaços sobrando nas pontas do corte. */
     fun recortar(texto: String): String = texto.substring(de.coerceIn(0, texto.length), (ate ?: texto.length).coerceIn(0, texto.length)).trim()
+
+    /** Quantos caracteres o corte de [recortar] tirou do começo (espaços), para as posições de destaque e de nome contarem do que aparece. */
+    fun esquerdaCortada(texto: String): Int {
+        val bruto = texto.substring(de.coerceIn(0, texto.length), (ate ?: texto.length).coerceIn(0, texto.length))
+        return bruto.length - bruto.trimStart().length
+    }
 }
 
 /** Um item da lista do capítulo: parágrafo(s) com as imagens que entram ali (I2, I3, I10). */

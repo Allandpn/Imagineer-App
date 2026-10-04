@@ -1,5 +1,9 @@
 package com.allan.imagineer.telas.capitulo
 
+import com.allan.imagineer.rede.Destaque
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -88,6 +92,12 @@ internal fun textoComIcones(texto: String, quantidade: Int): TextoComIcones {
     return TextoComIcones(anotado, quantidade * 2, List(quantidade) { AnnotatedString.Range(marcador, it * 2, it * 2 + 1) })
 }
 
+/** Um pedaço do texto de um parágrafo que ganha estilo e responde ao toque: [de] e [ate] contam a partir do começo do texto mostrado. */
+internal data class MarcaNoTexto(val de: Int, val ate: Int, val etiqueta: String, val estilo: SpanStyle)
+
+/** O começo da etiqueta de um destaque; o resto é o id dele. */
+internal const val ETIQUETA_DO_DESTAQUE = "destaque:"
+
 /** Um ícone de artefato dentro da linha de texto: o desenho do tipo, a cor da situação, tocável (leva ao painel). */
 @Composable
 private fun IconeNaLinha(artefato: Artefato, aoTocar: (Artefato) -> Unit) {
@@ -109,8 +119,37 @@ private fun IconeNaLinha(artefato: Artefato, aoTocar: (Artefato) -> Unit) {
 
 /** Um parágrafo (ou um pedaço dele) com os [icones] dentro da primeira linha (I9). */
 @Composable
-internal fun TextoDoParagrafo(texto: String, icones: List<Artefato>, aoTocar: (Artefato) -> Unit, estilo: TextStyle, modifier: Modifier = Modifier) {
-    val montado = remember(texto, icones.size) { textoComIcones(texto, icones.size) }
+internal fun TextoDoParagrafo(
+    texto: String,
+    icones: List<Artefato>,
+    aoTocar: (Artefato) -> Unit,
+    estilo: TextStyle,
+    modifier: Modifier = Modifier,
+    /** Pedaços do texto com cor de fundo e que respondem ao toque (os destaques, RL9); contam a partir do começo de [texto]. */
+    marcas: List<MarcaNoTexto> = emptyList(),
+    aoTocarMarca: (etiqueta: String) -> Unit = {},
+) {
+    val montado = remember(texto, icones.size, marcas) {
+        val base = textoComIcones(texto, icones.size)
+        if (marcas.isEmpty()) base else TextoComIcones(
+            anotado = buildAnnotatedString {
+                append(base.anotado)
+                marcas.forEach { marca ->
+                    val de = (base.prefixo + marca.de).coerceIn(0, base.anotado.length)
+                    val ate = (base.prefixo + marca.ate).coerceIn(de, base.anotado.length)
+                    // Um link clicável **com estilo** pinta o pedaço e o torna tocável: a mesma peça serve ao fundo do destaque e,
+                    // adiante, ao nome catalogado que abre a ficha.
+                    addLink(
+                        LinkAnnotation.Clickable(marca.etiqueta, TextLinkStyles(style = marca.estilo)) { aoTocarMarca(marca.etiqueta) },
+                        de,
+                        ate,
+                    )
+                }
+            },
+            prefixo = base.prefixo,
+            marcadores = base.marcadores,
+        )
+    }
     val conteudo = remember(icones, aoTocar) {
         icones.mapIndexed { indice, artefato ->
             "icone$indice" to InlineTextContent(montado.marcadores[indice].item) { IconeNaLinha(artefato, aoTocar) }
@@ -130,16 +169,30 @@ internal fun BlocoDoTextoNaTela(
     estilo: TextStyle,
     aoTocarArtefato: (Artefato) -> Unit,
     aoAmpliar: (Artefato) -> Unit,
+    /** Os destaques do capítulo (RL9) e onde cada parágrafo começa no texto, para pintar o que cai em cada pedaço. */
+    destaques: List<Destaque> = emptyList(),
+    inicioDo: (Int) -> Int = { 0 },
+    aoTocarMarca: (etiqueta: String) -> Unit = {},
 ) {
     @Composable
-    fun fatia(f: FatiaDeParagrafo, modifier: Modifier = Modifier) = TextoDoParagrafo(
-        texto = f.recortar(textoDe(f.indice)),
-        // Os ícones ficam no começo do parágrafo: só o primeiro pedaço os leva (o resto de um corte não).
-        icones = if (f.de == 0) artefatosDo(f.indice) else emptyList(),
-        aoTocar = aoTocarArtefato,
-        estilo = estilo,
-        modifier = modifier,
-    )
+    fun fatia(f: FatiaDeParagrafo, modifier: Modifier = Modifier) {
+        val completo = textoDe(f.indice)
+        val mostrado = f.recortar(completo)
+        val marcas = remember(destaques, f, mostrado) {
+            if (destaques.isEmpty()) emptyList() else destaquesDaFatia(destaques, inicioDo(f.indice), f.de, f.esquerdaCortada(completo), mostrado.length)
+                .map { MarcaNoTexto(it.de, it.ate, ETIQUETA_DO_DESTAQUE + it.id, SpanStyle(background = corDeFundoDoDestaque(it.cor))) }
+        }
+        TextoDoParagrafo(
+            texto = mostrado,
+            // Os ícones ficam no começo do parágrafo: só o primeiro pedaço os leva (o resto de um corte não).
+            icones = if (f.de == 0) artefatosDo(f.indice) else emptyList(),
+            aoTocar = aoTocarArtefato,
+            estilo = estilo,
+            modifier = modifier,
+            marcas = marcas,
+            aoTocarMarca = aoTocarMarca,
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         when (bloco) {
