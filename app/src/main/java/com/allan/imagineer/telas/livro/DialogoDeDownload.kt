@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
