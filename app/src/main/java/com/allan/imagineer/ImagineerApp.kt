@@ -63,6 +63,20 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         ArmazemDeTextosEmArquivos(File(noBackupFilesDir, "textos"))
     }
 
+    /** Se o aparelho tem conexão (PL8). */
+    val conexao: com.allan.imagineer.local.MonitorDeConexao by lazy { com.allan.imagineer.local.MonitorDeConexao(this) }
+
+    /** A tela Armazenamento (PL10). */
+    val gerenteDeArmazenamento: com.allan.imagineer.local.GerenteDeArmazenamento by lazy {
+        com.allan.imagineer.local.GerenteDeArmazenamento(
+            fonte = com.allan.imagineer.local.FonteDoDownloadPelaApi(provedorDeApi),
+            espaco = com.allan.imagineer.local.EspacoLocalPeloRoom(banco.dao()),
+            textos = armazemDeTextos,
+            registro = com.allan.imagineer.local.RegistroDeDownloadsPeloRoom(banco.dao()),
+            baixador = baixadorDeLivros,
+        )
+    }
+
     /** As imagens baixadas (PL1): na pasta "sem backup", como os textos (A12). */
     val armazemDeImagens: com.allan.imagineer.local.ArmazemDeImagens by lazy {
         com.allan.imagineer.local.ArmazemDeImagensEmArquivos(File(noBackupFilesDir, "imagens"))

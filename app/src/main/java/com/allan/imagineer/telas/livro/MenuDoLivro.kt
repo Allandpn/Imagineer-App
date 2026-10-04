@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -45,6 +47,9 @@ fun MenuDoLivro(
     aoApagar: (() -> Unit)? = null,
 ) {
     var aberto by remember { mutableStateOf(false) }
+    // PL9: sem conexão, o que depende do servidor fica desativado (remover um download é só do aparelho).
+    val online by (LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp).conexao.online.collectAsState()
+    val offline = !online
     Box(modifier) {
         if (sobreACapa) {
             Surface(color = Color.Black.copy(alpha = 0.35f), shape = CircleShape, modifier = Modifier.padding(4.dp).size(28.dp)) {
@@ -56,14 +61,15 @@ fun MenuDoLivro(
             IconButton(onClick = { aberto = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções") }
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, onClick = { aberto = false; it() }) }
-            aoAbrirOffline?.let { DropdownMenuItem(text = { Text(rotuloDoOffline) }, onClick = { aberto = false; it() }) }
-            aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; it() }) }
-            aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, onClick = { aberto = false; it() }) }
-            aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, onClick = { aberto = false; it() }) }
-            aoAbrirArquivo?.let { DropdownMenuItem(text = { Text("Arquivo") }, onClick = { aberto = false; it() }) }
-            aoAbrirLixeira?.let { DropdownMenuItem(text = { Text("Lixeira") }, onClick = { aberto = false; it() }) }
-            aoApagar?.let { DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; it() }) }
+            aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            // Sem conexão só dá para **remover** um download (o item "Baixado · remover download"); baixar precisa do servidor.
+            aoAbrirOffline?.let { DropdownMenuItem(text = { Text(rotuloDoOffline) }, enabled = !offline || rotuloDoOffline.startsWith("Baixado"), onClick = { aberto = false; it() }) }
+            aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoAbrirArquivo?.let { DropdownMenuItem(text = { Text("Arquivo") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoAbrirLixeira?.let { DropdownMenuItem(text = { Text("Lixeira") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoApagar?.let { DropdownMenuItem(text = { Text("Apagar livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
         }
     }
 }

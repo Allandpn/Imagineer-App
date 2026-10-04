@@ -1,5 +1,11 @@
 package com.allan.imagineer.navegacao
 
+import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Surface
+import com.allan.imagineer.local.ETIQUETA_SEM_CONEXAO
+import com.allan.imagineer.telas.menu.TelaArmazenamento
 import com.allan.imagineer.telas.livro.AlvoNoCapitulo
 import com.allan.imagineer.telas.livro.DestinoDoLivro
 import com.allan.imagineer.telas.livro.TipoDaListaDoLivro
@@ -132,12 +138,14 @@ fun GrafoDeNavegacao() {
             )
         }
         composable<ModelosDeImagem> { TelaModelosDeImagem(aoVoltar = { controle.popBackStack() }) }
+        composable<Armazenamento> { TelaArmazenamento(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracoes> { entrada ->
             TelaConfiguracoes(
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirServidor = { if (entrada.estaNaFrente()) controle.navigate(Configuracao) },
                 aoAbrirPerfisDeRenderizacao = { if (entrada.estaNaFrente()) controle.navigate(PerfisDeRenderizacao) },
                 aoAbrirModelos = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
+                aoAbrirArmazenamento = { if (entrada.estaNaFrente()) controle.navigate(Armazenamento) },
             )
         }
         composable<Lixeira> {
@@ -285,6 +293,18 @@ fun GrafoDeNavegacao() {
                     null
                 },
             )
+        }
+    }
+    // PL8: sem conexão, uma etiqueta pequena no alto de qualquer tela; some quando a rede volta.
+    val online by aplicacao.conexao.online.collectAsState()
+    if (!online) {
+        Surface(
+            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f),
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            shape = androidx.compose.foundation.shape.CircleShape,
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 4.dp),
+        ) {
+            Text(ETIQUETA_SEM_CONEXAO, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
         }
     }
     // O aviso: centralizado, bem embaixo e translúcido, para não esconder o texto que se lê (feedback do Allan).

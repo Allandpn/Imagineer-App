@@ -26,6 +26,12 @@ interface RepositorioDeLivros {
      */
     suspend fun abrirLivro(livroId: Int): ResultadoDaChamada<LivroDetalhe>
 
+    /** O aparelho ainda tem uma cópia deste livro? Serve a PL11 (o servidor diz que o livro não existe mais). */
+    suspend fun temCopiaLocal(livroId: Int): Boolean = false
+
+    /** Apaga o índice e o texto guardados do livro (PL11). Só do aparelho; nada muda no servidor. */
+    suspend fun apagarCopiaLocal(livroId: Int) {}
+
     /**
      * `POST /livros`: importa o EPUB, lendo o arquivo aos poucos.
      *
@@ -117,6 +123,17 @@ class RepositorioDeLivrosPeloRetrofit(
                     resposta
                 }
         }
+    }
+
+    override suspend fun temCopiaLocal(livroId: Int): Boolean {
+        val servidor = provedor.emUso() ?: return false
+        return melhorEsforco { indice.livro(servidor.chave, livroId) } != null
+    }
+
+    override suspend fun apagarCopiaLocal(livroId: Int) {
+        val servidor = provedor.emUso() ?: return
+        melhorEsforco { indice.apagarLivro(servidor.chave, livroId) }
+        melhorEsforco { textos.apagarLivro(servidor.chave, livroId) }
     }
 
     override suspend fun importarLivro(

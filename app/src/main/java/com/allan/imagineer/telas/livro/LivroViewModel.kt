@@ -42,8 +42,8 @@ sealed interface EstadoDoLivro {
         val perfil: PerfilRenderizacao? = null,
     ) : EstadoDoLivro
 
-    /** [motivo] já está escrito para o usuário ler. */
-    data class Erro(val motivo: String) : EstadoDoLivro
+    /** [motivo] já está escrito para o usuário ler. [ofereceApagarCopia]: o servidor diz que o livro não existe mais e o aparelho ainda tem uma cópia (PL11). */
+    data class Erro(val motivo: String, val ofereceApagarCopia: Boolean = false) : EstadoDoLivro
 }
 
 /** O diálogo de editar título, autor e idioma (incremento 7). */
@@ -273,9 +273,19 @@ class LivroViewModel(
                         // as chamadas em andamento e os diálogos, por causa de um detalhe.
                         _avisos.trySend(Aviso("Não consegui atualizar o livro."))
                     } else {
-                        _estado.value = EstadoDoLivro.Erro(resultado.motivo)
+                        // PL11: o servidor não conhece mais o livro, mas o aparelho ainda tem uma cópia: oferece apagá-la (nunca apaga sozinho).
+                        val orfa = resultado.codigoHttp == 404 && livros.temCopiaLocal(livroId)
+                        _estado.value = EstadoDoLivro.Erro(resultado.motivo, ofereceApagarCopia = orfa)
                     }
             }
+        }
+    }
+
+    /** PL11: apaga a cópia do aparelho de um livro que o servidor não tem mais e sai da tela. */
+    fun apagarCopiaLocal() {
+        viewModelScope.launch {
+            livros.apagarCopiaLocal(livroId)
+            _livroRemovido.trySend(Unit)
         }
     }
 

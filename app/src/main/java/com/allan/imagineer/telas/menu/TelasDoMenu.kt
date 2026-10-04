@@ -134,6 +134,7 @@ fun TelaConfiguracoes(
     aoAbrirServidor: () -> Unit,
     aoAbrirPerfisDeRenderizacao: () -> Unit,
     aoAbrirModelos: () -> Unit,
+    aoAbrirArmazenamento: () -> Unit = {},
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val escopo = rememberCoroutineScope()
@@ -148,6 +149,8 @@ fun TelaConfiguracoes(
         LinhaDeConfiguracao("Perfis de renderização", "O estilo visual das imagens de cada livro", aoAbrirPerfisDeRenderizacao)
         HorizontalDivider()
         LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos)
+        HorizontalDivider()
+        LinhaDeConfiguracao("Armazenamento", "O que cada livro ocupa no aparelho", aoAbrirArmazenamento)
         HorizontalDivider()
         Text("Cor de destaque", style = MaterialTheme.typography.titleMedium)
         val escolhida = DestaqueEscolhido.deNome(destaqueGuardado)

@@ -11,6 +11,9 @@ interface RegistroDeDownloads {
     suspend fun baixado(chave: ChaveDoCache, livroId: Int): DownloadGuardado?
     suspend fun guardar(chave: ChaveDoCache, download: DownloadGuardado)
     suspend fun apagar(chave: ChaveDoCache, livroId: Int)
+
+    /** Todos os livros Baixados deste servidor. */
+    suspend fun todos(chave: ChaveDoCache): List<DownloadGuardado>
 }
 
 class RegistroDeDownloadsPeloRoom(private val dao: DaoLocal) : RegistroDeDownloads {
@@ -28,5 +31,25 @@ class RegistroDeDownloadsPeloRoom(private val dao: DaoLocal) : RegistroDeDownloa
 
     override suspend fun apagar(chave: ChaveDoCache, livroId: Int) {
         dao.apagarDownload(chave.identificador, livroId)
+    }
+
+    override suspend fun todos(chave: ChaveDoCache): List<DownloadGuardado> =
+        dao.downloads(chave.identificador).map {
+            DownloadGuardado(it.livroId, it.baixadoEm, it.bytes, it.imagensIds.split(",").mapNotNull { id -> id.toIntOrNull() })
+        }
+}
+
+/** O [EspacoLocal] de verdade, sobre o Room. */
+class EspacoLocalPeloRoom(private val dao: DaoLocal) : EspacoLocal {
+    override suspend fun livros(chave: ChaveDoCache): List<Pair<Int, String>> =
+        dao.livros(chave.identificador).map { linha ->
+            linha.livroId to (runCatching { com.allan.imagineer.rede.jsonDoImagineer.decodeFromString<com.allan.imagineer.rede.LivroDetalhe>(linha.detalheJson).titulo }.getOrNull() ?: "Livro ${linha.livroId}")
+        }
+
+    override suspend fun bytesDeTextos(chave: ChaveDoCache): Map<Int, Long> =
+        dao.textos(chave.identificador).groupBy { it.livroId }.mapValues { (_, linhas) -> linhas.sumOf { it.bytes } }
+
+    override suspend fun apagarRegistrosDeTexto(chave: ChaveDoCache, livroId: Int) {
+        dao.apagarTextosDoLivro(chave.identificador, livroId)
     }
 }

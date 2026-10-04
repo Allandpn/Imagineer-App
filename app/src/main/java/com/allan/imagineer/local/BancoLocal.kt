@@ -61,6 +61,15 @@ abstract class DaoLocal {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun guardarTexto(texto: TextoLocal)
 
+    @Query("SELECT * FROM livro_local WHERE chave = :chave")
+    abstract suspend fun livros(chave: String): List<LivroLocal>
+
+    @Query("SELECT * FROM texto_local WHERE chave = :chave")
+    abstract suspend fun textos(chave: String): List<TextoLocal>
+
+    @Query("SELECT * FROM download_local WHERE chave = :chave")
+    abstract suspend fun downloads(chave: String): List<DownloadLocal>
+
     @Query("SELECT * FROM download_local WHERE chave = :chave AND livroId = :livroId")
     abstract suspend fun download(chave: String, livroId: Int): DownloadLocal?
 

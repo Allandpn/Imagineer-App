@@ -112,6 +112,10 @@ object ModelosDeIa
 @Serializable
 object ModelosDeImagem
 
+/** O espaço que cada livro ocupa no aparelho (PL10). */
+@Serializable
+object Armazenamento
+
 /** Os custos de IA (MN6): só interface. */
 @Serializable
 object Custos

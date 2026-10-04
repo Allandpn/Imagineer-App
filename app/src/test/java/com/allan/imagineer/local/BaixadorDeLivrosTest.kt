@@ -44,6 +44,7 @@ private class RegistroEmMemoria : RegistroDeDownloads {
     override suspend fun baixado(chave: ChaveDoCache, livroId: Int) = linhas[livroId]
     override suspend fun guardar(chave: ChaveDoCache, download: DownloadGuardado) { linhas[download.livroId] = download }
     override suspend fun apagar(chave: ChaveDoCache, livroId: Int) { linhas.remove(livroId) }
+    override suspend fun todos(chave: ChaveDoCache) = linhas.values.toList()
 }
 
 private class FonteFalsa : FonteDoDownload {

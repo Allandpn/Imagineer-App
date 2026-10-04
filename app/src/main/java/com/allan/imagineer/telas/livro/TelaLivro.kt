@@ -168,6 +168,7 @@ fun TelaLivro(
     val downloads by baixador.estados.collectAsState()
     val download = downloads[livroId] ?: com.allan.imagineer.local.EstadoDoDownload.NaoBaixado
     var dialogoDeDownload by remember { mutableStateOf(false) }
+    val scopeDaCopia = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(livroId) {
         baixador.carregar(livroId)
         baixador.completarSeBaixado(livroId)
@@ -203,6 +204,7 @@ fun TelaLivro(
         aoAbrirCapitulo = aoAbrirCapitulo,
         aoAbrirPesquisa = aoAbrirPesquisa,
         aoAbrirLixeira = aoAbrirLixeira,
+        aoApagarCopiaLocal = { viewModel.apagarCopiaLocal(); scopeDaCopia.launch { baixador.remover(livroId) } },
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
         aoContinuarLendo = aoContinuarLendo,
@@ -251,6 +253,7 @@ fun ConteudoDoLivro(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
     aoAbrirLixeira: (() -> Unit)? = null,
+    aoApagarCopiaLocal: () -> Unit = {},
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
@@ -346,6 +349,15 @@ fun ConteudoDoLivro(
                             textAlign = TextAlign.Center,
                         )
                         Button(onClick = aoTentarDeNovo) { Text("Tentar de novo") }
+                        // PL11: o servidor não tem mais o livro, mas o aparelho ainda tem uma cópia: oferece apagá-la (nunca apaga sozinho).
+                        if (estado.ofereceApagarCopia) {
+                            Text(
+                                "O servidor não tem mais este livro, mas ainda há uma cópia dele neste aparelho.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                            )
+                            androidx.compose.material3.OutlinedButton(onClick = aoApagarCopiaLocal) { Text("Apagar a cópia do aparelho") }
+                        }
                     }
                 }
 
