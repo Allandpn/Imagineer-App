@@ -258,7 +258,10 @@ fun ConteudoDoLivro(
         // LY3: "Continuar lendo" é um botão pequeno, só com o ícone, no canto de baixo.
         floatingActionButton = {
             if (selecao == null && continuar != null) {
-                SmallFloatingActionButton(onClick = { aoContinuarLendo(continuar.capituloId, continuar.posicao) }) {
+                SmallFloatingActionButton(
+                    onClick = { aoContinuarLendo(continuar.capituloId, continuar.posicao) },
+                    shape = androidx.compose.foundation.shape.CircleShape, // redondo, como os outros botões (os menus é que são quadrados)
+                ) {
                     Icon(IconesDaTelaDoLivro.continuar, contentDescription = continuar.rotulo)
                 }
             }
