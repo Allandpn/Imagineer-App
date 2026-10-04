@@ -119,6 +119,11 @@ fun FolhaDoDicionario(palavra: String, livroId: Int, aoFechar: () -> Unit) {
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Text(
+                            "Se você desligou algum dicionário, ligue-o em Configurações → Dicionários.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     agruparPorDicionario(atual.resultados).forEachIndexed { indice, (nome, verbetes) ->
                         if (indice > 0) HorizontalDivider()

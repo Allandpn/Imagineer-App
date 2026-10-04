@@ -135,6 +135,8 @@ fun TelaConfiguracoes(
     aoAbrirPerfisDeRenderizacao: () -> Unit,
     aoAbrirModelos: () -> Unit,
     aoAbrirArmazenamento: () -> Unit = {},
+    aoAbrirDicionarios: () -> Unit = {},
+    aoAbrirNarracao: () -> Unit = {},
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val escopo = rememberCoroutineScope()
@@ -149,6 +151,10 @@ fun TelaConfiguracoes(
         LinhaDeConfiguracao("Perfis de renderização", "O estilo visual das imagens de cada livro", aoAbrirPerfisDeRenderizacao)
         HorizontalDivider()
         LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos)
+        HorizontalDivider()
+        LinhaDeConfiguracao("Dicionários", "Quais aparecem ao tocar numa palavra e em que ordem", aoAbrirDicionarios)
+        HorizontalDivider()
+        LinhaDeConfiguracao("Narração", "A voz do botão Ouvir", aoAbrirNarracao)
         HorizontalDivider()
         LinhaDeConfiguracao("Armazenamento", "O que cada livro ocupa no aparelho", aoAbrirArmazenamento)
         HorizontalDivider()

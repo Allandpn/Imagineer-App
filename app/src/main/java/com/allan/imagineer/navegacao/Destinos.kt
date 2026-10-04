@@ -120,6 +120,14 @@ object ModelosDeIa
 @Serializable
 object ModelosDeImagem
 
+/** Os dicionários: liga, desliga e ordem de preferência (RL28). */
+@Serializable
+object Dicionarios
+
+/** A configuração da narração (RL26). */
+@Serializable
+object Narracao
+
 /** O espaço que cada livro ocupa no aparelho (PL10). */
 @Serializable
 object Armazenamento

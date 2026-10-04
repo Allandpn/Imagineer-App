@@ -169,6 +169,14 @@ interface ApiImagineer {
         @Query("todos") todos: Boolean = false,
     ): ConsultaDeDicionario
 
+    /** `GET /dicionario/dicionarios` — os dicionários do servidor, na ordem de preferência, com `ativo` (RL29). */
+    @GET("dicionario/dicionarios")
+    suspend fun dicionarios(): List<DicionarioDoServidor>
+
+    /** `PUT /dicionario/preferencias` — grava a ordem e os desligados; devolve a lista nova (RL29). */
+    @PUT("dicionario/preferencias")
+    suspend fun gravarPreferenciasDosDicionarios(@Body preferencias: PreferenciasDosDicionarios): List<DicionarioDoServidor>
+
     /** `GET /estatisticas/leitura` — o tempo dos últimos 90 dias e o resumo de cada livro (RL17). */
     @GET("estatisticas/leitura")
     suspend fun estatisticasDeLeitura(): EstatisticasDeLeitura
@@ -577,6 +585,14 @@ data class ConfiguracaoAtual(
     /** Os modelos que aceitam **imagens de referência**, com o parâmetro de cada um (W1); o app só usa as chaves. Vazio = nenhum. */
     val modelos_com_referencia: Map<String, String> = emptyMap(),
     val prioridade_ia: String,
+    /** Quem narra (RL21): `APARELHO` (a voz do Android) ou `IA`. Servidor antigo, sem o campo: `APARELHO`. */
+    val narracao_motor: String = "APARELHO",
+    /** `UMA_VOZ` ou `POR_PERSONAGEM` (RL25). */
+    val narracao_modo: String = "UMA_VOZ",
+    /** A voz do motor de IA (RL24); nula = a padrão. */
+    val narracao_voz: String? = null,
+    /** As instruções de tom da narração (RL23). */
+    val narracao_instrucoes: String? = null,
 )
 
 /**

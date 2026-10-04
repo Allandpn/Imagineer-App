@@ -1,5 +1,7 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.menu.TelaNarracao
+import com.allan.imagineer.telas.menu.TelaDicionarios
 import com.allan.imagineer.telas.menu.TelaPerfis
 import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
@@ -144,6 +146,8 @@ fun GrafoDeNavegacao() {
         }
         composable<ModelosDeImagem> { TelaModelosDeImagem(aoVoltar = { controle.popBackStack() }) }
         composable<Armazenamento> { TelaArmazenamento(aoVoltar = { controle.popBackStack() }) }
+        composable<Dicionarios> { TelaDicionarios(aoVoltar = { controle.popBackStack() }) }
+        composable<Narracao> { TelaNarracao(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracoes> { entrada ->
             TelaConfiguracoes(
                 aoVoltar = { controle.popBackStack() },
@@ -151,6 +155,8 @@ fun GrafoDeNavegacao() {
                 aoAbrirPerfisDeRenderizacao = { if (entrada.estaNaFrente()) controle.navigate(PerfisDeRenderizacao) },
                 aoAbrirModelos = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
                 aoAbrirArmazenamento = { if (entrada.estaNaFrente()) controle.navigate(Armazenamento) },
+                aoAbrirDicionarios = { if (entrada.estaNaFrente()) controle.navigate(Dicionarios) },
+                aoAbrirNarracao = { if (entrada.estaNaFrente()) controle.navigate(Narracao) },
             )
         }
         composable<Lixeira> {

@@ -38,6 +38,9 @@ interface RepositorioDeModelos {
 
     /** `PUT /configuracao` com **um** campo (`modelo_traducao` etc.); [modelo] `null` limpa (volta ao padrão). Devolve a configuração nova. */
     suspend fun escolher(campo: String, modelo: String?): ResultadoDaChamada<ConfiguracaoAtual>
+
+    /** `PUT /configuracao` com **vários** campos de uma vez (a narração, RL26); texto vazio limpa o campo. */
+    suspend fun gravar(campos: Map<String, String>): ResultadoDaChamada<ConfiguracaoAtual> = ResultadoDaChamada.Falha("Sem servidor.")
 }
 
 class RepositorioDeModelosPeloRetrofit(private val provedor: ProvedorDeApi) : RepositorioDeModelos {
@@ -75,5 +78,10 @@ class RepositorioDeModelosPeloRetrofit(private val provedor: ProvedorDeApi) : Re
         val api = provedor.obter() ?: return provedor.semServidor()
         // O servidor trata texto vazio como "limpar".
         return chamarApi { api.gravarConfiguracao(mapOf(campo to (modelo ?: ""))) }
+    }
+
+    override suspend fun gravar(campos: Map<String, String>): ResultadoDaChamada<ConfiguracaoAtual> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.gravarConfiguracao(campos) }
     }
 }

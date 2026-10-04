@@ -1,5 +1,10 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import android.os.PersistableBundle
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
@@ -83,7 +88,21 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
                 copiarSelecaoE(visao, contexto) { trecho -> aoMarcar(trecho) }
             }
         },
-    ) { conteudo() }
+    ) {
+        // Copiar aqui é só o meio de pegar o trecho: marcado como sensível, o Android não mostra o aviso de "copiado" (nem o do Samsung,
+        // "copiado para dispositivos conectados"). O texto continua na área de transferência normalmente.
+        val real = LocalClipboard.current
+        val silenciosa = remember(real) { AreaDeTransferenciaSemAviso(real) }
+        CompositionLocalProvider(LocalClipboard provides silenciosa) { conteudo() }
+    }
+}
+
+/** Uma área de transferência que grava o que o app copia **marcado como sensível** (`IS_SENSITIVE`, Android 13+; antes disso é ignorado). */
+private class AreaDeTransferenciaSemAviso(private val real: Clipboard) : Clipboard by real {
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+        clipEntry?.clipData?.description?.extras = PersistableBundle().apply { putBoolean("android.content.extra.IS_SENSITIVE", true) }
+        real.setClipEntry(clipEntry)
+    }
 }
 
 private object ChaveDeGerarImagemDoTrecho
