@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.shape.CircleShape
 import android.widget.Toast
 import androidx.compose.material.icons.filled.PushPin
@@ -537,12 +538,10 @@ private fun LeitorPaginado(
                     // Tablet com o aside aberto: quem fecha é o "X" do próprio painel.
                     painelAberto && aside -> Unit
                     // Celular com o painel aberto: no MESMO canto, o botão de voltar ao texto (P4).
-                    painelAberto -> ExtendedFloatingActionButton(
-                        onClick = aoAlternarPainel,
-                        shape = CircleShape, // pílula, como antes (o tema agora tem cantos retos)
-                        icon = { Icon(Icons.Filled.Description, contentDescription = null) },
-                        text = { Text("Voltar ao texto") },
-                    )
+                    painelAberto -> FloatingActionButton(onClick = aoAlternarPainel, shape = CircleShape) {
+                        // Só o ícone (um documento): já se entende que volta ao texto; o texto fica como descrição para leitor de tela.
+                        Icon(Icons.Filled.Description, contentDescription = "Voltar ao texto")
+                    }
                     // Fechado: aparece e some conforme a rolagem.
                     else -> AnimatedVisibility(visible = botaoVisivel, enter = fadeIn(), exit = fadeOut()) {
                         ExtendedFloatingActionButton(
