@@ -114,4 +114,52 @@ class LidoENoMarcadorTest {
 
         assertEquals(listOf(Triple(1, 5, 1234)), marcador.gravados)
     }
+
+    private fun titulo(vm: CapituloViewModel) = (vm.estado.value as EstadoDoCapitulo.Pronto).capitulo.titulo
+
+    @Test
+    fun `RN2 renomear muda o titulo na hora e manda o servidor`() = runTest {
+        val capitulos = CapitulosQueMarcam()
+        val vm = vmPronto(capitulos)
+
+        vm.renomear("  O muro  ")
+        assertEquals("O muro", titulo(vm))
+        advanceUntilIdle()
+
+        assertEquals(listOf(CapituloAjuste(titulo = "O muro")), capitulos.ajustes)
+    }
+
+    @Test
+    fun `RN3 titulo em branco volta ao padrao (nulo na tela, vazio no servidor)`() = runTest {
+        val capitulos = CapitulosQueMarcam()
+        val vm = vmPronto(capitulos)
+
+        vm.renomear("   "); advanceUntilIdle()
+
+        assertEquals(null, titulo(vm))
+        assertEquals(listOf(CapituloAjuste(titulo = "")), capitulos.ajustes)
+    }
+
+    @Test
+    fun `RN2 se o servidor recusar o titulo volta ao que era e o motivo chega a quem pediu`() = runTest {
+        val capitulos = CapitulosQueMarcam().also { it.resposta = ResultadoDaChamada.Falha("Sem conexão.") }
+        val vm = vmPronto(capitulos)
+        val motivos = mutableListOf<String>()
+
+        vm.renomear("Novo") { motivos += it }; advanceUntilIdle()
+
+        assertEquals("Catelyn", titulo(vm))
+        assertEquals(listOf("Sem conexão."), motivos)
+    }
+
+    @Test
+    fun `renomear para o mesmo titulo nao chama o servidor`() = runTest {
+        val capitulos = CapitulosQueMarcam()
+        val vm = vmPronto(capitulos)
+
+        vm.renomear("Catelyn"); advanceUntilIdle()
+
+        assertTrue(capitulos.ajustes.isEmpty())
+    }
 }
+

@@ -101,6 +101,26 @@ class CapituloViewModel(
         }
     }
 
+    /**
+     * Renomeia o capítulo (RN2, RN3). **Otimista**: o título muda na hora; se o servidor recusar, volta ao que era e [aoFalhar] recebe o
+     * motivo. Título em branco volta ao padrão ("Capítulo N").
+     */
+    fun renomear(novoTitulo: String, aoFalhar: (String) -> Unit = {}) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        val anterior = pronto.capitulo.titulo
+        val novo = novoTitulo.trim()
+        if (novo == anterior.orEmpty()) return
+        _estado.value = pronto.copy(capitulo = pronto.capitulo.copy(titulo = novo.ifEmpty { null }))
+        viewModelScope.launch {
+            val resultado = capitulos.ajustarCapitulo(capituloId, com.allan.imagineer.rede.CapituloAjuste(titulo = novo))
+            if (resultado is ResultadoDaChamada.Falha) {
+                val agora = _estado.value as? EstadoDoCapitulo.Pronto ?: return@launch
+                _estado.value = agora.copy(capitulo = agora.capitulo.copy(titulo = anterior))
+                aoFalhar(resultado.motivo)
+            }
+        }
+    }
+
     /** O leitor chegou ao fim do texto (LE4, LE7): marca como lido, uma vez; reler não desmarca (só a pessoa desmarca). */
     fun chegouAoFim() = marcarLido(true)
 

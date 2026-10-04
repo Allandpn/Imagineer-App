@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import android.widget.Toast
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
@@ -351,6 +352,7 @@ private fun LeitorPaginado(
     }
 
     var infoAberta by remember { mutableStateOf(false) }
+    val contextoDoTitulo = LocalContext.current
     if (infoAberta && capituloDaTela != null) {
         DialogoDoCapitulo(
             titulo = tituloDoCapitulo(capituloDaTela.titulo, capituloDaTela.ordem),
@@ -362,6 +364,10 @@ private fun LeitorPaginado(
             aoFechar = { infoAberta = false },
             lido = capituloDaTela.lido,
             aoAlternarLido = { vmDaTela.marcarLido(!capituloDaTela.lido) },
+            tituloGuardado = capituloDaTela.titulo.orEmpty(),
+            aoRenomear = { novo ->
+                vmDaTela.renomear(novo) { motivo -> Toast.makeText(contextoDoTitulo, motivo, Toast.LENGTH_SHORT).show() }
+            },
         )
     }
 

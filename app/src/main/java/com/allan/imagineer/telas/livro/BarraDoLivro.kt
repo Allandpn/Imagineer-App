@@ -1,5 +1,12 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import com.allan.imagineer.telas.comum.MarcaDeLido
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -126,10 +133,33 @@ fun DialogoDoCapitulo(
     /** LE5: se o capítulo está lido, e como marcar/desmarcar à mão (nulo = sem o botão). */
     lido: Boolean = false,
     aoAlternarLido: (() -> Unit)? = null,
+    /** RN1: o título como está guardado (vazio = o padrão "Capítulo N") e como renomear; nulo = sem o lápis. */
+    tituloGuardado: String = "",
+    aoRenomear: ((String) -> Unit)? = null,
 ) {
+    // RN1: o lápis ao lado do título troca o título por um campo, com ✓ (salvar) e X (cancelar).
+    var editando by remember { mutableStateOf(false) }
+    var texto by remember(tituloGuardado) { mutableStateOf(tituloGuardado) }
     AlertDialog(
         onDismissRequest = aoFechar,
-        title = { TituloComFechar(titulo, aoFechar) },
+        title = {
+            if (editando && aoRenomear != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = texto,
+                        onValueChange = { texto = it },
+                        label = { Text("Título do capítulo") },
+                        placeholder = { Text("Capítulo $ordem") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { aoRenomear(texto); editando = false }) { Icon(Icons.Filled.Check, contentDescription = "Salvar o título") }
+                    IconButton(onClick = { texto = tituloGuardado; editando = false }) { Icon(Icons.Filled.Close, contentDescription = "Cancelar") }
+                }
+            } else {
+                TituloComFechar(titulo, aoFechar, aoEditar = aoRenomear?.let { { editando = true } })
+            }
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(if (totalDeCapitulos != null) "Capítulo $ordem de $totalDeCapitulos" else "Capítulo $ordem")
@@ -164,9 +194,11 @@ fun DialogoDoCapitulo(
 
 /** O título de um diálogo de informação, com um **X** à direita para fechar (no lugar do botão "Fechar" de texto). */
 @Composable
-private fun TituloComFechar(titulo: String, aoFechar: () -> Unit) {
+private fun TituloComFechar(titulo: String, aoFechar: () -> Unit, aoEditar: (() -> Unit)? = null) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(titulo, modifier = Modifier.weight(1f))
+        // O lápis: indica que o título pode ser renomeado.
+        aoEditar?.let { IconButton(onClick = it) { Icon(Icons.Filled.Edit, contentDescription = "Renomear o capítulo") } }
         IconButton(onClick = aoFechar) { Icon(Icons.Filled.Close, contentDescription = "Fechar") }
     }
 }
