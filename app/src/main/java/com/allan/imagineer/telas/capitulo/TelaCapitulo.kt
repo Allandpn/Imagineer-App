@@ -5,8 +5,10 @@ import com.allan.imagineer.telas.livro.IconesDaTelaDoLivro
 import com.allan.imagineer.telas.livro.IconeComSelo
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -484,31 +486,34 @@ private fun LeitorPaginado(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(titulo) },
-                navigationIcon = {
-                    IconButton(onClick = aoVoltar) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
-                },
-                actions = {
-                    // LV7: os metadados do capítulo (número, tamanho, tempo de leitura, pendências), ao lado de pesquisar.
-                    if (capituloDaTela != null) {
-                        IconeComSelo(
-                            icone = IconesDaTelaDoLivro.metadados,
-                            descricao = "Metadados do capítulo",
-                            selo = capituloDaTela.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
-                            aoTocar = { infoAberta = true },
-                        )
-                    }
-                    // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
-                    if (livroDoCapitulo != null) {
-                        IconButton(onClick = { aoPesquisar(livroDoCapitulo, idDaTela) }) {
-                            Icon(Icons.Filled.Search, contentDescription = "Pesquisar")
+            // Como o botão de IA: some ao rolar para baixo e volta ao rolar para cima (e no topo e no fim do texto).
+            AnimatedVisibility(visible = botaoVisivel, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                TopAppBar(
+                    title = { Text(titulo) },
+                    navigationIcon = {
+                        IconButton(onClick = aoVoltar) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                         }
-                    }
-                },
-            )
+                    },
+                    actions = {
+                        // LV7: os metadados do capítulo (número, tamanho, tempo de leitura, pendências), ao lado de pesquisar.
+                        if (capituloDaTela != null) {
+                            IconeComSelo(
+                                icone = IconesDaTelaDoLivro.metadados,
+                                descricao = "Metadados do capítulo",
+                                selo = capituloDaTela.sugestoes_pendentes.takeIf { it > 0 }?.toString(),
+                                aoTocar = { infoAberta = true },
+                            )
+                        }
+                        // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
+                        if (livroDoCapitulo != null) {
+                            IconButton(onClick = { aoPesquisar(livroDoCapitulo, idDaTela) }) {
+                                Icon(Icons.Filled.Search, contentDescription = "Pesquisar")
+                            }
+                        }
+                    },
+                )
+            }
         },
         floatingActionButton = {
             // O botão de IA, no canto inferior direito (P3). Só com o texto na tela.
