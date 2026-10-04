@@ -292,6 +292,22 @@ interface ApiImagineer {
     @DELETE("lixeira/livros")
     suspend fun esvaziarLixeiraDeLivros(): LixeiraEsvaziada
 
+    /** `GET /lixeira/frames` — as cenas e retratos da lixeira, com prompts, imagens e espaço (LT3). */
+    @GET("lixeira/frames")
+    suspend fun lixeiraDeFrames(): FramesDaLixeira
+
+    /** `POST /lixeira/frames/{id}/restaurar` — volta ao capítulo com prompts e imagens (LT3). */
+    @POST("lixeira/frames/{id}/restaurar")
+    suspend fun restaurarFrameDaLixeira(@Path("id") frameId: Int): FrameNaLixeira
+
+    /** `DELETE /lixeira/frames/{id}` — apaga de vez a cena ou o retrato, com prompts e imagens (LT3). Não tem volta. */
+    @DELETE("lixeira/frames/{id}")
+    suspend fun apagarFrameDeVez(@Path("id") frameId: Int)
+
+    /** `DELETE /lixeira/frames` — apaga de vez todas as cenas e retratos da lixeira (LT3). */
+    @DELETE("lixeira/frames")
+    suspend fun esvaziarLixeiraDeFrames(): LixeiraEsvaziada
+
     /** `DELETE /lixeira/imagens` — esvazia a lixeira inteira (LX5). Não tem volta. */
     @DELETE("lixeira/imagens")
     suspend fun esvaziarALixeira(): LixeiraEsvaziada

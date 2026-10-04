@@ -271,14 +271,14 @@ internal fun DialogoDeEdicaoDaCena(alvo: EdicaoDaCena, acoes: AcoesDoPainel) {
 internal fun DialogoApagarFrame(alvo: ApagandoFrame, acoes: AcoesDoPainel) {
     AlertDialog(
         onDismissRequest = acoes.aoCancelarApagarFrame,
-        title = { Text("Apagar esta cena?") },
+        title = { Text("Mover a cena para a lixeira?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     if (alvo.deSugestao) {
-                        "Os prompts e as imagens de «${alvo.rotulo}» serão apagados, sem volta. A cena continua na lista, como pendente."
+                        "«${alvo.rotulo}» vai para a lixeira com os prompts e as imagens; dá para restaurar. A cena continua na lista, como pendente."
                     } else {
-                        "«${alvo.rotulo}» será apagada com os prompts e as imagens dela. Não tem volta."
+                        "«${alvo.rotulo}» vai para a lixeira com os prompts e as imagens dela; dá para restaurar."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -287,7 +287,7 @@ internal fun DialogoApagarFrame(alvo: ApagandoFrame, acoes: AcoesDoPainel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = acoes.aoConfirmarApagarFrame, enabled = !alvo.apagando) { Text("Apagar", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = acoes.aoConfirmarApagarFrame, enabled = !alvo.apagando) { Text("Mover", color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = { TextButton(onClick = acoes.aoCancelarApagarFrame, enabled = !alvo.apagando) { Text("Cancelar") } },
     )

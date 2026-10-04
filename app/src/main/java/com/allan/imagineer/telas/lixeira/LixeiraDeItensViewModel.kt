@@ -3,6 +3,8 @@ package com.allan.imagineer.telas.lixeira
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.rede.LixeiraEsvaziada
+import com.allan.imagineer.rede.FrameNaLixeira
+import com.allan.imagineer.rede.RepositorioDaLixeiraDeFrames
 import com.allan.imagineer.rede.RepositorioDaLixeiraDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.LivroNaLixeira
@@ -213,4 +215,59 @@ fun detalhesDoLivroNaLixeira(livro: LivroNaLixeira): String {
         else -> "${livro.total_de_imagens} imagens (${descreverTamanho(livro.tamanho_das_imagens_em_bytes)})"
     }
     return "$capitulos · $imagens\nApagado em ${dataDaLixeira(livro.apagado_em)}"
+}
+
+// --------------------------------------------------------------------------- //
+// Cenas e retratos (LT3)
+// --------------------------------------------------------------------------- //
+
+/** Uma cena ou um retrato da lixeira como item. */
+data class FrameDaLixeira(val frame: FrameNaLixeira) : ItemDaLixeira {
+    override val id: Int get() = frame.id
+}
+
+/** A fonte da lixeira de **cenas e retratos**. */
+class FonteDaLixeiraDeFrames(private val repositorio: RepositorioDaLixeiraDeFrames) : FonteDaLixeira<FrameDaLixeira> {
+    override val textos = TextosDaLixeira(
+        restaurado = "Restaurada: voltou ao capítulo com os prompts e as imagens.",
+        apagadoDeVez = "Apagada de vez, com os prompts e as imagens.",
+        tituloDeApagar = "Apagar de vez esta cena?",
+        avisoDeApagar = "A cena (ou o retrato) será apagada de vez, com os prompts e as imagens (inclusive os arquivos no servidor). Não tem volta.",
+        tituloDeEsvaziar = "Apagar de vez todas as cenas e retratos da lixeira?",
+        vazia = "Nenhuma cena ou retrato na lixeira. O que você apagar nos capítulos fica aqui até você decidir apagar de vez.",
+        resumo = { quantos, bytes -> (if (quantos == 1) "1 item" else "$quantos itens") + " · " + descreverTamanho(bytes) },
+        avisoDeEsvaziar = { quantos, bytes ->
+            val itens = if (quantos == 1) "1 cena ou retrato" else "$quantos cenas e retratos"
+            "$itens serão apagados de vez, com os prompts e as imagens (${descreverTamanho(bytes)}). Não tem volta."
+        },
+        recadoDeEsvaziada = { removidos, bytes ->
+            (if (removidos == 1) "1 apagada" else "$removidos apagadas") + " de vez; ${descreverTamanho(bytes)} liberados."
+        },
+    )
+
+    override suspend fun listar(): ResultadoDaChamada<ItensDaLixeira<FrameDaLixeira>> =
+        when (val r = repositorio.listar()) {
+            is ResultadoDaChamada.Sucesso -> ResultadoDaChamada.Sucesso(ItensDaLixeira(r.dado.frames.map(::FrameDaLixeira), r.dado.total_em_bytes))
+            is ResultadoDaChamada.Falha -> r
+        }
+
+    override suspend fun restaurar(id: Int) = repositorio.restaurar(id)
+    override suspend fun apagarDeVez(id: Int) = repositorio.apagarDeVez(id)
+    override suspend fun esvaziar() = repositorio.esvaziar()
+}
+
+/** O nome que reconhece o frame: o título; no retrato, "Retrato de Fulano". */
+fun tituloDoFrameNaLixeira(frame: FrameNaLixeira): String =
+    if (frame.tipo == "PERSONAGEM") "Retrato de ${frame.nome_do_elemento ?: frame.titulo}" else frame.titulo
+
+/** "Livro · Capítulo 3: Título", "2 prompts · 1 imagem (120 KB)" e quando foi apagado. */
+fun detalhesDoFrameNaLixeira(frame: FrameNaLixeira): String {
+    val capitulo = frame.titulo_do_capitulo?.let { "Capítulo ${frame.ordem_do_capitulo}: $it" } ?: "Capítulo ${frame.ordem_do_capitulo}"
+    val prompts = if (frame.total_de_prompts == 1) "1 prompt" else "${frame.total_de_prompts} prompts"
+    val imagens = when (frame.total_de_imagens) {
+        0 -> "sem imagens"
+        1 -> "1 imagem (${descreverTamanho(frame.tamanho_em_bytes)})"
+        else -> "${frame.total_de_imagens} imagens (${descreverTamanho(frame.tamanho_em_bytes)})"
+    }
+    return "${frame.titulo_do_livro} · $capitulo\n$prompts · $imagens\nApagada em ${dataDaLixeira(frame.apagado_em)}"
 }
