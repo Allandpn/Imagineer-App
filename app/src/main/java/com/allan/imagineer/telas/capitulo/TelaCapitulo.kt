@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.capitulo
 
+import kotlinx.coroutines.launch
+import com.allan.imagineer.dados.PreferenciasDeLeitura
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.foundation.shape.CircleShape
 import android.widget.Toast
@@ -270,6 +273,20 @@ private fun LeitorPaginado(
     val painel = painelViewModel(idDaTela)
     val estadoDoPainel by painel.estado.collectAsState()
 
+    // RL1, RL8: a folha "Aa" e os efeitos da leitura (tela acesa e brilho enquanto o capítulo está aberto).
+    val aplicacaoDaLeitura = LocalContext.current.applicationContext as ImagineerApp
+    val preferenciasDaTela by aplicacaoDaLeitura.armazenamento.preferenciasDeLeitura.collectAsState(initial = PreferenciasDeLeitura())
+    var folhaDeLeitura by remember { mutableStateOf(false) }
+    val escopoDaLeitura = androidx.compose.runtime.rememberCoroutineScope()
+    EfeitosDaLeitura(preferenciasDaTela.telaAcesa, preferenciasDaTela.brilho)
+    if (folhaDeLeitura) {
+        FolhaDeLeitura(
+            preferencias = preferenciasDaTela,
+            aoMudar = { nova -> escopoDaLeitura.launch { aplicacaoDaLeitura.armazenamento.salvarPreferenciasDeLeitura(nova) } },
+            aoFechar = { folhaDeLeitura = false },
+        )
+    }
+
     // N4: qual elemento já tem retrato vem do artefato dele; e, ao criar um frame, os ícones se relêem.
     val artefatosDaTela by vmDaTela.artefatos.collectAsState()
     LaunchedEffect(estadoDoPainel.versaoDosFrames) { if (estadoDoPainel.versaoDosFrames > 0) vmDaTela.carregarArtefatos() }
@@ -523,6 +540,10 @@ private fun LeitorPaginado(
                         }
                     },
                     actions = {
+                        // RL1: a aparência da leitura (letra, tema, tela acesa).
+                        IconButton(onClick = { folhaDeLeitura = true }) {
+                            Icon(Icons.Filled.TextFields, contentDescription = "Aparência da leitura")
+                        }
                         // LV7: os metadados do capítulo (número, tamanho, tempo de leitura, pendências), ao lado de pesquisar.
                         if (capituloDaTela != null) {
                             IconeComSelo(
@@ -697,6 +718,9 @@ private fun PaginaDoCapitulo(
     // A posição de leitura desta página; o pager a guarda por chave, e o painel em tela cheia não a perde.
     val posicaoDeLeitura = rememberLazyListState()
 
+    val aplicacaoDaPagina = LocalContext.current.applicationContext as ImagineerApp
+    val leitura by aplicacaoDaPagina.armazenamento.preferenciasDeLeitura.collectAsState(initial = PreferenciasDeLeitura())
+    ComTemaDeLeitura(leitura.tema) {
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         when (val atual = estado) {
             EstadoDoCapitulo.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -738,6 +762,7 @@ private fun PaginaDoCapitulo(
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
             )
         }
+    }
     }
 }
 
@@ -811,12 +836,21 @@ private fun LeitorDeTexto(
     // A largura do texto (I2, I3): a coluna de leitura tem no máximo 600 dp, menos o respiro dos lados.
     val medidor = rememberTextMeasurer()
     val densidade = LocalDensity.current
+    // RL1 a RL6: o tamanho, a família, a entrelinha e o alinhamento vêm das preferências de leitura.
+    val aplicacaoDoTexto = LocalContext.current.applicationContext as ImagineerApp
+    val leitura by aplicacaoDoTexto.armazenamento.preferenciasDeLeitura.collectAsState(initial = PreferenciasDeLeitura())
+    val margem = leitura.margem.dp.dp
     val estiloDoParagrafo = MaterialTheme.typography.bodyLarge.let {
-        // Espaçamento de linha ampliado: leitura longa cansa menos.
-        it.copy(lineHeight = it.fontSize * 1.6)
+        val tamanho = it.fontSize * (leitura.tamanho / 100f)
+        it.copy(
+            fontSize = tamanho,
+            lineHeight = tamanho * leitura.entrelinha,
+            fontFamily = familiaDaLetra(leitura.familia),
+            textAlign = if (leitura.justificado) TextAlign.Justify else TextAlign.Start,
+        )
     }
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        val larguraDoTexto = minOf(maxWidth, LARGURA_MAXIMA_DA_LEITURA) - 32.dp
+        val larguraDoTexto = minOf(maxWidth, LARGURA_MAXIMA_DA_LEITURA) - margem * 2
         val larguraDoQuadro = larguraDoTexto / 2 // I2 (revisto): metade da área de leitura
         val larguraEstreita = larguraDoTexto - larguraDoQuadro - ESPACO_AO_LADO_DO_QUADRO
         val artefatosDo: (Int) -> List<Artefato> = { distribuidos.porParagrafo[it].orEmpty() }
@@ -898,7 +932,7 @@ private fun LeitorDeTexto(
         SelectionContainer(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth().nestedScroll(ouvinte)) {
             LazyColumn(
                 state = listaDeParagrafos,
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                contentPadding = PaddingValues(horizontal = margem, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { CabecalhoDoCapitulo(capitulo) }

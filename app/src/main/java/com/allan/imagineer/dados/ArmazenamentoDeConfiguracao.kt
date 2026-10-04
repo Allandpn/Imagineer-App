@@ -33,6 +33,11 @@ interface ArmazenamentoDeConfiguracao {
     val corDeDestaque: Flow<String?> get() = flowOf(null)
 
     suspend fun salvarCorDeDestaque(nome: String) {}
+
+    /** A aparência da leitura (RL1 a RL8); sem nada guardado, o padrão. */
+    val preferenciasDeLeitura: Flow<PreferenciasDeLeitura> get() = flowOf(PreferenciasDeLeitura())
+
+    suspend fun salvarPreferenciasDeLeitura(preferencias: PreferenciasDeLeitura) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -61,7 +66,15 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
         contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_COR_DE_DESTAQUE] = nome }
     }
 
+    override val preferenciasDeLeitura: Flow<PreferenciasDeLeitura> =
+        contexto.armazenamento.data.map { preferencias -> PreferenciasDeLeitura.deTexto(preferencias[CHAVE_PREFERENCIAS_DE_LEITURA]) }
+
+    override suspend fun salvarPreferenciasDeLeitura(preferencias: PreferenciasDeLeitura) {
+        contexto.armazenamento.edit { it[CHAVE_PREFERENCIAS_DE_LEITURA] = preferencias.paraTexto() }
+    }
+
     private companion object {
+        val CHAVE_PREFERENCIAS_DE_LEITURA = stringPreferencesKey("preferencias_de_leitura")
         val CHAVE_COR_DE_DESTAQUE = stringPreferencesKey("cor_de_destaque")
         val CHAVE_URL = stringPreferencesKey("url_do_servidor")
         val CHAVE_MODO_DA_BIBLIOTECA = stringPreferencesKey("modo_da_biblioteca")
