@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -69,6 +70,8 @@ fun TelaElementos(
     livroId: Int,
     aoVoltar: () -> Unit,
     aoAbrirFicha: (elementoId: Int) -> Unit,
+    /** Abre o capítulo com a área de IA do elemento (LV3). */
+    aoAbrirNoCapitulo: (capituloId: Int, elementoId: Int) -> Unit = { _, _ -> },
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: ListaDeElementosViewModel = viewModel(
@@ -107,7 +110,7 @@ fun TelaElementos(
                             Button(onClick = viewModel::carregar) { Text("Tentar de novo") }
                         }
                     }
-                    is CargaDaLista.Pronta -> ConteudoDaLista(carga.elementos, estado, viewModel, aoAbrirFicha)
+                    is CargaDaLista.Pronta -> ConteudoDaLista(carga.elementos, estado, viewModel, aoAbrirFicha, aoAbrirNoCapitulo)
                 }
             }
         }
@@ -121,6 +124,7 @@ private fun ConteudoDaLista(
     estado: EstadoDaLista,
     viewModel: ListaDeElementosViewModel,
     aoAbrirFicha: (Int) -> Unit,
+    aoAbrirNoCapitulo: (capituloId: Int, elementoId: Int) -> Unit,
 ) {
     val visiveis = filtrarElementos(todos, estado.busca, estado.tipo)
     LazyColumn(
@@ -159,13 +163,25 @@ private fun ConteudoDaLista(
         } else if (visiveis.isEmpty()) {
             item { Text("Nenhum elemento encontrado.", style = MaterialTheme.typography.bodyLarge) }
         }
-        items(visiveis, key = { it.id }) { elemento -> LinhaDoElemento(elemento) { aoAbrirFicha(elemento.id) } }
+        items(visiveis, key = { it.id }) { elemento ->
+            LinhaDoElemento(
+                elemento = elemento,
+                capitulos = estado.capitulosDosElementos[elemento.id].orEmpty(),
+                aoAbrirNoCapitulo = { capituloId -> aoAbrirNoCapitulo(capituloId, elemento.id) },
+            ) { aoAbrirFicha(elemento.id) }
+        }
     }
 }
 
 /** Nome, tipo, quantos estados e um trecho do estado mais recente (E20). */
 @Composable
-private fun LinhaDoElemento(elemento: ElementoDoLivro, aoTocar: () -> Unit) {
+@OptIn(ExperimentalLayoutApi::class)
+private fun LinhaDoElemento(
+    elemento: ElementoDoLivro,
+    capitulos: List<CapituloDoElemento>,
+    aoAbrirNoCapitulo: (capituloId: Int) -> Unit,
+    aoTocar: () -> Unit,
+) {
     val urlBase = urlDoServidorEmUso()
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar)) {
       Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -192,6 +208,14 @@ private fun LinhaDoElemento(elemento: ElementoDoLivro, aoTocar: () -> Unit) {
             )
             elemento.estado_vigente?.let {
                 Text(it.descricao, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            // LV3: os capítulos em que ele aparece; tocar num abre o capítulo com a área de IA dele.
+            if (capitulos.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    capitulos.forEach { capitulo ->
+                        AssistChip(onClick = { aoAbrirNoCapitulo(capitulo.capituloId) }, label = { Text(capitulo.rotulo, style = MaterialTheme.typography.labelSmall) })
+                    }
+                }
             }
         }
       }

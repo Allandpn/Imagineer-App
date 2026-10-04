@@ -118,6 +118,7 @@ fun GrafoDeNavegacao() {
             val destino = entrada.toRoute<Capitulo>()
             TelaCapitulo(
                 capituloId = destino.capituloId,
+                abrirElementoId = destino.abrirElementoId,
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa
@@ -157,6 +158,9 @@ fun GrafoDeNavegacao() {
                     if (entrada.estaNaFrente()) {
                         controle.navigate(FichaDoElemento(elementoId, destino.livroId)) { launchSingleTop = true }
                     }
+                },
+                aoAbrirNoCapitulo = { capituloId, elementoId ->
+                    if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloId, elementoId))
                 },
             )
         }

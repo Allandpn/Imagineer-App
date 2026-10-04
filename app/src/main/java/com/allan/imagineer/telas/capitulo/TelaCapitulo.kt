@@ -153,6 +153,8 @@ fun TelaCapitulo(
     aoVoltar: () -> Unit,
     /** Abre a ficha de um elemento (item 7.8). `doCapitulo`: veio de uma sugestão deste capítulo. */
     aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
+    /** LV3: veio dos chips da lista de elementos; ao entrar, abre o painel de IA já no modal deste elemento. */
+    abrirElementoId: Int? = null,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
@@ -170,7 +172,9 @@ fun TelaCapitulo(
 
     // rememberSaveable: o painel aberto sobrevive a girar o aparelho (P4); fica acima do pager, que é refeito
     // quando a lista completa chega.
-    var painelAberto by rememberSaveable { mutableStateOf(false) }
+    var painelAberto by rememberSaveable { mutableStateOf(abrirElementoId != null) }
+    // Pedido de abrir um elemento (LV3): vale uma vez só; depois de atendido (ou girando o aparelho) não reabre.
+    var elementoPendente by rememberSaveable { mutableStateOf(abrirElementoId) }
 
     // O pager é refeito uma vez, quando a lista completa chega (de [capituloId] sozinho para todos os capítulos).
     // O que está dentro das páginas (textos, rolagem) vive nos ViewModels, e a página aberta volta no mesmo ponto.
@@ -182,6 +186,8 @@ fun TelaCapitulo(
             aoFecharPainel = { painelAberto = false },
             aoVoltar = aoVoltar,
             aoAbrirFicha = aoAbrirFicha,
+            elementoPendente = elementoPendente,
+            aoAtenderElementoPendente = { elementoPendente = null },
         )
     }
 }
@@ -195,6 +201,8 @@ private fun LeitorPaginado(
     aoFecharPainel: () -> Unit,
     aoVoltar: () -> Unit,
     aoAbrirFicha: (elementoId: Int, livroId: Int, capituloId: Int?) -> Unit,
+    elementoPendente: Int?,
+    aoAtenderElementoPendente: () -> Unit,
 ) {
     val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
     val aside = usarAside(LocalConfiguration.current.screenWidthDp)
@@ -237,6 +245,31 @@ private fun LeitorPaginado(
     DisposableEffect(painelAberto, idDaTela) {
         servicoDeAnalises.definirPainelVisivel(if (painelAberto) idDaTela else null)
         onDispose { servicoDeAnalises.definirPainelVisivel(null) }
+    }
+
+    // LV3: chegou pelos chips da lista de elementos: com a lista de sugestões lida, abre o modal do elemento (ou, sem sugestão
+    // dele neste capítulo, a ficha).
+    LaunchedEffect(elementoPendente, estadoDoPainel.conteudo, livroDoCapitulo) {
+        val id = elementoPendente ?: return@LaunchedEffect
+        when (val conteudo = estadoDoPainel.conteudo) {
+            is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Pronto -> {
+                val sugestaoId = com.allan.imagineer.telas.capitulo.painel.sugestaoDoElemento(conteudo.sugestoes, id)
+                if (sugestaoId != null) {
+                    painel.abrirModal(sugestaoId)
+                    aoAtenderElementoPendente()
+                } else if (livroDoCapitulo != null) {
+                    aoAbrirFicha(id, livroDoCapitulo, idDaTela)
+                    aoAtenderElementoPendente()
+                }
+            }
+            is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.NuncaAnalisado,
+            is com.allan.imagineer.telas.capitulo.painel.ConteudoDoPainel.Erro,
+            -> if (livroDoCapitulo != null) {
+                aoAbrirFicha(id, livroDoCapitulo, idDaTela)
+                aoAtenderElementoPendente()
+            }
+            else -> Unit
+        }
     }
 
     // Ao voltar da ficha (E31), o que foi editado lá pode mudar os cartões: o painel relê no lugar.

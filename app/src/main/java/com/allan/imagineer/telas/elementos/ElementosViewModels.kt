@@ -30,6 +30,8 @@ data class EstadoDaLista(
     val carga: CargaDaLista = CargaDaLista.Carregando,
     val busca: String = "",
     val tipo: String? = null,
+    /** Em que capítulos cada elemento aparece (LV3); lido à parte: se falhar, a lista só fica sem os chips. */
+    val capitulosDosElementos: Map<Int, List<CapituloDoElemento>> = emptyMap(),
 )
 
 /** A lógica da lista de elementos: ler, buscar e filtrar por tipo. */
@@ -54,6 +56,10 @@ class ListaDeElementosViewModel(
                     _estado.update { it.copy(carga = CargaDaLista.Pronta(resultado.dado)) }
                 is ResultadoDaChamada.Falha ->
                     if (!jaTemLista) _estado.update { it.copy(carga = CargaDaLista.Erro(resultado.motivo)) }
+            }
+            val porCapitulo = elementos.elementosPorCapitulo(livroId)
+            if (porCapitulo is ResultadoDaChamada.Sucesso) {
+                _estado.update { it.copy(capitulosDosElementos = capitulosPorElemento(porCapitulo.dado)) }
             }
         }
     }

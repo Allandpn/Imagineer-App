@@ -98,3 +98,24 @@ fun resumoDaCena(cena: CenaDoElemento): String =
 
 /** Esta imagem da ficha pode virar a canônica do retrato dela (CAN6)? Só se ainda não é. */
 fun podeSerCanonica(imagem: ImagemDoElemento): Boolean = !imagem.canonica
+
+/** Um capítulo em que o elemento aparece, para o chip da lista (LV3). */
+data class CapituloDoElemento(val capituloId: Int, val ordem: Int, val titulo: String?) {
+    /** O texto curto do chip: "Cap. 3". */
+    val rotulo: String get() = "Cap. $ordem"
+}
+
+/**
+ * Inverte o `elementos-por-capitulo` (capítulo → elementos) em **elemento → capítulos**, na ordem do livro, para os chips da lista
+ * de elementos (LV3). Sem rota nova: é a mesma resposta que o seletor de vínculo já usa.
+ */
+fun capitulosPorElemento(porCapitulo: List<com.allan.imagineer.rede.CapituloComElementos>): Map<Int, List<CapituloDoElemento>> {
+    val resultado = mutableMapOf<Int, MutableList<CapituloDoElemento>>()
+    porCapitulo.sortedBy { it.ordem }.forEach { capitulo ->
+        capitulo.elementos.forEach { elemento ->
+            resultado.getOrPut(elemento.elemento_id) { mutableListOf() }
+                .add(CapituloDoElemento(capitulo.capitulo_id, capitulo.ordem, capitulo.titulo))
+        }
+    }
+    return resultado
+}

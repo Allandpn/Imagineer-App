@@ -587,6 +587,13 @@ const val ROTULO_OCULTAR_DO_CAPITULO = "Ocultar do capítulo"
 /** O rótulo da ação de ocultar no painel: mostra de novo se já está oculta (OC1, OC3). */
 fun rotuloDaOcultacao(oculta: Boolean): String = if (oculta) "Mostrar no capítulo" else ROTULO_OCULTAR_DO_CAPITULO
 
+/**
+ * A sugestão do capítulo que corresponde ao [elementoId] (o elemento cadastrado que ela casou), para abrir a área de IA dele ao
+ * chegar pelos chips da lista de elementos (LV3). `null` = o capítulo não tem sugestão desse elemento.
+ */
+fun sugestaoDoElemento(sugestoes: com.allan.imagineer.rede.SugestoesDeCapitulo, elementoId: Int): Int? =
+    sugestoes.elementos.firstOrNull { it.elemento_casado?.id == elementoId }?.id
+
 /** O botão que apaga o frame da cena, com os prompts e as imagens dele. */
 const val ROTULO_APAGAR_A_CENA = "Apagar a cena"
 

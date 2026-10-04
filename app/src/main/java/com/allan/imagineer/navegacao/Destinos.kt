@@ -25,7 +25,11 @@ data class Livro(val livroId: Int)
  * página para os vizinhos sem sair da tela (item 7.5c).
  */
 @Serializable
-data class Capitulo(val capituloId: Int)
+data class Capitulo(
+    val capituloId: Int,
+    /** Quando vem da lista de elementos (LV3): abre a área de IA deste elemento ao entrar no capítulo. */
+    val abrirElementoId: Int? = null,
+)
 
 /** Um frame, retrato ou cena (item 7.6). */
 @Serializable
