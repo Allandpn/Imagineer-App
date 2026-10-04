@@ -28,6 +28,11 @@ interface ArmazenamentoDeConfiguracao {
     val modoDaBiblioteca: Flow<String?> get() = flowOf(null)
 
     suspend fun salvarModoDaBiblioteca(modo: String) {}
+
+    /** A cor de destaque escolhida (o nome de um `DestaqueEscolhido`); `null` = nada guardado (vale o âmbar). */
+    val corDeDestaque: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarCorDeDestaque(nome: String) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -49,7 +54,15 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
         contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_MODO_DA_BIBLIOTECA] = modo }
     }
 
+    override val corDeDestaque: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_COR_DE_DESTAQUE] }
+
+    override suspend fun salvarCorDeDestaque(nome: String) {
+        contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_COR_DE_DESTAQUE] = nome }
+    }
+
     private companion object {
+        val CHAVE_COR_DE_DESTAQUE = stringPreferencesKey("cor_de_destaque")
         val CHAVE_URL = stringPreferencesKey("url_do_servidor")
         val CHAVE_MODO_DA_BIBLIOTECA = stringPreferencesKey("modo_da_biblioteca")
     }

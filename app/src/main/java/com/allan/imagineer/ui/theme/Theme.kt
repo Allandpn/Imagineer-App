@@ -66,13 +66,14 @@ internal val EsquemaClaro: ColorScheme = lightColorScheme(
 
 /**
  * As formas do aplicativo: **retas** (cantos de 0 dp) em menus, diálogos, cartões e folhas, a pedido do Allan (para testar; voltar ao
- * arredondado é trocar `CANTO_DAS_FORMAS`). Botões e o círculo dos ícones seguem como estão.
+ * arredondado é trocar `CANTO_DAS_FORMAS`). Os botões (formato "cheio", que não vem destas formas), o botão flutuante e os chips
+ * (`small`, 8 dp) seguem arredondados.
  */
 val CANTO_DAS_FORMAS = 0.dp
 
 private val Formas = Shapes(
     extraSmall = RoundedCornerShape(CANTO_DAS_FORMAS),
-    small = RoundedCornerShape(CANTO_DAS_FORMAS),
+    small = RoundedCornerShape(8.dp), // os chips voltam ao canto arredondado de antes
     medium = RoundedCornerShape(CANTO_DAS_FORMAS),
     large = RoundedCornerShape(CANTO_DAS_FORMAS),
     extraLarge = RoundedCornerShape(CANTO_DAS_FORMAS),
@@ -85,10 +86,12 @@ private val Formas = Shapes(
 @Composable
 fun ImagineerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    /** A cor de destaque que a pessoa escolheu em Configurações (o padrão é o âmbar). */
+    destaque: DestaqueEscolhido = DestaqueEscolhido.AMBAR,
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
-        colorScheme = if (darkTheme) EsquemaEscuro else EsquemaClaro,
+        colorScheme = comDestaque(if (darkTheme) EsquemaEscuro else EsquemaClaro, destaque.cor(darkTheme), darkTheme),
         typography = Typography,
         shapes = Formas,
         content = content,

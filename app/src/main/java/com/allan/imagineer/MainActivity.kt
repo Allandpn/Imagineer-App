@@ -1,5 +1,8 @@
 package com.allan.imagineer
 
+import com.allan.imagineer.ui.theme.DestaqueEscolhido
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,7 +19,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ImagineerTheme {
+            val aplicacao = applicationContext as ImagineerApp
+            val nomeDoDestaque by aplicacao.armazenamento.corDeDestaque.collectAsState(initial = null)
+            ImagineerTheme(destaque = DestaqueEscolhido.deNome(nomeDoDestaque)) {
                 GrafoDeNavegacao()
             }
         }

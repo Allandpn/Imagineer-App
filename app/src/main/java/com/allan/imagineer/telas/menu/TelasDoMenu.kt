@@ -1,5 +1,11 @@
 package com.allan.imagineer.telas.menu
 
+import com.allan.imagineer.ui.theme.DestaqueEscolhido
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -115,6 +121,7 @@ fun TelaConfiguracoes(
     val escopo = rememberCoroutineScope()
     val url by aplicacao.armazenamento.urlDoServidor.collectAsState(initial = null)
     val modo by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
+    val destaqueGuardado by aplicacao.armazenamento.corDeDestaque.collectAsState(initial = null)
     val atual = ModoDaBiblioteca.deTexto(modo)
 
     TelaDoMenu("Configurações", aoVoltar) {
@@ -123,6 +130,20 @@ fun TelaConfiguracoes(
         LinhaDeConfiguracao("Perfis de renderização", "O estilo visual das imagens de cada livro", aoAbrirPerfisDeRenderizacao)
         HorizontalDivider()
         LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos)
+        HorizontalDivider()
+        Text("Cor de destaque", style = MaterialTheme.typography.titleMedium)
+        val escolhida = DestaqueEscolhido.deNome(destaqueGuardado)
+        val escuro = isSystemInDarkTheme()
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            DestaqueEscolhido.entries.forEach { opcao ->
+                AmostraDeCor(
+                    cor = opcao.cor(escuro),
+                    nome = opcao.rotulo,
+                    escolhida = opcao == escolhida,
+                    aoEscolher = { escopo.launch { aplicacao.armazenamento.salvarCorDeDestaque(opcao.name) } },
+                )
+            }
+        }
         HorizontalDivider()
         Text("Exibição da biblioteca", style = MaterialTheme.typography.titleMedium)
         ModoDaBiblioteca.entries.forEach { opcao ->
@@ -138,6 +159,22 @@ fun TelaConfiguracoes(
                 Text(opcao.rotulo, modifier = Modifier.padding(start = 12.dp), style = MaterialTheme.typography.bodyLarge)
             }
         }
+    }
+}
+
+/** Uma amostra da cor de destaque: um círculo da cor; o escolhido ganha um anel e um ✓. */
+@Composable
+private fun AmostraDeCor(cor: androidx.compose.ui.graphics.Color, nome: String, escolhida: Boolean, aoEscolher: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(cor, CircleShape)
+            .then(if (escolhida) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape) else Modifier)
+            .clickable(onClickLabel = nome, onClick = aoEscolher)
+            .semantics { contentDescription = if (escolhida) "$nome (escolhida)" else nome },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (escolhida) Icon(Icons.Filled.Check, contentDescription = null, tint = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f))
     }
 }
 

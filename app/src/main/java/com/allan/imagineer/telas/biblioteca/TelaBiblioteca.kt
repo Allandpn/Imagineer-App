@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
 import com.allan.imagineer.telas.livro.MenuDoLivro
 import androidx.compose.ui.text.font.FontStyle
@@ -224,7 +225,7 @@ fun ConteudoDaBiblioteca(
             // o primeiro passo do fluxo, e o estado vazio ("Importe um EPUB") não
             // teria como cumprir o que diz sem ele.
             // Só o ícone: o "+" já diz que é para adicionar (o texto fica como descrição para leitor de tela).
-            FloatingActionButton(onClick = aoImportar) {
+            FloatingActionButton(onClick = aoImportar, shape = CircleShape) {
                 Icon(Icons.Filled.Add, contentDescription = "Importar livro")
             }
         },
