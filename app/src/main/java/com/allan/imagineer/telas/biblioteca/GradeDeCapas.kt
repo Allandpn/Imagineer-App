@@ -45,12 +45,12 @@ import com.allan.imagineer.rede.LivroResumo
 import com.allan.imagineer.rede.enderecoDaCapa
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
 
-/** A largura mínima de uma capa na grade: as colunas se ajustam à tela (3 a 4 num celular em pé, mais num tablet). */
-private val LARGURA_DA_CAPA = 128.dp
+/** Quantas capas por linha: três, em qualquer tela (pedido do Allan); a largura de cada uma acompanha a tela. */
+const val CAPAS_POR_LINHA = 3
 
 /**
- * A biblioteca **em capas**, como no Kindle (CP4): a capa de cada livro e, embaixo, o título e o autor em letra pequena. Tocar abre o
- * livro; o menu ⋮ sobre a capa remove.
+ * A biblioteca **em capas**, como no Kindle (CP4): só a capa de cada livro, **três por linha**. Tocar abre o livro; o menu ⋮ sobre a
+ * capa remove.
  */
 @Composable
 fun GradeDeLivros(
@@ -61,8 +61,8 @@ fun GradeDeLivros(
     val urlBase = urlDoServidorEmUso()
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(LARGURA_DA_CAPA),
-            modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize(),
+            columns = GridCells.Fixed(CAPAS_POR_LINHA),
+            modifier = Modifier.widthIn(max = 900.dp).fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -76,19 +76,10 @@ fun GradeDeLivros(
 
 @Composable
 private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Unit, aoPedirRemocao: () -> Unit) {
-    Column(modifier = Modifier.clickable(onClick = aoTocar), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box {
-            CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
-            MenuSobreACapa(aoPedirRemocao, Modifier.align(Alignment.TopEnd))
-        }
-        Text(livro.titulo, style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(
-            livro.autor ?: "Autor desconhecido",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+    // Só a capa, com o ⋮ de remover (sem legenda embaixo): a capa sem imagem já traz o título e o autor dentro dela.
+    Box(modifier = Modifier.clickable(onClick = aoTocar)) {
+        CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
+        MenuSobreACapa(aoPedirRemocao, Modifier.align(Alignment.TopEnd))
     }
 }
 

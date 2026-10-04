@@ -43,3 +43,9 @@ class CapasDaBibliotecaTest {
         assertNotEquals(matizDoTitulo("A"), matizDoTitulo("B"), 0f)
     }
 }
+
+/** A grade tem sempre três capas por linha (pedido do Allan). */
+class CapasPorLinhaTest {
+    @Test
+    fun `tres capas por linha`() = assertEquals(3, CAPAS_POR_LINHA)
+}

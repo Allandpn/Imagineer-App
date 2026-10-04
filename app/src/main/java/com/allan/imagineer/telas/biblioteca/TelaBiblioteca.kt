@@ -103,6 +103,7 @@ fun TelaBiblioteca(
     val livroParaAbrir by importacao.irParaLivro.collectAsState()
     val versaoDaBiblioteca by importacao.versaoDaBiblioteca.collectAsState()
     val modoGuardado by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
+    val escopoDoModo = rememberCoroutineScope()
 
     // O seletor de arquivos do sistema. Aceita "octet-stream" também: alguns
     // gerenciadores de arquivos classificam EPUB assim, e com o filtro estrito o
@@ -144,6 +145,10 @@ fun TelaBiblioteca(
             }
         },
         modo = ModoDaBiblioteca.deTexto(modoGuardado),
+        aoAlternarModo = {
+            val novo = if (ModoDaBiblioteca.deTexto(modoGuardado) == ModoDaBiblioteca.CAPAS) ModoDaBiblioteca.LISTA else ModoDaBiblioteca.CAPAS
+            escopoDoModo.launch { aplicacao.armazenamento.salvarModoDaBiblioteca(novo.name) }
+        },
         aoPedirRemocao = viewModel::pedirRemocao,
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
@@ -173,6 +178,7 @@ fun ConteudoDaBiblioteca(
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoAbrirMenu: (ItemDoMenu) -> Unit,
     modo: ModoDaBiblioteca,
+    aoAlternarModo: () -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
@@ -207,6 +213,15 @@ fun ConteudoDaBiblioteca(
                 navigationIcon = {
                     IconButton(onClick = { escopo.launch { gaveta.open() } }) {
                         Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                    }
+                },
+                actions = {
+                    // Capas ou lista: o mesmo modo que a tela de Configurações guarda.
+                    IconButton(onClick = aoAlternarModo) {
+                        Icon(
+                            if (modo == ModoDaBiblioteca.CAPAS) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
+                            contentDescription = if (modo == ModoDaBiblioteca.CAPAS) "Ver em lista" else "Ver em capas",
+                        )
                     }
                 },
             )
