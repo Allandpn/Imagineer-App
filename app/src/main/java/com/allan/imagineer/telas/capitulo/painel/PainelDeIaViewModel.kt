@@ -560,7 +560,7 @@ class PainelDeIaViewModel(
                     }
                 }
                 // O servidor entrega do mais antigo ao mais recente: o último é o que vale (Q2).
-                val prompt = existentes.lastOrNull() ?: run {
+                val prompt = promptsComTexto(existentes).lastOrNull() ?: run {  // PI4: o prompt só da imagem não vale
                     definirEtapa(chave, EtapaDaImagem.MONTANDO_O_PROMPT)
                     gerarPromptDoFluxo(frameId, rotulo) ?: return@launch
                 }
@@ -704,39 +704,55 @@ class PainelDeIaViewModel(
      * arquivo. Confere extensão e tamanho **antes** de enviar (J2); um envio por prompt, sem repetição automática (J3).
      */
     fun importarImagem(frameId: Int, promptId: Int, arquivo: ArquivoEscolhido?) {
-        if (promptId in _estado.value.importandoImagem || promptId in _estado.value.gerandoImagem) return
+        // PI1: sem prompt, a imagem vai para o frame (o servidor escolhe ou cria o prompt); o andamento e os recados usam a chave do frame.
+        val paraOFrame = promptId == SEM_PROMPT
+        val chave = if (paraOFrame) chaveDeImportacaoDoFrame(frameId) else promptId
+        if (chave in _estado.value.importandoImagem || (!paraOFrame && promptId in _estado.value.gerandoImagem)) return
         val recusa = if (arquivo == null) "Não consegui abrir o arquivo escolhido." else motivoParaNaoImportar(arquivo)
         if (arquivo == null || recusa != null) {
-            avisarSobreImagem(promptId, recusa!!, ehErro = true)
+            avisarSobreImagem(chave, recusa!!, ehErro = true)
             return
         }
         _estado.update {
-            it.copy(importandoImagem = it.importandoImagem + (promptId to null), mensagensDeImportacao = it.mensagensDeImportacao - promptId)
+            it.copy(importandoImagem = it.importandoImagem + (chave to null), mensagensDeImportacao = it.mensagensDeImportacao - chave)
         }
         viewModelScope.launch {
-            val resultado = prompts.importarImagem(promptId, arquivo) { enviados, total ->
+            val progresso: (Long, Long?) -> Unit = { enviados, total ->
                 val fracao = if (total != null && total > 0) (enviados.toFloat() / total).coerceIn(0f, 1f) else null
                 _estado.update { atual ->
-                    if (promptId in atual.importandoImagem) atual.copy(importandoImagem = atual.importandoImagem + (promptId to fracao)) else atual
+                    if (chave in atual.importandoImagem) atual.copy(importandoImagem = atual.importandoImagem + (chave to fracao)) else atual
                 }
             }
+            val resultado = if (paraOFrame) prompts.importarImagemParaOFrame(frameId, arquivo, progresso) else prompts.importarImagem(promptId, arquivo, progresso)
             _estado.update { atual ->
-                val semEnvio = atual.importandoImagem - promptId
+                val semEnvio = atual.importandoImagem - chave
                 when (resultado) {
                     is ResultadoDaChamada.Sucesso -> atual.copy(
                         importandoImagem = semEnvio,
-                        prompts = atual.prompts + (frameId to comAImagemNova(atual.prompts[frameId], promptId, resultado.dado)),
-                        mensagensDeImportacao = atual.mensagensDeImportacao + (promptId to MensagemDoElemento("Imagem importada.", ehErro = false)),
+                        // Para o frame, o prompt pode ser novo (o "só da imagem"): a lista é relida logo abaixo.
+                        prompts = if (paraOFrame) atual.prompts else atual.prompts + (frameId to comAImagemNova(atual.prompts[frameId], promptId, resultado.dado)),
+                        mensagensDeImportacao = atual.mensagensDeImportacao + (chave to MensagemDoElemento("Imagem importada.", ehErro = false)),
                         // J6: a tela relê os artefatos e o ícone no texto passa a ILUSTRADO.
                         versaoDosFrames = atual.versaoDosFrames + 1,
                     )
                     is ResultadoDaChamada.Falha -> atual.copy(
                         importandoImagem = semEnvio,
-                        mensagensDeImportacao = atual.mensagensDeImportacao + (promptId to MensagemDoElemento(resultado.motivo, ehErro = true)),
+                        mensagensDeImportacao = atual.mensagensDeImportacao + (chave to MensagemDoElemento(resultado.motivo, ehErro = true)),
                     )
                 }
             }
+            if (paraOFrame && resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
         }
+    }
+
+    /**
+     * **Importar imagem** num retrato **sem frame** (PI4): cria o frame do retrato (não gasta IA; é o passo que o "Gerar retrato"
+     * também faz) e, com ele pronto, chama [aoCriar] com o id para a tela abrir o seletor. Se o retrato já foi criado, só segue.
+     */
+    fun criarRetratoParaImportar(elemento: ElementoSugerido, aoCriar: (frameId: Int) -> Unit) {
+        _estado.value.retratosCriados[elemento.id]?.let { aoCriar(it); return }
+        val estadoId = reservarRetrato(elemento) ?: return
+        viewModelScope.launch { concluirCriacaoDoRetrato(elemento, estadoId)?.let(aoCriar) }
     }
 
     private fun avisarSobreImagem(promptId: Int, texto: String, ehErro: Boolean) {

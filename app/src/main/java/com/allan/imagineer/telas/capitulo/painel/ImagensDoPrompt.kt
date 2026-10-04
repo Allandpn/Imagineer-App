@@ -106,8 +106,10 @@ internal fun SecaoDaImagemDoFrame(
 ) {
     val etapa = estado.etapasDeImagem[chave]
     val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
-    val maisRecente = lista.firstOrNull() // para onde vai a imagem importada (T1)
-    val importando = maisRecente != null && maisRecente.id in estado.importandoImagem
+    val reais = promptsComTexto(lista) // o "prompt só da imagem" (PI1) não conta como prompt
+    val maisRecente = reais.firstOrNull() // para onde vai a imagem importada (T1)
+    val chaveDaImportacaoDoFrame = chaveDeImportacaoDoFrame(frameId)
+    val importando = (maisRecente != null && maisRecente.id in estado.importandoImagem) || chaveDaImportacaoDoFrame in estado.importandoImagem
     val gerandoPrompt = frameId in estado.gerandoPrompt
     val ocupado = etapa != null || gerandoAlgum || importando || gerandoPrompt
 
@@ -125,8 +127,8 @@ internal fun SecaoDaImagemDoFrame(
             Text(texto, style = MaterialTheme.typography.bodySmall)
         }
     }
-    if (importando && maisRecente != null) {
-        val fracao = estado.importandoImagem[maisRecente.id]
+    if (importando) {
+        val fracao = estado.importandoImagem[if (chaveDaImportacaoDoFrame in estado.importandoImagem) chaveDaImportacaoDoFrame else maisRecente?.id]
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (fracao == null) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -142,23 +144,24 @@ internal fun SecaoDaImagemDoFrame(
     // EV1, EV8: numa cena, a linha dos elementos e imagens (o retrato tem a dele, no bloco do retrato).
     if (ehCena) LinhaDoSeletorDeElementos(frameId, ehCena = true, estado = estado, acoes = acoes, aoEscolher = { acoes.aoAbrirSeletorDaCena(frameId) }, ocupado = ocupado)
     maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
+    estado.mensagensDeImportacao[chaveDaImportacaoDoFrame]?.let { RecadoDeImagem(it) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
             onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
             enabled = !ocupado,
-        ) { Text(rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(lista, it.id) }), maxLines = 1, softWrap = false) }
+        ) { Text(rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(reais, it.id) }), maxLines = 1, softWrap = false) }
         // GP1: sem nenhum prompt ainda, "Só o prompt" gera o prompt e para (com prompt, o "Novo prompt" abaixo já faz isso).
         if (maisRecente == null) {
             OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoFrame(chave, frameId, rotulo) }, enabled = !ocupado) {
                 Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false)
             }
         }
-        // T1: um só botão por frame; a imagem vai para o prompt mais recente. Sem prompt não há para onde importar.
-        // O seletor não abre aqui: mora na tela do capítulo (J2).
+        // T1: um só botão por frame; a imagem vai para o prompt mais recente. PI4: **sem prompt** também importa (vai para o frame e o
+        // servidor cria o "prompt só da imagem"). O seletor não abre aqui: mora na tela do capítulo (J2).
+        OutlinedButton(onClick = { acoes.aoEscolherImagem(frameId, maisRecente?.id ?: SEM_PROMPT) }, enabled = !ocupado) {
+            Text("Importar imagem", maxLines = 1, softWrap = false)
+        }
         if (maisRecente != null) {
-            OutlinedButton(onClick = { acoes.aoEscolherImagem(frameId, maisRecente.id) }, enabled = !ocupado) {
-                Text("Importar imagem", maxLines = 1, softWrap = false)
-            }
             // G3, Q6: **Novo prompt** à vista: gera outro prompt (com o diálogo de custo e o ajuste opcional). Como o botão
             // principal usa o prompt mais recente, é por aqui que se recomeça do zero, por exemplo para testar outro
             // modelo de suavização. Depois é só tocar em Gerar imagem.

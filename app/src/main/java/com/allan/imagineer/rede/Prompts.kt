@@ -28,6 +28,8 @@ data class PromptDeFrame(
     val modelo_ia: String? = null,
     val data_criacao: String = "",
     val total_de_imagens: Int = 0,
+    /** O prompt existe só para guardar uma imagem importada sem prompt (PI1): não vale como prompt, não copia, não edita, não gera. */
+    val so_imagem: Boolean = false,
     /** A versão em português do prompt (PT1); nulo = ainda sem tradução. O que vai à imagem é o [texto], em inglês. */
     val texto_pt: String? = null,
     val referencias_visuais: List<ReferenciaVisual> = emptyList(),
@@ -225,6 +227,16 @@ interface RepositorioDePrompts {
         arquivo: ArquivoEscolhido,
         aoProgredir: (enviados: Long, total: Long?) -> Unit,
     ): ResultadoDaChamada<ImagemDoPrompt>
+
+    /**
+     * `POST /frames/{id}/imagens` (PI1): importa a imagem **para o frame**, mesmo sem prompt (o servidor cria o "prompt só da
+     * imagem" se não há nenhum). Não gasta IA.
+     */
+    suspend fun importarImagemParaOFrame(
+        frameId: Int,
+        arquivo: ArquivoEscolhido,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<ImagemDoPrompt> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 }
 
 /** A implementação de verdade, sobre o Retrofit. */
@@ -353,6 +365,22 @@ class RepositorioDePromptsPeloRetrofit(
         val corpo = CorpoComProgresso(entrada, tipoDaImagem(nome).toMediaType(), arquivo.tamanho, aoProgredir)
         return try {
             chamarApi { api.importarImagem(promptId, MultipartBody.Part.createFormData("arquivo", nome, corpo)) }
+        } finally {
+            entrada.close()
+        }
+    }
+
+    override suspend fun importarImagemParaOFrame(
+        frameId: Int,
+        arquivo: ArquivoEscolhido,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<ImagemDoPrompt> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val entrada = leitor.abrir(arquivo.uri) ?: return ResultadoDaChamada.Falha("Não consegui abrir o arquivo escolhido.")
+        val nome = nomeParaEnviar(arquivo)
+        val corpo = CorpoComProgresso(entrada, tipoDaImagem(nome).toMediaType(), arquivo.tamanho, aoProgredir)
+        return try {
+            chamarApi { api.importarImagemParaOFrame(frameId, MultipartBody.Part.createFormData("arquivo", nome, corpo)) }
         } finally {
             entrada.close()
         }

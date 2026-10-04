@@ -365,6 +365,14 @@ interface ApiImagineer {
         @Part arquivo: MultipartBody.Part,
     ): ImagemDoPrompt
 
+    /** `POST /frames/{id}/imagens` — importa a imagem para o frame, mesmo sem prompt (PI1). Não gasta IA. */
+    @Multipart
+    @POST("frames/{id}/imagens")
+    suspend fun importarImagemParaOFrame(
+        @Path("id") frameId: Int,
+        @Part arquivo: MultipartBody.Part,
+    ): ImagemDoPrompt
+
     /**
      * `POST /capitulos/{id}/frames` **do tipo PERSONAGEM** (o "retrato" de um elemento, item 6.4): um frame solo, com
      * **um** estado em `estados_ids`. Não gasta IA.

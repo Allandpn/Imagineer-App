@@ -145,6 +145,8 @@ class AcoesDoPainel(
     val aoEscolherModelo: (String) -> Unit,
     val aoFecharEscolhaDeModelo: () -> Unit,
     val aoEscolherImagem: (frameId: Int, promptId: Int) -> Unit,
+    /** PI4: o retrato ainda sem frame: cria o frame e abre o seletor de imagem. */
+    val aoImportarImagemDoRetrato: (ElementoSugerido) -> Unit,
     // O seletor de elementos e imagens, na cena e no retrato (EV1 a EV10).
     val aoAbrirSeletorDaCena: (frameId: Int) -> Unit,
     val aoAbrirSeletorDoRetrato: (elemento: ElementoSugerido, frameId: Int?) -> Unit,
@@ -345,6 +347,8 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
             OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoRetrato(elemento) }, enabled = !ocupado) { Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false) }
             // VM3, VM4: usar uma imagem que o elemento já tem (de qualquer capítulo), sem gerar nada.
             OutlinedButton(onClick = { acoes.aoAbrirImagemExistente(elemento, null) }, enabled = !ocupado) { Text(ROTULO_USAR_IMAGEM_EXISTENTE, maxLines = 1, softWrap = false) }
+            // PI4: a imagem que a pessoa já tem, sem gerar prompt antes (o frame do retrato é criado agora, sem gastar IA).
+            OutlinedButton(onClick = { acoes.aoImportarImagemDoRetrato(elemento) }, enabled = !ocupado) { Text("Importar imagem", maxLines = 1, softWrap = false) }
         }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
@@ -1020,7 +1024,7 @@ internal fun BlocoDePrompts(
                 conteudo.lista.forEach { prompt ->
                     CartaoDePrompt(
                         prompt,
-                        numero = numeroDoPrompt(conteudo.lista, prompt.id) ?: 0,
+                        numero = numeroDoPrompt(promptsComTexto(conteudo.lista), prompt.id) ?: 0,
                         frameId = frameId,
                         estado = estado,
                         acoes = acoes,
@@ -1088,6 +1092,16 @@ private fun CartaoDePrompt(
     aoCompartilhar: () -> Unit,
 ) {
     var copiado by remember(prompt.id) { mutableStateOf(false) }
+    if (prompt.so_imagem) {
+        // PI4: só guarda a imagem importada; não é um prompt (nada para copiar, editar nem gerar).
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Imagem importada, sem prompt", style = MaterialTheme.typography.titleSmall)
+                ImagensDoPrompt(prompt, acoes)
+            }
+        }
+        return
+    }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // PN1: o número do prompt dentro do frame (1 = o mais antigo), para o botão de gerar poder citá-lo.

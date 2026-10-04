@@ -125,6 +125,7 @@ import com.allan.imagineer.telas.capitulo.painel.ModaisDoPainel
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
 import com.allan.imagineer.telas.capitulo.painel.retratosPorSugestao
+import com.allan.imagineer.telas.capitulo.painel.SEM_PROMPT
 import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
 import com.allan.imagineer.telas.capitulo.painel.usarAside
 import com.allan.imagineer.telas.livro.descreverTamanho
@@ -421,6 +422,12 @@ private fun LeitorPaginado(
         aoEscolherImagem = { frameId, promptId ->
             painel.escolherImagemPara(frameId, promptId)
             seletorDeImagem.launch("image/*")
+        },
+        aoImportarImagemDoRetrato = { elemento ->
+            painel.criarRetratoParaImportar(elemento) { frameId ->
+                painel.escolherImagemPara(frameId, SEM_PROMPT)
+                seletorDeImagem.launch("image/*")
+            }
         },
         aoGerarImagem = { frameId, promptId, texto, modelo, textoPt -> painel.gerarImagem(frameId, promptId, texto, modelo, textoPt) },
         aoVerEmPortugues = painel::verEmPortugues,

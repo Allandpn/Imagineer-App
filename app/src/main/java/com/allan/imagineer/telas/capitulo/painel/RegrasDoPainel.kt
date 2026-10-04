@@ -493,6 +493,15 @@ fun rotuloDoBotaoDePrompt(jaTemPrompts: Boolean): String = if (jaTemPrompts) "No
 fun numeroDoPrompt(lista: List<PromptDeFrame>, promptId: Int): Int? =
     lista.indexOfFirst { it.id == promptId }.takeIf { it >= 0 }?.let { lista.size - it }
 
+/** Marca o alvo de uma importação que vai **para o frame**, e não para um prompt (PI1): o servidor escolhe (ou cria) o prompt. */
+const val SEM_PROMPT = 0
+
+/** A chave do andamento e dos recados de uma importação para o frame: negativa, para nunca bater com o id de um prompt. */
+fun chaveDeImportacaoDoFrame(frameId: Int): Int = -frameId
+
+/** Os prompts que valem como prompt: sem o "prompt só da imagem" (PI4). A ordem se mantém. */
+fun promptsComTexto(lista: List<PromptDeFrame>): List<PromptDeFrame> = lista.filterNot { it.so_imagem }
+
 /** O rótulo de um botão de gerar imagem que diz de qual prompt ele gera (PN2): "Gerar imagem (prompt 3)". Sem número, o rótulo puro. */
 fun rotuloDeGerarComNumero(rotulo: String, numero: Int?): String = if (numero == null) rotulo else "$rotulo (prompt $numero)"
 
