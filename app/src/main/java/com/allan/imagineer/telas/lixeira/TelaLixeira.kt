@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ImagemNaLixeira
+import com.allan.imagineer.rede.RepositorioDaLixeiraDeElementosDoLivro
 import com.allan.imagineer.rede.RepositorioDaLixeiraDeFramesDoLivro
 import com.allan.imagineer.rede.RepositorioDaLixeiraDoLivro
 import com.allan.imagineer.rede.enderecoDaCapa
@@ -64,6 +65,7 @@ enum class TipoDaLixeira(val rotulo: String) {
     IMAGENS("Imagens"),
     LIVROS("Livros"),
     CENAS("Cenas e retratos"),
+    ELEMENTOS("Elementos"),
 }
 
 /**
@@ -97,6 +99,16 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
             }
         },
     )
+    val elementos: LixeiraDeItensViewModel<ElementoDaLixeira> = viewModel(
+        key = "lixeira-elementos-$livroId",
+        factory = viewModelFactory {
+            initializer {
+                val base = aplicacao.repositorioDaLixeiraDeElementos
+                LixeiraDeItensViewModel(FonteDaLixeiraDeElementos(livroId?.let { RepositorioDaLixeiraDeElementosDoLivro(base, it) } ?: base))
+            }
+        },
+    )
+    val estadoDosElementos by elementos.estado.collectAsState()
     val estadoDasCenas by cenas.estado.collectAsState()
     val estadoDasImagens by imagens.estado.collectAsState()
     val estadoDosLivros by livros.estado.collectAsState()
@@ -106,14 +118,16 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
         imagens.carregar()
         if (livroId == null) livros.carregar()
         cenas.carregar()
+        elementos.carregar()
     }
 
     val temAlgo = when (tipo) {
         TipoDaLixeira.IMAGENS -> ((estadoDasImagens.carga as? CargaDaLixeira.Pronta)?.lixeira?.imagens?.isNotEmpty()) == true
         TipoDaLixeira.LIVROS -> ((estadoDosLivros.carga as? CargaDeItens.Pronta)?.itens?.isNotEmpty()) == true
         TipoDaLixeira.CENAS -> ((estadoDasCenas.carga as? CargaDeItens.Pronta)?.itens?.isNotEmpty()) == true
+        TipoDaLixeira.ELEMENTOS -> ((estadoDosElementos.carga as? CargaDeItens.Pronta)?.itens?.isNotEmpty()) == true
     }
-    val esvaziando = estadoDasImagens.esvaziando || estadoDosLivros.esvaziando || estadoDasCenas.esvaziando
+    val esvaziando = estadoDasImagens.esvaziando || estadoDosLivros.esvaziando || estadoDasCenas.esvaziando || estadoDosElementos.esvaziando
     Scaffold(
         topBar = {
             TopAppBar(
@@ -130,6 +144,7 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
                                     TipoDaLixeira.IMAGENS -> imagens.pedirEsvaziar()
                                     TipoDaLixeira.LIVROS -> livros.pedirEsvaziar()
                                     TipoDaLixeira.CENAS -> cenas.pedirEsvaziar()
+                                    TipoDaLixeira.ELEMENTOS -> elementos.pedirEsvaziar()
                                 }
                             },
                             enabled = !esvaziando,
@@ -168,6 +183,13 @@ fun TelaLixeira(aoVoltar: () -> Unit, livroId: Int? = null) {
                         aoRestaurar = cenas::restaurar,
                         aoPedirApagarDeVez = cenas::pedirApagarDeVez,
                     ) { item, ocupado, restaurar, apagar -> CartaoDoFrameNaLixeira(item.frame, ocupado, restaurar, apagar) }
+                    TipoDaLixeira.ELEMENTOS -> CorpoDaLixeiraDeItens(
+                        estado = estadoDosElementos,
+                        textos = elementos.textos,
+                        aoTentarDeNovo = elementos::tentarDeNovo,
+                        aoRestaurar = elementos::restaurar,
+                        aoPedirApagarDeVez = elementos::pedirApagarDeVez,
+                    ) { item, ocupado, restaurar, apagar -> CartaoDoElementoNaLixeira(item.elemento, ocupado, restaurar, apagar) }
                 }
             }
         }
@@ -397,6 +419,39 @@ private fun CartaoDoFrameNaLixeira(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(tituloDoFrameNaLixeira(frame), style = MaterialTheme.typography.titleMedium)
                 Text(detalhesDoFrameNaLixeira(frame), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {
+                        Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** O cartão de um elemento da lixeira: a imagem (se tem), o nome, o tipo e o livro, o que leva junto e os botões. */
+@Composable
+private fun CartaoDoElementoNaLixeira(
+    elemento: com.allan.imagineer.rede.ElementoNaLixeira,
+    ocupado: Boolean,
+    aoRestaurar: () -> Unit,
+    aoApagarDeVez: () -> Unit,
+) {
+    val urlBase = urlDoServidorEmUso()
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (urlBase != null && elemento.imagem_id != null) {
+                AsyncImage(
+                    model = enderecoDaImagem(urlBase, elemento.imagem_id, "miniatura"),
+                    contentDescription = elemento.nome,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black),
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(elemento.nome, style = MaterialTheme.typography.titleMedium)
+                Text(detalhesDoElementoNaLixeira(elemento), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
                     OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {

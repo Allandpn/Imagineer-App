@@ -3,7 +3,9 @@ package com.allan.imagineer.telas.lixeira
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.rede.LixeiraEsvaziada
+import com.allan.imagineer.rede.ElementoNaLixeira
 import com.allan.imagineer.rede.FrameNaLixeira
+import com.allan.imagineer.rede.RepositorioDaLixeiraDeElementos
 import com.allan.imagineer.rede.RepositorioDaLixeiraDeFrames
 import com.allan.imagineer.rede.RepositorioDaLixeiraDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -270,4 +272,59 @@ fun detalhesDoFrameNaLixeira(frame: FrameNaLixeira): String {
         else -> "${frame.total_de_imagens} imagens (${descreverTamanho(frame.tamanho_em_bytes)})"
     }
     return "${frame.titulo_do_livro} · $capitulo\n$prompts · $imagens\nApagada em ${dataDaLixeira(frame.apagado_em)}"
+}
+
+// --------------------------------------------------------------------------- //
+// Elementos (LT4)
+// --------------------------------------------------------------------------- //
+
+/** Um elemento da lixeira como item. */
+data class ElementoDaLixeira(val elemento: ElementoNaLixeira) : ItemDaLixeira {
+    override val id: Int get() = elemento.id
+}
+
+/** A fonte da lixeira de **elementos**. */
+class FonteDaLixeiraDeElementos(private val repositorio: RepositorioDaLixeiraDeElementos) : FonteDaLixeira<ElementoDaLixeira> {
+    override val textos = TextosDaLixeira(
+        restaurado = "Elemento restaurado: voltou ao livro com os estados e os retratos.",
+        apagadoDeVez = "Elemento apagado de vez, com os estados, os retratos e as imagens.",
+        tituloDeApagar = "Apagar de vez este elemento?",
+        avisoDeApagar = "O elemento será apagado de vez, com os estados, a identidade, os retratos e as imagens (inclusive os arquivos no servidor). Não tem volta.",
+        tituloDeEsvaziar = "Apagar de vez todos os elementos da lixeira?",
+        vazia = "Nenhum elemento na lixeira. Os elementos que você apagar ficam aqui até você decidir apagá-los de vez.",
+        resumo = { quantos, bytes -> (if (quantos == 1) "1 elemento" else "$quantos elementos") + " · " + descreverTamanho(bytes) },
+        avisoDeEsvaziar = { quantos, bytes ->
+            val itens = if (quantos == 1) "1 elemento" else "$quantos elementos"
+            "$itens serão apagados de vez, com os estados, os retratos e as imagens (${descreverTamanho(bytes)}). Não tem volta."
+        },
+        recadoDeEsvaziada = { removidos, bytes ->
+            (if (removidos == 1) "1 elemento apagado" else "$removidos elementos apagados") + " de vez; ${descreverTamanho(bytes)} liberados."
+        },
+    )
+
+    override suspend fun listar(): ResultadoDaChamada<ItensDaLixeira<ElementoDaLixeira>> =
+        when (val r = repositorio.listar()) {
+            is ResultadoDaChamada.Sucesso -> ResultadoDaChamada.Sucesso(ItensDaLixeira(r.dado.elementos.map(::ElementoDaLixeira), r.dado.total_em_bytes))
+            is ResultadoDaChamada.Falha -> r
+        }
+
+    override suspend fun restaurar(id: Int) = repositorio.restaurar(id)
+    override suspend fun apagarDeVez(id: Int) = repositorio.apagarDeVez(id)
+    override suspend fun esvaziar() = repositorio.esvaziar()
+}
+
+/** O tipo do elemento como se lê ("Personagem", "Criatura"...). */
+fun rotuloDoTipoDoElementoNaLixeira(tipo: String): String =
+    tipo.lowercase().replaceFirstChar { it.uppercase() }
+
+/** "Personagem · Livro", "2 estados · 1 retrato · 3 imagens (1,2 MB)" e quando foi apagado. */
+fun detalhesDoElementoNaLixeira(elemento: ElementoNaLixeira): String {
+    val estados = if (elemento.total_de_estados == 1) "1 estado" else "${elemento.total_de_estados} estados"
+    val retratos = if (elemento.total_de_retratos == 1) "1 retrato" else "${elemento.total_de_retratos} retratos"
+    val imagens = when (elemento.total_de_imagens) {
+        0 -> "sem imagens"
+        1 -> "1 imagem (${descreverTamanho(elemento.tamanho_em_bytes)})"
+        else -> "${elemento.total_de_imagens} imagens (${descreverTamanho(elemento.tamanho_em_bytes)})"
+    }
+    return "${rotuloDoTipoDoElementoNaLixeira(elemento.tipo)} · ${elemento.titulo_do_livro}\n$estados · $retratos · $imagens\nApagado em ${dataDaLixeira(elemento.apagado_em)}"
 }

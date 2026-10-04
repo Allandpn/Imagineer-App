@@ -351,10 +351,10 @@ private fun Dialogos(
             )
         }
         TipoDeDialogoDaFicha.APAGAR_ELEMENTO -> DialogoDeConfirmacao(
-            titulo = "Apagar ${detalhe.nome}?",
-            texto = "O elemento e todos os seus estados serão apagados. Frames que o usam perdem este participante. " +
-                "Isso não pode ser desfeito.",
-            rotuloDoBotao = "Apagar elemento",
+            titulo = "Mover ${detalhe.nome} para a lixeira?",
+            texto = "O elemento, com os estados, a identidade e os retratos, vai para a lixeira; dá para restaurá-lo lá. " +
+                "Enquanto isso, as cenas que o usam deixam de mostrá-lo e o nome continua ocupado.",
+            rotuloDoBotao = "Para a lixeira",
             dialogo = dialogo,
             aoConfirmar = viewModel::confirmarApagarElemento,
             aoCancelar = viewModel::cancelarDialogo,
