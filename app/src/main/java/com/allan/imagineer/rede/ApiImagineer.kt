@@ -73,6 +73,11 @@ interface ApiImagineer {
     @POST("livros")
     suspend fun importarLivro(@Part arquivo: MultipartBody.Part): RespostaImportacao
 
+    /** `POST /livros/{id}/capa` — define a capa de um livro que já existe, com uma imagem ou o próprio EPUB (CP3). */
+    @Multipart
+    @POST("livros/{id}/capa")
+    suspend fun definirCapa(@Path("id") livroId: Int, @Part arquivo: MultipartBody.Part): LivroDetalhe
+
     /**
      * `PATCH /livros/{id}` — corrige metadados e define o perfil padrão; devolve o livro
      * completo. O corpo é um `JsonObject` para poder mandar `null` de propósito

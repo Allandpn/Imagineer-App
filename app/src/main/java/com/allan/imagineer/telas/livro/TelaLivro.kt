@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -141,6 +143,11 @@ fun TelaLivro(
     aoAbrirPesquisa: () -> Unit = {},
     viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
+    // CP5: "Definir capa…" abre o seletor de arquivos (uma imagem ou o EPUB do livro).
+    val aplicacaoDaCapa = LocalContext.current.applicationContext as ImagineerApp
+    val seletorDeCapa = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.definirCapa(aplicacaoDaCapa.leitorDeArquivos.descrever(uri.toString()))
+    }
     val estado by viewModel.estado.collectAsState()
     val edicao by viewModel.edicao.collectAsState()
     val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
@@ -179,6 +186,7 @@ fun TelaLivro(
         aoAbrirElementos = aoAbrirElementos,
         aoAbrirPerfis = aoAbrirPerfis,
         aoAbrirPesquisa = aoAbrirPesquisa,
+        aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
         aoEditar = viewModel::abrirEdicao,
         aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
         aoApagar = viewModel::pedirRemocao,
@@ -220,6 +228,7 @@ fun ConteudoDoLivro(
     aoAbrirElementos: () -> Unit,
     aoAbrirPerfis: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
+    aoDefinirCapa: () -> Unit = {},
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
@@ -265,6 +274,7 @@ fun ConteudoDoLivro(
                                 aoArquivar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) },
                                 arquivados = estado.livro.capitulos.count { it.ignorado },
                                 aoAbrirArquivados = aoAbrirArquivados,
+                                aoDefinirCapa = aoDefinirCapa,
                                 aoAbrirPerfis = aoAbrirPerfis,
                                 aoEditar = aoEditar,
                                 aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
@@ -384,6 +394,7 @@ private fun MenuDoLivro(
     aoArquivar: () -> Unit,
     arquivados: Int,
     aoAbrirArquivados: () -> Unit,
+    aoDefinirCapa: () -> Unit,
     aoAbrirPerfis: () -> Unit,
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
@@ -396,6 +407,7 @@ private fun MenuDoLivro(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; aoEditar() })
+            DropdownMenuItem(text = { Text("Definir capa…") }, onClick = { aberto = false; aoDefinirCapa() })
             DropdownMenuItem(text = { Text("Perfis de renderização") }, onClick = { aberto = false; aoAbrirPerfis() })
             DropdownMenuItem(
                 text = { Text("Perfil padrão…") },

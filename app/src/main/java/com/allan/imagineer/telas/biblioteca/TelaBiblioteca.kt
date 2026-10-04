@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -159,6 +162,8 @@ fun ConteudoDaBiblioteca(
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
 ) {
+    // CP4: as capas em grade (como no Kindle) ou a lista de antes; a escolha sobrevive a girar o aparelho.
+    var emGrade by rememberSaveable { mutableStateOf(true) }
     Scaffold(
         floatingActionButton = {
             // Visível em todos os estados, inclusive Vazia e Erro: escolher o arquivo é
@@ -174,6 +179,12 @@ fun ConteudoDaBiblioteca(
             TopAppBar(
                 title = { Text("Biblioteca") },
                 actions = {
+                    IconButton(onClick = { emGrade = !emGrade }) {
+                        Icon(
+                            if (emGrade) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
+                            contentDescription = if (emGrade) "Ver em lista" else "Ver em capas",
+                        )
+                    }
                     // Texto, e não ícone: o conjunto básico de ícones do Material não tem
                     // um apropriado (item 7.3a, incremento 4).
                     TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
@@ -196,7 +207,11 @@ fun ConteudoDaBiblioteca(
                     onRefresh = aoAtualizar,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                    if (emGrade) {
+                        GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                    } else {
+                        ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                    }
                 }
 
                 EstadoDaBiblioteca.Vazia -> Centralizado {

@@ -39,6 +39,10 @@ interface RepositorioDeLivros {
     /** `PATCH /livros/{id}`: corrige título e/ou autor; devolve o livro completo. */
     suspend fun ajustarLivro(livroId: Int, ajuste: LivroAjuste): ResultadoDaChamada<LivroDetalhe>
 
+    /** `POST /livros/{id}/capa`: define a capa com uma imagem ou o EPUB do livro, de onde o servidor a tira (CP3, CP5). */
+    suspend fun definirCapa(livroId: Int, arquivo: ArquivoEscolhido): ResultadoDaChamada<LivroDetalhe> =
+        ResultadoDaChamada.Falha("Definir a capa não está disponível.")
+
     /**
      * `DELETE /livros/{id}`: remove o livro e tudo que depende dele. Um `404`
      * (o livro já não existe) conta como sucesso — ver [interpretarRemocao].
@@ -139,6 +143,22 @@ class RepositorioDeLivrosPeloRetrofit(
             }
         } finally {
             // Se o pedido falhou antes de ler o corpo, o fluxo ficaria aberto.
+            entrada.close()
+        }
+    }
+
+    override suspend fun definirCapa(livroId: Int, arquivo: ArquivoEscolhido): ResultadoDaChamada<LivroDetalhe> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val entrada = leitor.abrir(arquivo.uri) ?: return ResultadoDaChamada.Falha("Não consegui abrir o arquivo escolhido.")
+        val corpo = CorpoComProgresso(
+            entrada = entrada,
+            tipo = (arquivo.tipo ?: "application/octet-stream").toMediaType(),
+            tamanho = arquivo.tamanho,
+            aoProgredir = { _, _ -> },
+        )
+        return try {
+            chamarApi { api.definirCapa(livroId, MultipartBody.Part.createFormData("arquivo", arquivo.nome, corpo)) }
+        } finally {
             entrada.close()
         }
     }

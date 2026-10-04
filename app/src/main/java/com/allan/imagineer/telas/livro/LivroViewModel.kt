@@ -215,6 +215,23 @@ class LivroViewModel(
      * recarga é silenciosa — e, se falhar, o livro fica e um aviso diz que não deu para
      * atualizar; nos demais casos, mostra o indicador de carregando, e a falha vira Erro.
      */
+    /** Define a capa do livro com o arquivo escolhido (uma imagem ou o EPUB, CP5) e avisa como foi. */
+    fun definirCapa(arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) {
+        if (arquivo == null) {
+            _avisos.trySend(Aviso("Não consegui abrir o arquivo escolhido."))
+            return
+        }
+        viewModelScope.launch {
+            when (val resultado = livros.definirCapa(livroId, arquivo)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    _avisos.trySend(Aviso("Capa definida."))
+                    carregar()
+                }
+                is ResultadoDaChamada.Falha -> _avisos.trySend(Aviso(resultado.motivo))
+            }
+        }
+    }
+
     fun carregar() {
         carregamentoEmAndamento?.cancel()
         if (_estado.value !is EstadoDoLivro.Pronto) _estado.value = EstadoDoLivro.Carregando
