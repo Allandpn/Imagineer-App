@@ -13,11 +13,14 @@ import java.io.InputStream
  * de disco, e sim `content://...`). Texto e não `Uri` para o ViewModel não
  * depender de classes do Android e poder ser testado na JVM.
  * @property tamanho em bytes, ou `null` se o provedor de arquivos não informa.
+ * @property tipo o tipo MIME que o provedor de arquivos informa (como `image/jpeg`), ou `null`. Serve quando o **nome** não
+ * tem extensão (alguns seletores entregam nomes assim): a extensão sai do tipo (item 7.5b, J2).
  */
 data class ArquivoEscolhido(
     val uri: String,
     val nome: String,
     val tamanho: Long?,
+    val tipo: String? = null,
 )
 
 /**
@@ -61,7 +64,12 @@ class LeitorDeArquivosDoAndroid(private val contexto: Context) : LeitorDeArquivo
 
         // Sem nome do provedor, o último pedaço do endereço é o melhor palpite.
         val nomeFinal = nome ?: endereco.lastPathSegment ?: return null
-        return ArquivoEscolhido(uri = uri, nome = nomeFinal, tamanho = tamanho)
+        val tipo = try {
+            contexto.contentResolver.getType(endereco)
+        } catch (erro: SecurityException) {
+            null
+        }
+        return ArquivoEscolhido(uri = uri, nome = nomeFinal, tamanho = tamanho, tipo = tipo)
     }
 
     override fun abrir(uri: String): InputStream? {

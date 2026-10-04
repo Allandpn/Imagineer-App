@@ -62,6 +62,23 @@ class BibliotecaViewModel(
      * Se já há uma lista na tela, a recarga é silenciosa (a lista antiga fica
      * visível); nos demais casos, mostra o indicador de carregando.
      */
+    /** "Definir capa…" no menu do livro: manda o arquivo (uma imagem ou o EPUB) e avisa como foi; recarrega a lista para a capa nova aparecer. */
+    fun definirCapa(livroId: Int, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?, aoTerminar: (String) -> Unit) {
+        if (arquivo == null) {
+            aoTerminar("Não consegui abrir o arquivo escolhido.")
+            return
+        }
+        viewModelScope.launch {
+            when (val resultado = repositorio.definirCapa(livroId, arquivo)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    aoTerminar("Capa definida.")
+                    carregar()
+                }
+                is ResultadoDaChamada.Falha -> aoTerminar(resultado.motivo)
+            }
+        }
+    }
+
     fun carregar() {
         carregamentoEmAndamento?.cancel()
 
@@ -116,3 +133,14 @@ fun descreverCapitulos(total: Int, arquivados: Int): String {
         else -> "$capitulos · $arquivados arquivados"
     }
 }
+
+/**
+ * A linha de metadados do livro na **lista** da biblioteca: os capítulos (sem falar dos arquivados) e o **tempo total de leitura**,
+ * como "12 capítulos · 4 h 20 min". Um servidor que ainda não manda o total de caracteres deixa só os capítulos.
+ */
+fun resumoDoLivroNaLista(livro: com.allan.imagineer.rede.LivroResumo): String {
+    val capitulos = descreverCapitulos(livro.total_de_capitulos - livro.capitulos_ignorados, 0)
+    if (livro.total_de_caracteres <= 0) return capitulos
+    return "$capitulos · ${com.allan.imagineer.telas.livro.descreverTempoDeLeitura(livro.total_de_caracteres)}"
+}
+

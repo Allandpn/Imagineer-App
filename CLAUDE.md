@@ -2,31 +2,21 @@
 
 App Android (uso pessoal, instalado por APK) que consome a API do Imagineer.
 É também um projeto de aprendizado: Allan quer entender o que está sendo construído e
-faz o trabalho por meio do Claude, sem usar o Android Studio. Explique de forma didática,
+faz o trabalho por meio do Claude e usa o Android Studio só para rodar o app no tablet de teste
+(Galaxy Tab S8, por USB) e conferir o resultado. Explique de forma didática,
 sem presumir termos técnicos, e diga o "porquê" das escolhas.
 
 ## Fonte da verdade
 - A especificação vive no repositório da API: `Allandpn/Imagineer`, arquivo `ESPECIFICACAO.md`.
   A Etapa 7 descreve as telas, a Etapa 6 descreve as rotas e o item 7.0 fixa a arquitetura do app.
 - O código cita itens dela ("item 7.3a", "incremento 6"). Consulte-a antes de decidir algo de tela ou rota.
-- **Há uma só cópia editável da especificação: a do repositório da API.** O app não guarda cópia própria.
-  Isso impede que as duas versões divirjam.
-
-### Como ler e escrever a especificação
-- **Ao começar uma sessão** que mexa em telas, rotas ou no contrato com a API, leia a especificação atualizada:
-  clone raso e só de leitura do repositório da API, numa pasta fora deste projeto. Sem acesso, avise o Allan.
-- **Quando o app precisar de uma mudança na especificação ou na API, escreva-a lá**, por pull request:
-  - branch curta criada a partir da `main` **atualizada** do repositório da API, nunca push direto na `main`;
-  - um assunto por PR, editando só a seção do assunto (rotas na Etapa 6, telas na Etapa 7; pendências novas no fim da lista da Etapa 8);
-  - marcar o que está "especificado" e o que está "implementado", e na descrição do PR dizer o que muda para o app;
-  - quem decide e mescla é o Allan.
-- **Só documentação.** Uma sessão do app não altera o código da API: mudança de rota ou de campo vira pendência
-  escrita na especificação, para ser feita do lado da API.
-- Sem permissão de escrita no repositório da API nesta sessão, proponha o texto ao Allan em vez de contornar.
+- **Código da API: nunca é alterado a partir daqui.** A **especificação** pode ser: quando o app precisa de uma
+  mudança de rota, campo ou tela, escreva-a em `ESPECIFICACAO.md` seguindo as regras de convivência do
+  `CLAUDE.md` do repositório da API (que é a fonte dessas regras — não repetir aqui).
 
 ## Fluxo de trabalho (mesmo do backend)
 1. Especificar o que vai ser feito e por quê.
-2. Registrar na especificação (no repositório da API, por PR, como acima).
+2. Registrar na especificação (no repositório da API, pelas regras de convivência de lá).
 3. Implementar só depois disso.
 4. Testar: nenhum item está concluído sem teste.
 - Incrementos pequenos e revisáveis, um por item da especificação. Não avançar com testes quebrados.
@@ -39,7 +29,13 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - Injeção de dependência MANUAL em `ImagineerApp` (sem Hilt).
 - Rede em `rede/`: Retrofit + OkHttp + kotlinx-serialization. Repositório = interface + `…PeloRetrofit`.
   Falhas passam por `chamarApi` → `ResultadoDaChamada`; o ViewModel nunca vê exceção de rede.
-- Persistência: DataStore (Preferences) em `dados/`. Sem Room e sem cache de livros (o servidor é a fonte).
+- Persistência: DataStore (Preferences) em `dados/` só para o endereço do servidor. **Room + KSP** guardam o
+  índice do que há no aparelho e **arquivos** guardam o texto (e, nos próximos passos, as imagens), tudo em
+  `noBackupFilesDir` e em `local/` (item 7.0a, passo 1, implementado). O servidor continua sendo a fonte da
+  verdade; offline é só de leitura; a cópia local é descartável (banco de formato novo = apagar e refazer, sem
+  migração). Falha local nunca impede a leitura (`melhorEsforco`). Interface + versão em memória para testar
+  (`IndiceLocal`, `ArmazemDeTextos`). Imagens (passo 3) e "Baixar para ler offline" (passo 4) ainda não existem:
+  não adicionar cache de imagem por conta própria.
 - Navegação: Navigation Compose 2.9 com rotas `@Serializable`. Não migrar para Navigation 3.
 - Módulo único `:app`. Sem login: a proteção é a rede (Tailscale). O HTTP em texto puro é deliberado;
   reavaliar só se o app for distribuído a outras pessoas.
@@ -58,8 +54,9 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 ## Testes
 - Unitários em `app/src/test`, espelhando os pacotes (JUnit4, coroutines-test, MockWebServer).
 - Todo ViewModel novo ou alterado precisa de teste. `androidTest` ainda só tem o exemplo padrão.
-- Comando: `./gradlew testDebugUnitTest` (nome padrão do Gradle; ainda NÃO verificado neste projeto —
-  o ambiente na nuvem pode não ter o Android SDK. Se falhar, dizer o motivo em vez de dar o teste por passado).
+- Comando: `./gradlew testDebugUnitTest`. Verificado em 30/09/2026 numa cópia limpa do repositório, com o
+  Android SDK instalado: 243 testes, cerca de 1,5 minuto. Num ambiente sem o SDK (a nuvem, por exemplo) o
+  comando pode falhar; nesse caso, dizer o motivo em vez de dar o teste por passado.
 
 ## Segredos e segurança
 - Nunca ler, exibir nem commitar: `local.properties`, keystores, chaves de API.
@@ -69,12 +66,20 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 
 ## Git
 - Commits pequenos, com o motivo da mudança, um por item da especificação.
+- **Sessão remota (nuvem), sem o Allan presente:** branch curta e pull request; quem mescla é ele.
+  **Sessão local com o Allan presente:** commit e push direto na `main`, só quando ele pedir explicitamente
+  (ele valida no tablet antes).
 
 ## Skills e agentes do projeto (.claude/)
 - `compose-expert` (aldefy/compose-skill v2.4.0, MIT, copiada em 2026-09-30, sem atualização automática):
   telas Compose. As regras acima têm precedência sobre qualquer sugestão dela
-  (em especial: não migrar para Navigation 3).
-- `code-reviewer` e `codebase-onboarding-engineer` (msitarzewski/agency-agents, MIT, copiados em 2026-09-30):
-  só leitura (`tools: Read, Grep, Glob`). Não têm conhecimento do projeto além deste arquivo.
+  (em especial: não migrar para Navigation 3). A pasta `references/source-code/` (código-fonte de
+  bibliotecas, ~2 MB) foi removida: é consultável sem precisar morar no repositório. Há uma nota local
+  na `SKILL.md` avisando isso (única edição feita no material de terceiros).
+- `code-reviewer` (msitarzewski/agency-agents, MIT, copiado em 2026-09-30): só leitura
+  (`tools: Read, Grep, Glob`). Não tem conhecimento do projeto além deste arquivo.
+  O agente `codebase-onboarding-engineer` foi removido: este arquivo e a especificação já cumprem esse papel.
+- **Aprovado pelo Allan em 30/09/2026**, depois de uma varredura (só markdown e licenças; sem scripts, hooks
+  nem instruções de rede ou segredos).
 - Revisão: telas Compose → compose-expert; o resto → code-reviewer.
 - Não instalar skills, agentes ou scripts de terceiros sem aprovação explícita.

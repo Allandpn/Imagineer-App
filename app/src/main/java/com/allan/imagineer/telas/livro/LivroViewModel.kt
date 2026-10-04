@@ -42,8 +42,8 @@ sealed interface EstadoDoLivro {
         val perfil: PerfilRenderizacao? = null,
     ) : EstadoDoLivro
 
-    /** [motivo] já está escrito para o usuário ler. */
-    data class Erro(val motivo: String) : EstadoDoLivro
+    /** [motivo] já está escrito para o usuário ler. [ofereceApagarCopia]: o servidor diz que o livro não existe mais e o aparelho ainda tem uma cópia (PL11). */
+    data class Erro(val motivo: String, val ofereceApagarCopia: Boolean = false) : EstadoDoLivro
 }
 
 /** O diálogo de editar título, autor e idioma (incremento 7). */
@@ -156,7 +156,20 @@ class LivroViewModel(
     private val livros: RepositorioDeLivros,
     private val capitulos: RepositorioDeCapitulos,
     private val perfis: RepositorioDePerfis,
+    /** Onde a pessoa parou (LE3); o padrão não lê nada (testes antigos). */
+    private val marcadores: com.allan.imagineer.rede.RepositorioDeMarcador = com.allan.imagineer.rede.MarcadorSemServidor,
 ) : ViewModel() {
+
+    private val _marcador = MutableStateFlow<com.allan.imagineer.rede.Marcador?>(null)
+
+    /** Onde a pessoa parou neste livro, ou `null` (nunca leu, ou ainda lendo): alimenta o "Continuar lendo". */
+    val marcador: StateFlow<com.allan.imagineer.rede.Marcador?> = _marcador.asStateFlow()
+
+    private fun lerMarcador() {
+        viewModelScope.launch {
+            (marcadores.ler(livroId) as? ResultadoDaChamada.Sucesso)?.let { _marcador.value = it.dado }
+        }
+    }
 
     private val _estado = MutableStateFlow<EstadoDoLivro>(EstadoDoLivro.Carregando)
     val estado: StateFlow<EstadoDoLivro> = _estado.asStateFlow()
@@ -215,7 +228,25 @@ class LivroViewModel(
      * recarga é silenciosa — e, se falhar, o livro fica e um aviso diz que não deu para
      * atualizar; nos demais casos, mostra o indicador de carregando, e a falha vira Erro.
      */
+    /** Define a capa do livro com o arquivo escolhido (uma imagem ou o EPUB, CP5) e avisa como foi. */
+    fun definirCapa(arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) {
+        if (arquivo == null) {
+            _avisos.trySend(Aviso("Não consegui abrir o arquivo escolhido."))
+            return
+        }
+        viewModelScope.launch {
+            when (val resultado = livros.definirCapa(livroId, arquivo)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    _avisos.trySend(Aviso("Capa definida."))
+                    carregar()
+                }
+                is ResultadoDaChamada.Falha -> _avisos.trySend(Aviso(resultado.motivo))
+            }
+        }
+    }
+
     fun carregar() {
+        lerMarcador()
         carregamentoEmAndamento?.cancel()
         if (_estado.value !is EstadoDoLivro.Pronto) _estado.value = EstadoDoLivro.Carregando
 
@@ -234,15 +265,27 @@ class LivroViewModel(
                     if (perfil == null) buscarNomeDoPerfil(livro)
                 }
                 is ResultadoDaChamada.Falha ->
-                    if (_estado.value is EstadoDoLivro.Pronto) {
+                    // 404: o livro não existe mais (apagado por outro caminho), então não há
+                    // o que preservar — vai para Erro, com o motivo da API.
+                    if (_estado.value is EstadoDoLivro.Pronto && resultado.codigoHttp != 404) {
                         // Recarga silenciosa que falhou (item 7.5a): o livro que já está na
                         // tela continua valendo — trocá-lo por Erro perderia a seleção em lote,
                         // as chamadas em andamento e os diálogos, por causa de um detalhe.
                         _avisos.trySend(Aviso("Não consegui atualizar o livro."))
                     } else {
-                        _estado.value = EstadoDoLivro.Erro(resultado.motivo)
+                        // PL11: o servidor não conhece mais o livro, mas o aparelho ainda tem uma cópia: oferece apagá-la (nunca apaga sozinho).
+                        val orfa = resultado.codigoHttp == 404 && livros.temCopiaLocal(livroId)
+                        _estado.value = EstadoDoLivro.Erro(resultado.motivo, ofereceApagarCopia = orfa)
                     }
             }
+        }
+    }
+
+    /** PL11: apaga a cópia do aparelho de um livro que o servidor não tem mais e sai da tela. */
+    fun apagarCopiaLocal() {
+        viewModelScope.launch {
+            livros.apagarCopiaLocal(livroId)
+            _livroRemovido.trySend(Unit)
         }
     }
 
@@ -315,6 +358,23 @@ class LivroViewModel(
 
         val novos = if (capituloId in selecao.ids) selecao.ids - capituloId else selecao.ids + capituloId
         _selecao.value = selecao.copy(ids = novos)
+    }
+
+    /**
+     * "Selecionar todos" / "Desmarcar todos": um botão que **alterna** (R18). Marca todos os
+     * capítulos elegíveis do modo — menos os que têm chamada em andamento, que nunca podem ser
+     * marcados (R5). Se todos já estão marcados, desmarca tudo; continua no modo (R2).
+     *
+     * Não confirma nada: o usuário ainda precisa tocar em "Arquivar (N)" / "Restaurar (N)".
+     */
+    fun alternarTodos() {
+        val selecao = _selecao.value ?: return
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        if (selecao.executando) return
+
+        val elegiveis = elegiveisPara(selecao.modo, pronto.livro) - pronto.ajustando
+        val todosMarcados = elegiveis.isNotEmpty() && selecao.ids.containsAll(elegiveis)
+        _selecao.value = selecao.copy(ids = if (todosMarcados) emptySet() else elegiveis)
     }
 
     /** Cancelar, ou o botão voltar do aparelho: sai do modo sem fazer nada. */
@@ -612,6 +672,33 @@ class LivroViewModel(
         val pronto = _estado.value as? EstadoDoLivro.Pronto
         if (novo.perfil_renderizacao_padrao_id != null && pronto?.perfil == null) {
             viewModelScope.launch { buscarNomeDoPerfil(novo) }
+        }
+    }
+
+    /**
+     * Marca ou desmarca um capítulo como lido tocando no ícone da lista (LE5). **Otimista**: o ícone muda na hora; se o servidor recusar,
+     * volta ao que era e um aviso diz o que houve.
+     */
+    fun alternarLido(capituloId: Int) {
+        val pronto = _estado.value as? EstadoDoLivro.Pronto ?: return
+        val atual = pronto.livro.capitulos.firstOrNull { it.id == capituloId } ?: return
+        val novo = !atual.lido
+        definirLidoNaTela(capituloId, novo)
+        viewModelScope.launch {
+            when (capitulos.ajustarCapitulo(capituloId, CapituloAjuste(lido = novo))) {
+                is ResultadoDaChamada.Sucesso -> alteracoesConfirmadas++
+                is ResultadoDaChamada.Falha -> {
+                    definirLidoNaTela(capituloId, !novo)
+                    _avisos.trySend(Aviso("Não consegui marcar o capítulo."))
+                }
+            }
+        }
+    }
+
+    private fun definirLidoNaTela(capituloId: Int, lido: Boolean) {
+        atualizarSePronto { pronto ->
+            val capitulos = pronto.livro.capitulos.map { if (it.id == capituloId) it.copy(lido = lido) else it }
+            pronto.copy(livro = pronto.livro.copy(capitulos = capitulos, capitulos_lidos = capitulos.count { it.lido && !it.ignorado }))
         }
     }
 

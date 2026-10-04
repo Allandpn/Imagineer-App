@@ -1,5 +1,23 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FloatingActionButton
+import com.allan.imagineer.telas.livro.MenuDoLivro
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
+import com.allan.imagineer.telas.menu.ModoDaBiblioteca
+import com.allan.imagineer.telas.menu.ItemDoMenu
+import com.allan.imagineer.telas.menu.GavetaDaBiblioteca
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -68,8 +86,11 @@ import com.allan.imagineer.telas.importacao.ImportacaoViewModel
 @Composable
 fun TelaBiblioteca(
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoAbrirConfiguracao: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
+    aoAbrirPerfil: () -> Unit,
+    aoAbrirConfiguracoes: () -> Unit,
+    aoAbrirLixeira: () -> Unit,
+    aoAbrirEstatisticas: () -> Unit = {},
+    aoAbrirCustos: () -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: BibliotecaViewModel = viewModel(
@@ -88,6 +109,21 @@ fun TelaBiblioteca(
     val estadoDaImportacao by importacao.estado.collectAsState()
     val livroParaAbrir by importacao.irParaLivro.collectAsState()
     val versaoDaBiblioteca by importacao.versaoDaBiblioteca.collectAsState()
+    val modoGuardado by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
+    val escopoDoModo = rememberCoroutineScope()
+
+    // "Definir capa…" no ⋮ de um livro: o seletor de arquivos (uma imagem ou o EPUB) e o livro que o pediu.
+    var livroDaCapa by remember { mutableStateOf<Int?>(null) }
+    val contexto = LocalContext.current
+    val seletorDeCapa = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val livroId = livroDaCapa
+        livroDaCapa = null
+        if (uri != null && livroId != null) {
+            viewModel.definirCapa(livroId, aplicacao.leitorDeArquivos.descrever(uri.toString())) { aviso ->
+                android.widget.Toast.makeText(contexto, aviso, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // O seletor de arquivos do sistema. Aceita "octet-stream" também: alguns
     // gerenciadores de arquivos classificam EPUB assim, e com o filtro estrito o
@@ -120,9 +156,25 @@ fun TelaBiblioteca(
         remocao = remocao,
         aoAtualizar = viewModel::carregar,
         aoAbrirLivro = aoAbrirLivro,
-        aoAbrirConfiguracao = aoAbrirConfiguracao,
-        aoAbrirPerfis = aoAbrirPerfis,
+        aoAbrirMenu = { item ->
+            when (item) {
+                ItemDoMenu.PERFIL -> aoAbrirPerfil()
+                ItemDoMenu.CONFIGURACOES -> aoAbrirConfiguracoes()
+                ItemDoMenu.LIXEIRA -> aoAbrirLixeira()
+                ItemDoMenu.CUSTOS -> aoAbrirCustos()
+                ItemDoMenu.ESTATISTICAS -> aoAbrirEstatisticas()
+            }
+        },
+        modo = ModoDaBiblioteca.deTexto(modoGuardado),
+        aoAlternarModo = {
+            val novo = if (ModoDaBiblioteca.deTexto(modoGuardado) == ModoDaBiblioteca.CAPAS) ModoDaBiblioteca.LISTA else ModoDaBiblioteca.CAPAS
+            escopoDoModo.launch { aplicacao.armazenamento.salvarModoDaBiblioteca(novo.name) }
+        },
         aoPedirRemocao = viewModel::pedirRemocao,
+        aoDefinirCapa = { livro ->
+            livroDaCapa = livro.id
+            seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream"))
+        },
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
         aoImportar = {
@@ -149,33 +201,58 @@ fun ConteudoDaBiblioteca(
     remocao: EstadoDaRemocao,
     aoAtualizar: () -> Unit,
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoAbrirConfiguracao: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
+    aoAbrirMenu: (ItemDoMenu) -> Unit,
+    modo: ModoDaBiblioteca,
+    aoAlternarModo: () -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
+    aoDefinirCapa: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
 ) {
+    // MN1, MN2: a barra só tem o hambúrguer; tudo o mais mora na gaveta.
+    val gaveta = rememberDrawerState(DrawerValue.Closed)
+    val escopo = rememberCoroutineScope()
+    ModalNavigationDrawer(
+        drawerState = gaveta,
+        drawerContent = {
+            GavetaDaBiblioteca { item ->
+                escopo.launch { gaveta.close() }
+                aoAbrirMenu(item)
+            }
+        },
+    ) {
     Scaffold(
         floatingActionButton = {
             // Visível em todos os estados, inclusive Vazia e Erro: escolher o arquivo é
             // o primeiro passo do fluxo, e o estado vazio ("Importe um EPUB") não
             // teria como cumprir o que diz sem ele.
-            ExtendedFloatingActionButton(
-                onClick = aoImportar,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Importar") },
-            )
+            // Só o ícone: o "+" já diz que é para adicionar (o texto fica como descrição para leitor de tela).
+            // PL9: importar precisa do servidor; sem conexão o botão fica apagado e não faz nada.
+            val online by (LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp).conexao.online.collectAsState()
+            FloatingActionButton(
+                onClick = { if (online) aoImportar() },
+                shape = CircleShape,
+                modifier = Modifier.alpha(if (online) 1f else 0.38f),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "Importar livro")
+            }
         },
         topBar = {
             TopAppBar(
                 title = { Text("Biblioteca") },
+                navigationIcon = {
+                    IconButton(onClick = { escopo.launch { gaveta.open() } }) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                    }
+                },
                 actions = {
-                    // Texto, e não ícone: o conjunto básico de ícones do Material não tem
-                    // um apropriado (item 7.3a, incremento 4).
-                    TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
-                    IconButton(onClick = aoAbrirConfiguracao) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Configuração")
+                    // Capas ou lista: o mesmo modo que a tela de Configurações guarda.
+                    IconButton(onClick = aoAlternarModo) {
+                        Icon(
+                            if (modo == ModoDaBiblioteca.CAPAS) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
+                            contentDescription = if (modo == ModoDaBiblioteca.CAPAS) "Ver em lista" else "Ver em capas",
+                        )
                     }
                 },
             )
@@ -192,7 +269,11 @@ fun ConteudoDaBiblioteca(
                     onRefresh = aoAtualizar,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
+                    if (modo == ModoDaBiblioteca.CAPAS) {
+                        GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                    } else {
+                        ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                    }
                 }
 
                 EstadoDaBiblioteca.Vazia -> Centralizado {
@@ -221,6 +302,7 @@ fun ConteudoDaBiblioteca(
     }
 
     DialogoDeRemocao(remocao, aoCancelarRemocao, aoConfirmarRemocao)
+    }
 }
 
 /** Conteúdo no meio da tela, com largura máxima (o alvo de teste é um tablet). */
@@ -245,6 +327,7 @@ private fun ListaDeLivros(
     livros: List<LivroResumo>,
     aoAbrirLivro: (livroId: Int) -> Unit,
     aoPedirRemocao: (LivroResumo) -> Unit,
+    aoDefinirCapa: (LivroResumo) -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -257,6 +340,7 @@ private fun ListaDeLivros(
                     livro,
                     aoTocar = { aoAbrirLivro(livro.id) },
                     aoPedirRemocao = { aoPedirRemocao(livro) },
+                    aoDefinirCapa = { aoDefinirCapa(livro) },
                 )
             }
         }
@@ -268,6 +352,7 @@ private fun CartaoDeLivro(
     livro: LivroResumo,
     aoTocar: () -> Unit,
     aoPedirRemocao: () -> Unit,
+    aoDefinirCapa: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar)) {
         Row(
@@ -279,37 +364,20 @@ private fun CartaoDeLivro(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(livro.titulo, style = MaterialTheme.typography.titleMedium)
+                // O autor na mesma fonte da tela do livro (serifada, itálico).
                 Text(
                     livro.autor ?: "Autor desconhecido",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Serif,
+                    fontStyle = FontStyle.Italic,
                 )
                 Text(
-                    descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados),
+                    resumoDoLivroNaLista(livro),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            MenuDoCartao(aoPedirRemocao)
-        }
-    }
-}
-
-/** O menu de três pontos (⋮) do cartão. Hoje só tem "Remover". */
-@Composable
-private fun MenuDoCartao(aoPedirRemocao: () -> Unit) {
-    var aberto by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { aberto = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
-        }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            DropdownMenuItem(
-                text = { Text("Remover") },
-                onClick = {
-                    aberto = false
-                    aoPedirRemocao()
-                },
-            )
+            com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
         }
     }
 }

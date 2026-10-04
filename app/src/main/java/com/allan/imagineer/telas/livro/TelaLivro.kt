@@ -1,8 +1,16 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.SmallFloatingActionButton
+import com.allan.imagineer.telas.comum.HostDeAvisos
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
@@ -78,6 +86,7 @@ fun livroViewModel(livroId: Int, dono: ViewModelStoreOwner? = null): LivroViewMo
                 aplicacao.repositorioDeLivros,
                 aplicacao.repositorioDeCapitulos,
                 aplicacao.repositorioDePerfis,
+                aplicacao.repositorioDeMarcador,
             )
         }
     }
@@ -133,17 +142,38 @@ fun TelaLivro(
     livroId: Int,
     aoVoltar: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
-    aoAbrirElementos: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
-    aoAbrirArquivados: () -> Unit,
+    /** A barra de baixo do livro (LY1): o ícone tocado. */
+    aoIrParaODoLivro: (DestinoDoLivro) -> Unit = {},
+    aoAbrirPesquisa: () -> Unit = {},
+    aoAbrirLixeira: (() -> Unit)? = null,
+    aoAbrirDestaques: (() -> Unit)? = null,
+    /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
+    aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
+    // CP5: "Definir capa…" abre o seletor de arquivos (uma imagem ou o EPUB do livro).
+    val aplicacaoDaCapa = LocalContext.current.applicationContext as ImagineerApp
+    val seletorDeCapa = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.definirCapa(aplicacaoDaCapa.leitorDeArquivos.descrever(uri.toString()))
+    }
     val estado by viewModel.estado.collectAsState()
     val edicao by viewModel.edicao.collectAsState()
     val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
     val remocao by viewModel.remocao.collectAsState()
     val selecao by viewModel.selecao.collectAsState()
     val avisos = remember { SnackbarHostState() }
+    val marcador by viewModel.marcador.collectAsState()
+
+    // PL3 a PL5: o download para ler offline. Ao abrir, lê se o livro já está baixado e, com Wi-Fi, completa o que faltar.
+    val baixador = aplicacaoDaCapa.baixadorDeLivros
+    val downloads by baixador.estados.collectAsState()
+    val download = downloads[livroId] ?: com.allan.imagineer.local.EstadoDoDownload.NaoBaixado
+    var dialogoDeDownload by remember { mutableStateOf(false) }
+    val scopeDaCopia = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(livroId) {
+        baixador.carregar(livroId)
+        baixador.completarSeBaixado(livroId)
+    }
 
     // O botão voltar do aparelho, no modo de seleção, cancela a seleção em vez de sair
     // da tela.
@@ -170,14 +200,25 @@ fun TelaLivro(
         aoAlternarSelecao = viewModel::alternarSelecao,
         aoCancelarSelecao = viewModel::cancelarSelecao,
         aoConfirmarSelecao = viewModel::confirmarSelecao,
-        aoAbrirArquivados = aoAbrirArquivados,
+        aoAlternarTodos = viewModel::alternarTodos,
+        aoIrParaODoLivro = aoIrParaODoLivro,
         aoAbrirCapitulo = aoAbrirCapitulo,
-        aoAbrirElementos = aoAbrirElementos,
-        aoAbrirPerfis = aoAbrirPerfis,
+        aoAbrirPesquisa = aoAbrirPesquisa,
+        aoAbrirLixeira = aoAbrirLixeira,
+        aoAbrirDestaques = aoAbrirDestaques,
+        aoApagarCopiaLocal = { viewModel.apagarCopiaLocal(); scopeDaCopia.launch { baixador.remover(livroId) } },
+        aoAlternarLido = viewModel::alternarLido,
+        marcador = marcador,
+        aoContinuarLendo = aoContinuarLendo,
+        estadoDoDownload = download,
+        aoAbrirOffline = { dialogoDeDownload = true },
+        aoDefinirCapa = { seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream")) },
         aoEditar = viewModel::abrirEdicao,
         aoEscolherPerfilPadrao = viewModel::abrirEscolhaDePerfil,
         aoApagar = viewModel::pedirRemocao,
     )
+
+    if (dialogoDeDownload) DialogoDeDownload(livroId, baixador, download, aoFechar = { dialogoDeDownload = false })
 
     val livro = (estado as? EstadoDoLivro.Pronto)?.livro
     if (livro != null && edicao is EstadoDaEdicao.Editando) {
@@ -209,28 +250,63 @@ fun ConteudoDoLivro(
     aoAlternarSelecao: (capituloId: Int) -> Unit,
     aoCancelarSelecao: () -> Unit,
     aoConfirmarSelecao: () -> Unit,
-    aoAbrirArquivados: () -> Unit,
+    aoAlternarTodos: () -> Unit,
+    aoIrParaODoLivro: (DestinoDoLivro) -> Unit = {},
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
-    aoAbrirElementos: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
+    aoAbrirPesquisa: () -> Unit = {},
+    aoAbrirLixeira: (() -> Unit)? = null,
+    aoAbrirDestaques: (() -> Unit)? = null,
+    aoApagarCopiaLocal: () -> Unit = {},
+    aoAlternarLido: (capituloId: Int) -> Unit = {},
+    marcador: com.allan.imagineer.rede.Marcador? = null,
+    aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
+    estadoDoDownload: com.allan.imagineer.local.EstadoDoDownload = com.allan.imagineer.local.EstadoDoDownload.NaoBaixado,
+    aoAbrirOffline: (() -> Unit)? = null,
+    aoDefinirCapa: () -> Unit = {},
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
 ) {
+    var metadadosAbertos by remember { mutableStateOf(false) }
+    val pronto = estado as? EstadoDoLivro.Pronto
+    if (metadadosAbertos && pronto != null) {
+        DialogoDosMetadados(
+            livro = pronto.livro,
+            perfil = pronto.perfil,
+            aoFechar = { metadadosAbertos = false },
+            baixado = estadoDoDownload as? com.allan.imagineer.local.EstadoDoDownload.Baixado,
+        )
+    }
+    val continuar = pronto?.let { continuarLendo(it.livro, marcador) }
     Scaffold(
-        snackbarHost = { SnackbarHost(avisos) },
+        snackbarHost = { HostDeAvisos(avisos) },
+        // LY1: a barra de navegação do livro (só ícones); some no modo de seleção, que tem a barra dele.
+        bottomBar = { if (selecao == null && pronto != null) BarraDeNavegacaoDoLivro(selecionado = null, aoIr = aoIrParaODoLivro) },
+        // LY3: "Continuar lendo" é um botão pequeno, só com o ícone, no canto de baixo.
+        floatingActionButton = {
+            if (selecao == null && continuar != null) {
+                SmallFloatingActionButton(
+                    onClick = { aoContinuarLendo(continuar.capituloId, continuar.posicao) },
+                    shape = androidx.compose.foundation.shape.CircleShape, // redondo, como os outros botões (os menus é que são quadrados)
+                ) {
+                    Icon(IconesDaTelaDoLivro.continuar, contentDescription = continuar.rotulo)
+                }
+            }
+        },
         topBar = {
             if (selecao != null) {
                 // Modo de seleção: enquanto seleciona, as outras ações ficam indisponíveis.
                 BarraDeSelecao(
                     selecao = selecao,
                     rotuloDaAcao = "Arquivar",
+                    todosMarcados = estado is EstadoDoLivro.Pronto && todosMarcados(estado, selecao),
+                    aoAlternarTodos = aoAlternarTodos,
                     aoCancelar = aoCancelarSelecao,
                     aoConfirmar = aoConfirmarSelecao,
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Livro") },
+                    title = { Text("Capítulos") },
                     navigationIcon = {
                         IconButton(onClick = aoVoltar) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -239,15 +315,19 @@ fun ConteudoDoLivro(
                     actions = {
                         // Só com o livro na tela: os atalhos não fazem sentido em erro.
                         if (estado is EstadoDoLivro.Pronto) {
-                            // O botão só faz sentido se há capítulos ativos para arquivar.
-                            if (estado.livro.capitulos.any { !it.ignorado }) {
-                                IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) }) {
-                                    Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
-                                }
-                            }
-                            TextButton(onClick = aoAbrirElementos) { Text("Elementos") }
-                            TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
-                            MenuDoLivro(aoEditar, aoEscolherPerfilPadrao, aoApagar)
+                            // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
+                            // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
+                            MenuDoLivro(
+                                aoPesquisar = aoAbrirPesquisa,
+                                aoAbrirOffline = aoAbrirOffline,
+                                rotuloDoOffline = rotuloDoOffline(estadoDoDownload),
+                                aoEditar = aoEditar,
+                                aoDefinirCapa = aoDefinirCapa,
+                                aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
+                                aoAbrirLixeira = aoAbrirLixeira,
+                                aoAbrirDestaques = aoAbrirDestaques,
+                                aoApagar = aoApagar,
+                            )
                         }
                     },
                 )
@@ -273,6 +353,15 @@ fun ConteudoDoLivro(
                             textAlign = TextAlign.Center,
                         )
                         Button(onClick = aoTentarDeNovo) { Text("Tentar de novo") }
+                        // PL11: o servidor não tem mais o livro, mas o aparelho ainda tem uma cópia: oferece apagá-la (nunca apaga sozinho).
+                        if (estado.ofereceApagarCopia) {
+                            Text(
+                                "O servidor não tem mais este livro, mas ainda há uma cópia dele neste aparelho.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                            )
+                            androidx.compose.material3.OutlinedButton(onClick = aoApagarCopiaLocal) { Text("Apagar a cópia do aparelho") }
+                        }
                     }
                 }
 
@@ -281,8 +370,9 @@ fun ConteudoDoLivro(
                     selecao = selecao,
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
-                    aoAbrirArquivados = aoAbrirArquivados,
                     aoAbrirCapitulo = aoAbrirCapitulo,
+                    aoAlternarLido = aoAlternarLido,
+                    aoAbrirMetadados = { metadadosAbertos = true },
                 )
             }
         }
@@ -295,8 +385,9 @@ private fun ListaDoLivro(
     selecao: Selecao?,
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
-    aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
+    aoAlternarLido: (Int) -> Unit,
+    aoAbrirMetadados: () -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -308,16 +399,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro, estado.perfil) }
-
-            // Como nas conversas arquivadas do WhatsApp: só aparece quando há algo arquivado.
-            if (arquivados > 0) {
-                item {
-                    // Enquanto seleciona, o acesso à área de arquivados fica indisponível.
-                    LinhaDeArquivados(arquivados, habilitada = selecao == null, aoAbrir = aoAbrirArquivados)
-                    HorizontalDivider()
-                }
-            }
+            item { CabecalhoDoLivro(livro, aoAbrirMetadados) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -330,7 +412,8 @@ private fun ListaDoLivro(
                 }
             }
 
-            items(ativos, key = { it.id }) { capitulo ->
+            itemsIndexed(ativos, key = { _, capitulo -> capitulo.id }) { indice, capitulo ->
+                // Sem divisores nem faixas: a separação vem só do espaço.
                 LinhaDeCapitulo(
                     capitulo = capitulo,
                     emSelecao = selecao != null,
@@ -344,87 +427,34 @@ private fun ListaDoLivro(
                     aoSegurar = {
                         if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
                     },
+                    detalhes = false,
+                    aoAlternarLido = { aoAlternarLido(capitulo.id) },
                 )
-                HorizontalDivider()
             }
         }
     }
 }
 
-/** A linha "Arquivados (N)" no topo da lista — abre a área de arquivados. */
+/** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nos metadados. */
 @Composable
-private fun LinhaDeArquivados(quantidade: Int, habilitada: Boolean, aoAbrir: () -> Unit) {
+private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirMetadados: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = habilitada, onClick = aoAbrir)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text("Arquivados", style = MaterialTheme.typography.titleSmall)
-        Text(
-            quantidade.toString(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe, perfil: PerfilRenderizacao?) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(livro.titulo, style = MaterialTheme.typography.headlineSmall)
-        Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleMedium)
-        if (livro.idioma != null) {
-            Text(livro.idioma, style = MaterialTheme.typography.bodyMedium)
-        }
-        Text(
-            descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        // A API só devolve o id do perfil; o nome vem de uma busca à parte, que pode
-        // ainda não ter chegado (ou ter falhado) — aí cai no "definido".
-        Text(
-            when {
-                livro.perfil_renderizacao_padrao_id == null -> "Perfil de renderização padrão: nenhum definido"
-                perfil != null -> "Perfil de renderização padrão: ${perfil.nome}"
-                else -> "Perfil de renderização padrão: definido"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        if (livro.metadados_pendentes.isNotEmpty()) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            // O autor: do tamanho e da cor dos títulos dos capítulos, numa fonte diferente (serifada, em itálico).
             Text(
-                "Faltam dados: ${nomesDosCampos(livro.metadados_pendentes)}.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
+                livro.autor ?: "Autor desconhecido",
+                style = MaterialTheme.typography.bodyLarge,
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
             )
         }
-    }
-}
-
-/** O menu ⋮ da barra superior: as ações sobre o livro aberto. */
-@Composable
-private fun MenuDoLivro(
-    aoEditar: () -> Unit,
-    aoEscolherPerfilPadrao: () -> Unit,
-    aoApagar: () -> Unit,
-) {
-    var aberto by remember { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { aberto = true }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções")
-        }
-        DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
-            DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; aoEditar() })
-            DropdownMenuItem(
-                text = { Text("Perfil padrão…") },
-                onClick = { aberto = false; aoEscolherPerfilPadrao() },
-            )
-            DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; aoApagar() })
+        // LY4: o ícone que abre o modal com os demais metadados do livro.
+        IconButton(onClick = aoAbrirMetadados) {
+            Icon(IconesDaTelaDoLivro.metadados, contentDescription = "Metadados do livro", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }

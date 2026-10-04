@@ -85,6 +85,10 @@ Use this table first. Match the user's signal to one reference file and read it 
 answering. `source-code/` files are supporting evidence — load a `references/*.md` file
 first, then cite `source-code/` for implementation proof when receipts matter.
 
+> **Nota local do projeto Imagineer (30/09/2026):** a pasta `references/source-code/` foi removida deste
+> repositório (~2 MB de código-fonte de bibliotecas). Ignore as referências a ela aqui e nos arquivos de
+> `references/`; se precisar de prova de implementação, consulte o código-fonte da biblioteca diretamente.
+
 ### State, recomposition, side effects
 
 - **`remember`, `rememberSaveable`, `mutableStateOf` vs `mutableIntStateOf`, state hoisting** → `references/state-management.md`

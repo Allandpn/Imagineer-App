@@ -1,5 +1,6 @@
 package com.allan.imagineer.dados
 
+import kotlinx.coroutines.flow.flowOf
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -22,6 +23,26 @@ interface ArmazenamentoDeConfiguracao {
 
     /** Grava o endereço, que deve vir já normalizado por [normalizarUrl]. */
     suspend fun salvarUrlDoServidor(url: String)
+
+    /** Como a biblioteca mostra os livros (`CAPAS` ou `LISTA`); `null` = nada guardado (vale capas). Padrão: sem armazenamento. */
+    val modoDaBiblioteca: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarModoDaBiblioteca(modo: String) {}
+
+    /** A cor de destaque escolhida (o nome de um `DestaqueEscolhido`); `null` = nada guardado (vale o âmbar). */
+    val corDeDestaque: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarCorDeDestaque(nome: String) {}
+
+    /** A aparência da leitura (RL1 a RL8); sem nada guardado, o padrão. */
+    val preferenciasDeLeitura: Flow<PreferenciasDeLeitura> get() = flowOf(PreferenciasDeLeitura())
+
+    suspend fun salvarPreferenciasDeLeitura(preferencias: PreferenciasDeLeitura) {}
+
+    /** O tempo de leitura ainda **não enviado** ao servidor (RL16), em JSON `{"livro|dia": segundos}`; `null` = nada pendente. */
+    val tempoPendente: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarTempoPendente(texto: String) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -36,7 +57,39 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
         contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_URL] = url }
     }
 
+    override val modoDaBiblioteca: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_MODO_DA_BIBLIOTECA] }
+
+    override suspend fun salvarModoDaBiblioteca(modo: String) {
+        contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_MODO_DA_BIBLIOTECA] = modo }
+    }
+
+    override val corDeDestaque: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_COR_DE_DESTAQUE] }
+
+    override suspend fun salvarCorDeDestaque(nome: String) {
+        contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_COR_DE_DESTAQUE] = nome }
+    }
+
+    override val preferenciasDeLeitura: Flow<PreferenciasDeLeitura> =
+        contexto.armazenamento.data.map { preferencias -> PreferenciasDeLeitura.deTexto(preferencias[CHAVE_PREFERENCIAS_DE_LEITURA]) }
+
+    override suspend fun salvarPreferenciasDeLeitura(preferencias: PreferenciasDeLeitura) {
+        contexto.armazenamento.edit { it[CHAVE_PREFERENCIAS_DE_LEITURA] = preferencias.paraTexto() }
+    }
+
+    override val tempoPendente: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_TEMPO_PENDENTE] }
+
+    override suspend fun salvarTempoPendente(texto: String) {
+        contexto.armazenamento.edit { it[CHAVE_TEMPO_PENDENTE] = texto }
+    }
+
     private companion object {
+        val CHAVE_TEMPO_PENDENTE = stringPreferencesKey("tempo_de_leitura_pendente")
+        val CHAVE_PREFERENCIAS_DE_LEITURA = stringPreferencesKey("preferencias_de_leitura")
+        val CHAVE_COR_DE_DESTAQUE = stringPreferencesKey("cor_de_destaque")
         val CHAVE_URL = stringPreferencesKey("url_do_servidor")
+        val CHAVE_MODO_DA_BIBLIOTECA = stringPreferencesKey("modo_da_biblioteca")
     }
 }

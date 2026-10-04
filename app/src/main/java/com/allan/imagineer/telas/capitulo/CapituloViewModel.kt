@@ -3,7 +3,9 @@ package com.allan.imagineer.telas.capitulo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.rede.CapituloDetalhe
+import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.RepositorioDeCapitulos
+import com.allan.imagineer.rede.RepositorioDeArtefatos
 import com.allan.imagineer.rede.ResultadoDaChamada
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,12 +54,81 @@ sealed interface EstadoDoCapitulo {
 class CapituloViewModel(
     private val capituloId: Int,
     private val capitulos: RepositorioDeCapitulos,
+    private val artefatosDoCapitulo: RepositorioDeArtefatos,
+    /** Onde a pessoa parou (LE2). O padrão não faz nada (testes antigos). */
+    private val marcador: com.allan.imagineer.rede.RepositorioDeMarcador = com.allan.imagineer.rede.MarcadorSemServidor,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow<EstadoDoCapitulo>(EstadoDoCapitulo.Carregando)
     val estado: StateFlow<EstadoDoCapitulo> = _estado.asStateFlow()
 
+    private val _artefatos = MutableStateFlow<List<Artefato>>(emptyList())
+
+    /**
+     * Os ícones a desenhar sobre o texto (item 7.5b, incremento 11). **O texto nunca espera por eles**: vêm
+     * por uma chamada à parte, depois, e, se falharem, o capítulo continua legível, só sem ícones.
+     */
+    val artefatos: StateFlow<List<Artefato>> = _artefatos.asStateFlow()
+
+    /**
+     * Lê (ou relê) os artefatos. Só leitura — **nunca chama a IA**. Falha em silêncio: ícone é um
+     * enfeite útil, não pode atrapalhar a leitura nem trocar a tela por um erro. Quem chama relê quando
+     * o painel de IA muda o que há de sugestão (analisar, confirmar, descartar...).
+     */
+    fun carregarArtefatos() {
+        viewModelScope.launch {
+            val resultado = artefatosDoCapitulo.ler(capituloId)
+            if (resultado is ResultadoDaChamada.Sucesso) _artefatos.value = resultado.dado
+        }
+    }
+
     private var carregamentoEmAndamento: Job? = null
+
+    /**
+     * Marca (ou desmarca) o capítulo como lido (LE1, LE5). **Otimista**: o ✓ aparece na hora e, se o servidor recusar, volta ao que
+     * era. Marcar um capítulo que já está lido não chama o servidor.
+     */
+    fun marcarLido(lido: Boolean) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        if (pronto.capitulo.lido == lido) return
+        _estado.value = pronto.copy(capitulo = pronto.capitulo.copy(lido = lido))
+        viewModelScope.launch {
+            val resultado = capitulos.ajustarCapitulo(capituloId, com.allan.imagineer.rede.CapituloAjuste(lido = lido))
+            if (resultado is ResultadoDaChamada.Falha) {
+                val agora = _estado.value as? EstadoDoCapitulo.Pronto ?: return@launch
+                _estado.value = agora.copy(capitulo = agora.capitulo.copy(lido = !lido))
+            }
+        }
+    }
+
+    /**
+     * Renomeia o capítulo (RN2, RN3). **Otimista**: o título muda na hora; se o servidor recusar, volta ao que era e [aoFalhar] recebe o
+     * motivo. Título em branco volta ao padrão ("Capítulo N").
+     */
+    fun renomear(novoTitulo: String, aoFalhar: (String) -> Unit = {}) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        val anterior = pronto.capitulo.titulo
+        val novo = novoTitulo.trim()
+        if (novo == anterior.orEmpty()) return
+        _estado.value = pronto.copy(capitulo = pronto.capitulo.copy(titulo = novo.ifEmpty { null }))
+        viewModelScope.launch {
+            val resultado = capitulos.ajustarCapitulo(capituloId, com.allan.imagineer.rede.CapituloAjuste(titulo = novo))
+            if (resultado is ResultadoDaChamada.Falha) {
+                val agora = _estado.value as? EstadoDoCapitulo.Pronto ?: return@launch
+                _estado.value = agora.copy(capitulo = agora.capitulo.copy(titulo = anterior))
+                aoFalhar(resultado.motivo)
+            }
+        }
+    }
+
+    /** O leitor chegou ao fim do texto (LE4, LE7): marca como lido, uma vez; reler não desmarca (só a pessoa desmarca). */
+    fun chegouAoFim() = marcarLido(true)
+
+    /** Grava onde a pessoa está lendo ([posicao] = início do parágrafo à vista, UTF-16) (LE2). Falhar em silêncio: não atrapalha a leitura. */
+    fun gravarPosicao(posicao: Int) {
+        val pronto = _estado.value as? EstadoDoCapitulo.Pronto ?: return
+        viewModelScope.launch { marcador.gravar(pronto.capitulo.livro_id, capituloId, posicao) }
+    }
 
     /**
      * Carrega o capítulo, **a não ser que já esteja carregado ou carregando**. A tela

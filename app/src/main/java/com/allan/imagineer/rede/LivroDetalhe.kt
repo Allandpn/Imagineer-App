@@ -19,6 +19,8 @@ data class CapituloResumo(
     val ignorado: Boolean,
     val tamanho_do_texto: Int,
     val sugestoes_pendentes: Int = 0,
+    /** A pessoa chegou ao fim do capítulo (ou o marcou como lido): o ✓ da lista (LE1). */
+    val lido: Boolean = false,
 )
 
 /**
@@ -37,6 +39,7 @@ data class CapituloDetalhe(
     val ignorado: Boolean,
     val tamanho_do_texto: Int,
     val sugestoes_pendentes: Int = 0,
+    val lido: Boolean = false,
     val livro_id: Int,
     val texto: String,
 )
@@ -64,7 +67,15 @@ data class LivroDetalhe(
      * dar por concluída.
      */
     val metadados_pendentes: List<String> = emptyList(),
+    /** Quantos capítulos ativos estão lidos: o progresso do livro (LE6). */
+    val capitulos_lidos: Int = 0,
     val capitulos: List<CapituloResumo> = emptyList(),
+    /**
+     * Contador que o servidor sobe a cada mudança no que o leitor mostra do livro (item
+     * 6.9). É o que o app manda em `If-None-Match` para saber, sem baixar nada, se a cópia
+     * guardada no aparelho ainda vale.
+     */
+    val revisao: Int = 0,
 )
 
 /**
@@ -130,4 +141,6 @@ data class LivroAjuste(
 data class CapituloAjuste(
     val titulo: String? = null,
     val ignorado: Boolean? = null,
+    /** `true` marca como lido, `false` desmarca (LE1). */
+    val lido: Boolean? = null,
 )

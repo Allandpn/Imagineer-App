@@ -29,6 +29,21 @@ fun descreverSugestoes(pendentes: Int): String? = when {
     else -> "$pendentes sugestões a confirmar"
 }
 
+/** Quantos caracteres, em média, uma pessoa lê por minuto em português (~230 palavras de ~5,7 letras). Estimativa, não medida. */
+const val CARACTERES_LIDOS_POR_MINUTO = 1300
+
+/** O tempo estimado de leitura: "menos de 1 min", "12 min", "1 h 20 min". */
+fun descreverTempoDeLeitura(caracteres: Int): String {
+    if (caracteres <= 0) return "menos de 1 min"
+    val minutos = (caracteres + CARACTERES_LIDOS_POR_MINUTO - 1) / CARACTERES_LIDOS_POR_MINUTO
+    return when {
+        minutos < 2 && caracteres < CARACTERES_LIDOS_POR_MINUTO / 2 -> "menos de 1 min"
+        minutos < 60 -> "$minutos min"
+        minutos % 60 == 0 -> "${minutos / 60} h"
+        else -> "${minutos / 60} h ${minutos % 60} min"
+    }
+}
+
 /**
  * O tamanho de um capítulo em linguagem legível: "850 caracteres", "3,4 mil
  * caracteres", "112 mil caracteres". O servidor só devolve o número; formatar é

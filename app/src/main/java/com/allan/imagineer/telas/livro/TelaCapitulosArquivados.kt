@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material.icons.filled.Archive
+import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +52,8 @@ fun TelaCapitulosArquivados(
     aoVoltar: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     viewModel: LivroViewModel,
+    /** A barra de baixo do livro (LY1); nulo = sem a barra. */
+    aoIrParaODoLivro: ((DestinoDoLivro) -> Unit)? = null,
 ) {
     val estado by viewModel.estado.collectAsState()
     val selecao by viewModel.selecao.collectAsState()
@@ -71,7 +75,9 @@ fun TelaCapitulosArquivados(
         aoAlternarSelecao = viewModel::alternarSelecao,
         aoCancelarSelecao = viewModel::cancelarSelecao,
         aoConfirmarSelecao = viewModel::confirmarSelecao,
+        aoAlternarTodos = viewModel::alternarTodos,
         aoAbrirCapitulo = aoAbrirCapitulo,
+        aoIrParaODoLivro = aoIrParaODoLivro,
     )
 }
 
@@ -87,15 +93,20 @@ fun ConteudoDosArquivados(
     aoAlternarSelecao: (capituloId: Int) -> Unit,
     aoCancelarSelecao: () -> Unit,
     aoConfirmarSelecao: () -> Unit,
+    aoAlternarTodos: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
+    aoIrParaODoLivro: ((DestinoDoLivro) -> Unit)? = null,
 ) {
     Scaffold(
-        snackbarHost = { SnackbarHost(avisos) },
+        bottomBar = { aoIrParaODoLivro?.let { BarraDeNavegacaoDoLivro(DestinoDoLivro.ARQUIVADOS, it) } },
+        snackbarHost = { HostDeAvisos(avisos) },
         topBar = {
             if (selecao != null) {
                 BarraDeSelecao(
                     selecao = selecao,
                     rotuloDaAcao = "Restaurar",
+                    todosMarcados = estado is EstadoDoLivro.Pronto && todosMarcados(estado, selecao),
+                    aoAlternarTodos = aoAlternarTodos,
                     aoCancelar = aoCancelarSelecao,
                     aoConfirmar = aoConfirmarSelecao,
                 )
@@ -108,6 +119,10 @@ fun ConteudoDosArquivados(
                         }
                     },
                     actions = {
+                        // Arquivar mais capítulos: volta à lista do livro já no modo de seleção para arquivar.
+                        IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }) {
+                            Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
+                        }
                         // O botão só faz sentido se há capítulos arquivados para restaurar.
                         if (estado is EstadoDoLivro.Pronto && estado.livro.capitulos.any { it.ignorado }) {
                             IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }) {

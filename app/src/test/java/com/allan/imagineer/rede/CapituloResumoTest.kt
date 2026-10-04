@@ -1,6 +1,8 @@
 package com.allan.imagineer.rede
 
 import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
+import com.allan.imagineer.local.ArmazemEmMemoria
+import com.allan.imagineer.local.IndiceEmMemoria
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -79,6 +81,9 @@ class RepositorioDeCapitulosPelaRedeTest {
 
     private fun repositorio() = RepositorioDeCapitulosPeloRetrofit(
         ProvedorDeApi(ArmazenamentoFalso(servidor.url("/").toString().trimEnd('/'))),
+        IndiceEmMemoria(),
+        ArmazemEmMemoria(),
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Job()),
     )
 
     @Test
