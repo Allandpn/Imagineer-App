@@ -57,6 +57,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -388,41 +389,56 @@ internal fun ImagemEmTelaCheia(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconeDaBarra(Icons.Filled.Share, "Compartilhar", enabled = !baixando) {
+                IconeDaBarra(Icons.Filled.Share, "Compartilhar", "Compartilhar", enabled = !baixando) {
                     baixarE("compartilhar") { arquivo, tipo ->
                         if (!compartilharImagem(contexto, arquivo, tipo)) {
                             Toast.makeText(contexto, "Não consegui compartilhar a imagem.", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
-                IconeDaBarra(Icons.Filled.Download, "Salvar na galeria", enabled = !baixando) {
+                IconeDaBarra(Icons.Filled.Download, "Salvar na galeria", "Salvar", enabled = !baixando) {
                     baixarE("salvar") { arquivo, tipo ->
                         val salvou = salvarNaGaleria(contexto, arquivo, tipo)
                         Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
                     }
                 }
-                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, onClick = aoTocar) }
-                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, onClick = aoTocar) }
+                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), onClick = aoTocar) }
+                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), onClick = aoTocar) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
-                aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", onClick = it) }
+                aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
-                if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)
+                if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", "Lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)
             }
             if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
     }
 }
 
-/** Um ícone da barra do visualizador: o [rotulo] fica como descrição para quem usa leitor de tela. */
+/**
+ * Um ícone da barra do visualizador: o [rotulo] fica como descrição para quem usa leitor de tela e a [legenda] (**uma palavra**, bem
+ * pequena) aparece embaixo do ícone.
+ */
 @Composable
 private fun IconeDaBarra(
     icone: androidx.compose.ui.graphics.vector.ImageVector,
     rotulo: String,
+    legenda: String,
     enabled: Boolean = true,
     cor: Color = Color.White,
     onClick: () -> Unit,
 ) {
-    IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
+        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1)
+    }
+}
+
+/** A palavra sob o ícone de cada ação extra do visualizador (LV1); o resto usa a primeira palavra do rótulo. */
+internal fun legendaDaAcaoDaImagem(rotulo: String): String = when (rotulo) {
+    rotuloDaAcaoCanonica(false), rotuloDaAcaoCanonica(true) -> "Canônica"
+    rotuloDaOcultacao(false) -> "Ocultar"
+    rotuloDaOcultacao(true) -> "Mostrar"
+    else -> rotulo.substringBefore(' ')
 }
 
 /** O ícone de cada ação extra do visualizador (a canônica, ocultar e mostrar no capítulo); o resto cai num ícone genérico. */

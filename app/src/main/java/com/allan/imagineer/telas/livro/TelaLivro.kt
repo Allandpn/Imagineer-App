@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.livro
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Archive
@@ -219,6 +220,17 @@ fun ConteudoDoLivro(
     aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
 ) {
+    var dialogoDaBarra by remember { mutableStateOf<DialogoDaBarra?>(null) }
+    val pronto = estado as? EstadoDoLivro.Pronto
+    if (dialogoDaBarra != null && pronto != null) {
+        DialogoDaBarraDoLivro(
+            qual = dialogoDaBarra!!,
+            livro = pronto.livro,
+            perfil = pronto.perfil,
+            aoAbrirCapitulo = aoAbrirCapitulo,
+            aoFechar = { dialogoDaBarra = null },
+        )
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(avisos) },
         topBar = {
@@ -234,7 +246,7 @@ fun ConteudoDoLivro(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Livro") },
+                    title = { Text((estado as? EstadoDoLivro.Pronto)?.livro?.titulo ?: "Livro", maxLines = 1) },
                     navigationIcon = {
                         IconButton(onClick = aoVoltar) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -243,15 +255,23 @@ fun ConteudoDoLivro(
                     actions = {
                         // Só com o livro na tela: os atalhos não fazem sentido em erro.
                         if (estado is EstadoDoLivro.Pronto) {
-                            // O botão só faz sentido se há capítulos ativos para arquivar.
-                            if (estado.livro.capitulos.any { !it.ignorado }) {
-                                IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) }) {
-                                    Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
-                                }
-                            }
-                            TextButton(onClick = aoAbrirElementos) { Text("Elementos") }
-                            TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
-                            MenuDoLivro(aoEditar, aoEscolherPerfilPadrao, aoApagar)
+                            // LV2: os textos viraram ícones com selo; o perfil e as configurações do livro vão para o ⋮.
+                            AcoesDaBarraDoLivro(
+                                livro = estado.livro,
+                                aoAbrirElementos = aoAbrirElementos,
+                                aoAbrirArquivados = aoAbrirArquivados,
+                                aoPesquisar = null,
+                                aoMostrar = { dialogoDaBarra = it },
+                            )
+                            MenuDoLivro(
+                                // O botão só faz sentido se há capítulos ativos para arquivar.
+                                podeArquivar = estado.livro.capitulos.any { !it.ignorado },
+                                aoArquivar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null) },
+                                aoAbrirPerfis = aoAbrirPerfis,
+                                aoEditar = aoEditar,
+                                aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
+                                aoApagar = aoApagar,
+                            )
                         }
                     },
                 )
@@ -285,7 +305,6 @@ fun ConteudoDoLivro(
                     selecao = selecao,
                     aoIniciarSelecao = aoIniciarSelecao,
                     aoAlternarSelecao = aoAlternarSelecao,
-                    aoAbrirArquivados = aoAbrirArquivados,
                     aoAbrirCapitulo = aoAbrirCapitulo,
                 )
             }
@@ -299,7 +318,6 @@ private fun ListaDoLivro(
     selecao: Selecao?,
     aoIniciarSelecao: (ModoDeSelecao, Int?) -> Unit,
     aoAlternarSelecao: (Int) -> Unit,
-    aoAbrirArquivados: () -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
 ) {
     val livro = estado.livro
@@ -312,16 +330,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro, estado.perfil) }
-
-            // Como nas conversas arquivadas do WhatsApp: só aparece quando há algo arquivado.
-            if (arquivados > 0) {
-                item {
-                    // Enquanto seleciona, o acesso à área de arquivados fica indisponível.
-                    LinhaDeArquivados(arquivados, habilitada = selecao == null, aoAbrir = aoAbrirArquivados)
-                    HorizontalDivider()
-                }
-            }
+            item { CabecalhoDoLivro(livro) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -334,7 +343,9 @@ private fun ListaDoLivro(
                 }
             }
 
-            items(ativos, key = { it.id }) { capitulo ->
+            itemsIndexed(ativos, key = { _, capitulo -> capitulo.id }) { indice, capitulo ->
+                // Sem divisores: a separação vem do espaço e de uma faixa bem leve nas linhas pares (para testar no tablet).
+                Box(modifier = if (indice % 2 == 1) Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)) else Modifier) {
                 LinhaDeCapitulo(
                     capitulo = capitulo,
                     emSelecao = selecao != null,
@@ -349,70 +360,26 @@ private fun ListaDoLivro(
                         if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
                     },
                 )
-                HorizontalDivider()
+                }
             }
         }
     }
 }
 
-/** A linha "Arquivados (N)" no topo da lista — abre a área de arquivados. */
+/** O cabeçalho da lista: só o autor (o título já está na barra); o resto vive nos ícones da barra (LV2). */
 @Composable
-private fun LinhaDeArquivados(quantidade: Int, habilitada: Boolean, aoAbrir: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = habilitada, onClick = aoAbrir)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text("Arquivados", style = MaterialTheme.typography.titleSmall)
-        Text(
-            quantidade.toString(),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe, perfil: PerfilRenderizacao?) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(livro.titulo, style = MaterialTheme.typography.headlineSmall)
+private fun CabecalhoDoLivro(livro: LivroDetalhe) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(livro.autor ?: "Autor desconhecido", style = MaterialTheme.typography.titleMedium)
-        if (livro.idioma != null) {
-            Text(livro.idioma, style = MaterialTheme.typography.bodyMedium)
-        }
-        Text(
-            descreverCapitulos(livro.total_de_capitulos, livro.capitulos_ignorados),
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        // A API só devolve o id do perfil; o nome vem de uma busca à parte, que pode
-        // ainda não ter chegado (ou ter falhado) — aí cai no "definido".
-        Text(
-            when {
-                livro.perfil_renderizacao_padrao_id == null -> "Perfil de renderização padrão: nenhum definido"
-                perfil != null -> "Perfil de renderização padrão: ${perfil.nome}"
-                else -> "Perfil de renderização padrão: definido"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        if (livro.metadados_pendentes.isNotEmpty()) {
-            Text(
-                "Faltam dados: ${nomesDosCampos(livro.metadados_pendentes)}.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
     }
 }
 
-/** O menu ⋮ da barra superior: as ações sobre o livro aberto. */
+/** O menu ⋮ da barra superior: **tudo o que é configuração do livro** (LV2), inclusive os perfis. */
 @Composable
 private fun MenuDoLivro(
+    podeArquivar: Boolean,
+    aoArquivar: () -> Unit,
+    aoAbrirPerfis: () -> Unit,
     aoEditar: () -> Unit,
     aoEscolherPerfilPadrao: () -> Unit,
     aoApagar: () -> Unit,
@@ -424,10 +391,12 @@ private fun MenuDoLivro(
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; aoEditar() })
+            DropdownMenuItem(text = { Text("Perfis de renderização") }, onClick = { aberto = false; aoAbrirPerfis() })
             DropdownMenuItem(
                 text = { Text("Perfil padrão…") },
                 onClick = { aberto = false; aoEscolherPerfilPadrao() },
             )
+            if (podeArquivar) DropdownMenuItem(text = { Text("Arquivar capítulos…") }, onClick = { aberto = false; aoArquivar() })
             DropdownMenuItem(text = { Text("Apagar livro") }, onClick = { aberto = false; aoApagar() })
         }
     }
