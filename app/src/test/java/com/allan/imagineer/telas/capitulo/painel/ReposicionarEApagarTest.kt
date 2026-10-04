@@ -195,7 +195,7 @@ class IconesDoVisualizadorTest {
     @Test
     fun `cada acao conhecida tem o seu icone, e a canonica e a ocultacao mudam com o estado`() {
         assertEquals(Icons.Filled.StarBorder, iconeDaAcaoDaImagem(rotuloDaAcaoCanonica(false)))
-        assertEquals(Icons.Filled.Star, iconeDaAcaoDaImagem(rotuloDaAcaoCanonica(true)))
+        assertEquals(Icons.Filled.StarBorder, iconeDaAcaoDaImagem(rotuloDaAcaoCanonica(true))) // só contorno nas duas; a cor muda
         assertEquals(Icons.Filled.VisibilityOff, iconeDaAcaoDaImagem(rotuloDaOcultacao(false)))
         assertEquals(Icons.Filled.Visibility, iconeDaAcaoDaImagem(rotuloDaOcultacao(true)))
         assertEquals(Icons.Filled.MoreHoriz, iconeDaAcaoDaImagem("outra coisa"))

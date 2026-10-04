@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.biblioteca
 
+import androidx.compose.material3.FloatingActionButton
 import com.allan.imagineer.telas.livro.MenuDoLivro
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -222,11 +223,10 @@ fun ConteudoDaBiblioteca(
             // Visível em todos os estados, inclusive Vazia e Erro: escolher o arquivo é
             // o primeiro passo do fluxo, e o estado vazio ("Importe um EPUB") não
             // teria como cumprir o que diz sem ele.
-            ExtendedFloatingActionButton(
-                onClick = aoImportar,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Importar") },
-            )
+            // Só o ícone: o "+" já diz que é para adicionar (o texto fica como descrição para leitor de tela).
+            FloatingActionButton(onClick = aoImportar) {
+                Icon(Icons.Filled.Add, contentDescription = "Importar livro")
+            }
         },
         topBar = {
             TopAppBar(

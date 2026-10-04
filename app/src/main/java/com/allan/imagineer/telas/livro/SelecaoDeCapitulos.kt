@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.livro
 
+import com.allan.imagineer.telas.comum.MarcaDeLido
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -100,15 +103,13 @@ fun LinhaDeCapitulo(
         // LE5: **todo** capítulo mostra se foi lido, de forma discreta: o lido com um círculo marcado, o não lido com um círculo vazio, bem
         // apagado. Assim se vê de relance o que já foi lido.
         if (!emSelecao) {
-            val icone = if (capitulo.lido) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle
             val descricao = if (capitulo.lido) "Lido: tocar para marcar como não lido" else "Não lido: tocar para marcar como lido"
-            val cor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (capitulo.lido) 0.6f else 0.25f)
             if (aoAlternarLido != null) {
-                IconButton(onClick = aoAlternarLido, modifier = Modifier.padding(end = 8.dp)) {
-                    Icon(icone, contentDescription = descricao, tint = cor, modifier = Modifier.size(22.dp))
+                IconButton(onClick = aoAlternarLido, modifier = Modifier.padding(end = 8.dp).semantics { contentDescription = descricao }) {
+                    MarcaDeLido(capitulo.lido)
                 }
             } else {
-                Icon(icone, contentDescription = if (capitulo.lido) "Lido" else "Não lido", tint = cor, modifier = Modifier.padding(end = 16.dp).size(20.dp))
+                MarcaDeLido(capitulo.lido, Modifier.padding(end = 16.dp).semantics { contentDescription = if (capitulo.lido) "Lido" else "Não lido" }, 20.dp)
             }
         }
 

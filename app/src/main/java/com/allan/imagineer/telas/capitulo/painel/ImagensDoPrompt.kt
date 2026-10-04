@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.telas.comum.PREENCHIMENTO_DO_ICONE_MARCADO
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -403,8 +405,8 @@ internal fun ImagemEmTelaCheia(
                         Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
                     }
                 }
-                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), onClick = aoTocar) }
-                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), onClick = aoTocar) }
+                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
+                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
                 aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
@@ -426,12 +428,22 @@ private fun IconeDaBarra(
     legenda: String,
     enabled: Boolean = true,
     cor: Color = Color.White,
+    /** Ação ligada (por exemplo, a imagem **é** a canônica): o ícone ganha a cor de destaque e um preenchimento leve dela. */
+    marcado: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val corDoIcone = if (marcado) MaterialTheme.colorScheme.primary else cor
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(onClick = onClick, enabled = enabled) { Icon(icone, contentDescription = rotulo, tint = cor) }
+        IconButton(onClick = onClick, enabled = enabled) {
+            Icon(
+                icone,
+                contentDescription = rotulo,
+                tint = corDoIcone,
+                modifier = if (marcado) Modifier.background(corDoIcone.copy(alpha = PREENCHIMENTO_DO_ICONE_MARCADO), CircleShape).padding(4.dp) else Modifier,
+            )
+        }
         // O botão tem 12 dp de folga embaixo do ícone; subir a legenda 9,5 dp encurta o espaço em cerca de 80%.
-        Text(legenda, color = cor.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.offset(y = (-9.5).dp))
+        Text(legenda, color = corDoIcone.copy(alpha = 0.85f), fontSize = 9.sp, maxLines = 1, modifier = Modifier.offset(y = (-9.5).dp))
     }
 }
 
@@ -445,8 +457,8 @@ internal fun legendaDaAcaoDaImagem(rotulo: String): String = when (rotulo) {
 
 /** O ícone de cada ação extra do visualizador (a canônica, ocultar e mostrar no capítulo); o resto cai num ícone genérico. */
 internal fun iconeDaAcaoDaImagem(rotulo: String): androidx.compose.ui.graphics.vector.ImageVector = when (rotulo) {
-    rotuloDaAcaoCanonica(false) -> Icons.Filled.StarBorder
-    rotuloDaAcaoCanonica(true) -> Icons.Filled.Star
+    // Marcada ou não, a canônica é a estrela só de contorno; o que muda é a cor (destaque + preenchimento leve quando marcada).
+    rotuloDaAcaoCanonica(false), rotuloDaAcaoCanonica(true) -> Icons.Filled.StarBorder
     rotuloDaOcultacao(false) -> Icons.Filled.VisibilityOff
     rotuloDaOcultacao(true) -> Icons.Filled.Visibility
     else -> Icons.Filled.MoreHoriz

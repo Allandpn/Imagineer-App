@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.livro
 
+import com.allan.imagineer.telas.comum.MarcaDeLido
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.foundation.clickable
@@ -143,11 +146,7 @@ fun DialogoDoCapitulo(
                         modifier = Modifier.fillMaxWidth().clickable(onClick = aoAlternarLido).padding(top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            if (lido) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
-                            contentDescription = if (lido) "Marcar como não lido" else "Marcar como lido",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (lido) 0.7f else 0.4f),
-                        )
+                        MarcaDeLido(lido, Modifier.semantics { contentDescription = if (lido) "Marcar como não lido" else "Marcar como lido" })
                         Text(
                             if (lido) "Lido" else "Não lido",
                             modifier = Modifier.padding(start = 12.dp),
