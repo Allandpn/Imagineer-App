@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.comum
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -33,7 +34,8 @@ fun HostDeAvisos(estado: SnackbarHostState) {
             enableDismissFromStartToEnd = true,
             enableDismissFromEndToStart = false,
         ) {
-            Snackbar(aviso)
+            // AJ5: o texto clicável do aviso (Desfazer, Abrir) fica na cor do aviso, não na cor configurável, que pode ficar ilegível.
+            Snackbar(aviso, actionColor = MaterialTheme.colorScheme.inverseOnSurface)
         }
     }
 }

@@ -242,6 +242,7 @@ fun GrafoDeNavegacao() {
             modifier = Modifier.widthIn(max = 520.dp),
             containerColor = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f),
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            actionColor = MaterialTheme.colorScheme.inverseOnSurface,
         )
     }
     }

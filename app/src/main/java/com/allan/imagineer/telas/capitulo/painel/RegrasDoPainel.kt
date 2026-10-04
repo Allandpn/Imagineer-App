@@ -625,7 +625,7 @@ const val ROTULO_POSICIONAR = "Posicionar no texto"
 const val ROTULO_TIRAR_POSICAO = "Voltar à posição automática"
 
 /** O aviso fixo do modo de posicionar (PM1): diz o que tocar. */
-fun avisoDePosicionar(rotulo: String): String = "Toque no parágrafo onde «$rotulo» deve ficar."
+fun avisoDePosicionar(rotulo: String): String = "Toque no parágrafo para «$rotulo»"
 
 /** O início do parágrafo de um bloco do texto: o que o servidor guarda como a posição (PM4). */
 fun indiceInicialDoBloco(bloco: com.allan.imagineer.telas.capitulo.BlocoDoTexto): Int? = when (bloco) {

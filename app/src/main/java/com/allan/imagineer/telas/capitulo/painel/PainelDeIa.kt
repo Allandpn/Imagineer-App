@@ -595,7 +595,7 @@ internal fun CartaoDeElemento(
                 // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
                 if (!elemento.descartada) {
                     IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
-                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -955,7 +955,7 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
                 IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
-                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
                 }
             }
             // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
@@ -1428,7 +1428,7 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
         IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
-            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
         }
     }
     CorpoDaCena(cena, estado, acoes)

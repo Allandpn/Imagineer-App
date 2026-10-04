@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -920,7 +922,7 @@ private fun LeitorDeTexto(
                                     // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele. Um pin, sem texto.
                                     if (artefato.sugestao_id != null || artefato.frame_id != null) {
                                         IconButton(onClick = { aoIniciarPosicionamento(artefato) }) {
-                                            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR)
+                                            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
                                         }
                                     }
                                 }
@@ -995,15 +997,18 @@ private fun LeitorDeTexto(
             Surface(
                 color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.95f),
                 contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.padding(12.dp).widthIn(max = 600.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.padding(8.dp).widthIn(max = 600.dp),
             ) {
-                Row(modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(avisoDePosicionar(alvo.rotulo), style = MaterialTheme.typography.bodyMedium)
-                        alvo.erro?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                // AJ5: o aviso é compacto (só o que tocar) e o cancelar é um X na cor do próprio aviso, não na cor configurável.
+                Row(modifier = Modifier.padding(start = 14.dp, top = 2.dp, bottom = 2.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Text(avisoDePosicionar(alvo.rotulo), style = MaterialTheme.typography.labelLarge)
+                        alvo.erro?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error) }
                     }
-                    TextButton(onClick = aoCancelarPosicionamento) { Text("Cancelar") }
+                    IconButton(onClick = aoCancelarPosicionamento, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Cancelar", tint = MaterialTheme.colorScheme.inverseOnSurface, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
         }
