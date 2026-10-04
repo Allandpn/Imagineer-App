@@ -276,6 +276,22 @@ interface ApiImagineer {
     @DELETE("lixeira/imagens/{id}")
     suspend fun apagarImagemDeVez(@Path("id") imagemId: Int)
 
+    /** `GET /lixeira/livros` — os livros da lixeira, com o que levam junto (LT2). */
+    @GET("lixeira/livros")
+    suspend fun lixeiraDeLivros(): LivrosDaLixeira
+
+    /** `POST /lixeira/livros/{id}/restaurar` — o livro volta à biblioteca inteiro (LT2). */
+    @POST("lixeira/livros/{id}/restaurar")
+    suspend fun restaurarLivroDaLixeira(@Path("id") livroId: Int): LivroNaLixeira
+
+    /** `DELETE /lixeira/livros/{id}` — apaga de vez o livro e tudo o que depende dele (LT2). Não tem volta. */
+    @DELETE("lixeira/livros/{id}")
+    suspend fun apagarLivroDeVez(@Path("id") livroId: Int)
+
+    /** `DELETE /lixeira/livros` — apaga de vez todos os livros da lixeira (LT2). */
+    @DELETE("lixeira/livros")
+    suspend fun esvaziarLixeiraDeLivros(): LixeiraEsvaziada
+
     /** `DELETE /lixeira/imagens` — esvazia a lixeira inteira (LX5). Não tem volta. */
     @DELETE("lixeira/imagens")
     suspend fun esvaziarALixeira(): LixeiraEsvaziada

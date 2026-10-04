@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,65 +32,68 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ImagemNaLixeira
+import com.allan.imagineer.rede.enderecoDaCapa
 import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
 
+/** O que a Lixeira guarda, por tipo (LT1). Cada tipo novo (cenas, elementos) entra aqui, um de cada vez. */
+enum class TipoDaLixeira(val rotulo: String) {
+    IMAGENS("Imagens"),
+    LIVROS("Livros"),
+}
+
 /**
- * A **Lixeira** (item 7.5b, LX8): as imagens apagadas, que continuam no servidor até o usuário apagá-las de vez. Cada uma tem
- * **Restaurar** e **Apagar de vez** (com confirmação); no alto, **Esvaziar lixeira** (com confirmação que diz quanto espaço
- * vai embora). Nada some sozinho (LX6).
+ * A **Lixeira** (item 7.5b, LX8 e LT1): o que foi apagado e continua no servidor até o usuário apagar de vez. No alto, o **tipo**
+ * (Imagens, Livros...); cada item tem **Restaurar** e **Apagar de vez** (com confirmação); **Esvaziar** (com confirmação que diz
+ * quanto vai embora). Nada some sozinho (LX6).
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaLixeira(aoVoltar: () -> Unit) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
-    val viewModel: LixeiraViewModel = viewModel(
+    val imagens: LixeiraViewModel = viewModel(
+        key = "lixeira-imagens",
         factory = viewModelFactory { initializer { LixeiraViewModel(aplicacao.repositorioDaLixeira) } },
     )
-    val estado by viewModel.estado.collectAsState()
-    // Relê toda vez que a tela fica visível: o que se apagou nos capítulos aparece aqui.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
-
-    ConteudoDaLixeira(
-        estado = estado,
-        aoVoltar = aoVoltar,
-        aoTentarDeNovo = viewModel::tentarDeNovo,
-        aoRestaurar = viewModel::restaurar,
-        aoPedirApagarDeVez = viewModel::pedirApagarDeVez,
-        aoPedirEsvaziar = viewModel::pedirEsvaziar,
-        aoConfirmar = viewModel::confirmar,
-        aoCancelar = viewModel::cancelarConfirmacao,
+    val livros: LixeiraDeItensViewModel<LivroDaLixeira> = viewModel(
+        key = "lixeira-livros",
+        factory = viewModelFactory { initializer { LixeiraDeItensViewModel(FonteDaLixeiraDeLivros(aplicacao.repositorioDaLixeiraDeLivros)) } },
     )
-}
+    val estadoDasImagens by imagens.estado.collectAsState()
+    val estadoDosLivros by livros.estado.collectAsState()
+    var tipo by rememberSaveable { mutableStateOf(TipoDaLixeira.IMAGENS) }
+    // Relê toda vez que a tela fica visível: o que se apagou nos capítulos e na biblioteca aparece aqui.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        imagens.carregar()
+        livros.carregar()
+    }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ConteudoDaLixeira(
-    estado: EstadoDaLixeira,
-    aoVoltar: () -> Unit,
-    aoTentarDeNovo: () -> Unit,
-    aoRestaurar: (Int) -> Unit,
-    aoPedirApagarDeVez: (ImagemNaLixeira) -> Unit,
-    aoPedirEsvaziar: () -> Unit,
-    aoConfirmar: () -> Unit,
-    aoCancelar: () -> Unit,
-) {
-    val pronta = (estado.carga as? CargaDaLixeira.Pronta)?.lixeira
+    val temAlgo = when (tipo) {
+        TipoDaLixeira.IMAGENS -> ((estadoDasImagens.carga as? CargaDaLixeira.Pronta)?.lixeira?.imagens?.isNotEmpty()) == true
+        TipoDaLixeira.LIVROS -> ((estadoDosLivros.carga as? CargaDeItens.Pronta)?.itens?.isNotEmpty()) == true
+    }
+    val esvaziando = estadoDasImagens.esvaziando || estadoDosLivros.esvaziando
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,47 +102,105 @@ internal fun ConteudoDaLixeira(
                     IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") }
                 },
                 actions = {
-                    if (pronta != null && pronta.imagens.isNotEmpty()) {
-                        TextButton(onClick = aoPedirEsvaziar, enabled = !estado.esvaziando) { Text("Esvaziar") }
+                    if (temAlgo) {
+                        TextButton(
+                            onClick = { if (tipo == TipoDaLixeira.IMAGENS) imagens.pedirEsvaziar() else livros.pedirEsvaziar() },
+                            enabled = !esvaziando,
+                        ) { Text("Esvaziar") }
                     }
                 },
             )
         },
     ) { margens ->
-        Box(modifier = Modifier.fillMaxSize().padding(margens), contentAlignment = Alignment.TopCenter) {
-            when (val carga = estado.carga) {
-                CargaDaLixeira.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
-                is CargaDaLixeira.Erro -> Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(carga.motivo, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                    Button(onClick = aoTentarDeNovo) { Text("Tentar de novo") }
+        Column(modifier = Modifier.padding(margens).fillMaxSize()) {
+            // O tipo: Imagens, Livros...
+            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TipoDaLixeira.entries.forEach { opcao ->
+                    FilterChip(selected = tipo == opcao, onClick = { tipo = opcao }, label = { Text(opcao.rotulo) })
                 }
-                is CargaDaLixeira.Pronta -> if (carga.lixeira.imagens.isEmpty()) {
-                    Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
-                        Text(TEXTO_DA_LIXEIRA_VAZIA, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
-                    }
-                } else {
-                    ListaDaLixeira(carga.lixeira.imagens, carga.lixeira.total_em_bytes, estado, aoRestaurar, aoPedirApagarDeVez)
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                when (tipo) {
+                    TipoDaLixeira.IMAGENS -> CorpoDaLixeiraDeImagens(
+                        estado = estadoDasImagens,
+                        aoTentarDeNovo = imagens::tentarDeNovo,
+                        aoRestaurar = imagens::restaurar,
+                        aoPedirApagarDeVez = imagens::pedirApagarDeVez,
+                    )
+                    TipoDaLixeira.LIVROS -> CorpoDaLixeiraDeItens(
+                        estado = estadoDosLivros,
+                        textos = livros.textos,
+                        aoTentarDeNovo = livros::tentarDeNovo,
+                        aoRestaurar = livros::restaurar,
+                        aoPedirApagarDeVez = livros::pedirApagarDeVez,
+                    ) { item, ocupado, restaurar, apagar -> CartaoDoLivroNaLixeira(item.livro, ocupado, restaurar, apagar) }
                 }
             }
         }
     }
 
-    estado.confirmacao?.let { pedido ->
+    // As confirmações (apagar de vez, esvaziar): uma de cada vez, do tipo em que se está.
+    estadoDasImagens.confirmacao?.let { pedido ->
         val (titulo, texto, rotulo) = when (pedido) {
             is ConfirmacaoDaLixeira.ApagarUma -> Triple("Apagar de vez esta imagem?", AVISO_APAGAR_DE_VEZ, "Apagar de vez")
             is ConfirmacaoDaLixeira.EsvaziarTudo -> Triple("Esvaziar a lixeira?", avisoDeEsvaziar(pedido.quantas, pedido.bytes), "Esvaziar")
         }
-        AlertDialog(
-            onDismissRequest = aoCancelar,
-            title = { Text(titulo) },
-            text = { Text(texto) },
-            confirmButton = { TextButton(onClick = aoConfirmar) { Text(rotulo, color = MaterialTheme.colorScheme.error) } },
-            dismissButton = { TextButton(onClick = aoCancelar) { Text("Cancelar") } },
-        )
+        DialogoDeConfirmacao(titulo, texto, rotulo, imagens::confirmar, imagens::cancelarConfirmacao)
+    }
+    estadoDosLivros.confirmacao?.let { pedido ->
+        val textos = livros.textos
+        val (titulo, texto, rotulo) = when (pedido) {
+            is ConfirmacaoDeItens.ApagarUm -> Triple(textos.tituloDeApagar, textos.avisoDeApagar, "Apagar de vez")
+            is ConfirmacaoDeItens.EsvaziarTudo -> Triple(textos.tituloDeEsvaziar, textos.avisoDeEsvaziar(pedido.quantos, pedido.bytes), "Esvaziar")
+        }
+        DialogoDeConfirmacao(titulo, texto, rotulo, livros::confirmar, livros::cancelarConfirmacao)
+    }
+}
+
+@Composable
+private fun DialogoDeConfirmacao(titulo: String, texto: String, rotulo: String, aoConfirmar: () -> Unit, aoCancelar: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = aoCancelar,
+        title = { Text(titulo) },
+        text = { Text(texto) },
+        confirmButton = { TextButton(onClick = aoConfirmar) { Text(rotulo, color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton(onClick = aoCancelar) { Text("Cancelar") } },
+    )
+}
+
+// --------------------------------------------------------------------------- //
+// Imagens
+// --------------------------------------------------------------------------- //
+
+@Composable
+private fun CorpoDaLixeiraDeImagens(
+    estado: EstadoDaLixeira,
+    aoTentarDeNovo: () -> Unit,
+    aoRestaurar: (Int) -> Unit,
+    aoPedirApagarDeVez: (ImagemNaLixeira) -> Unit,
+) {
+    when (val carga = estado.carga) {
+        CargaDaLixeira.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+        is CargaDaLixeira.Erro -> ErroDaLixeira(carga.motivo, aoTentarDeNovo)
+        is CargaDaLixeira.Pronta -> if (carga.lixeira.imagens.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+                Text(TEXTO_DA_LIXEIRA_VAZIA, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+            }
+        } else {
+            ListaDaLixeira(carga.lixeira.imagens, carga.lixeira.total_em_bytes, estado, aoRestaurar, aoPedirApagarDeVez)
+        }
+    }
+}
+
+@Composable
+private fun ErroDaLixeira(motivo: String, aoTentarDeNovo: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(motivo, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+        Button(onClick = aoTentarDeNovo) { Text("Tentar de novo") }
     }
 }
 
@@ -152,7 +215,7 @@ private fun ListaDaLixeira(
     val urlBase = urlDoServidorEmUso()
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -188,6 +251,89 @@ private fun ListaDaLixeira(
                                 Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --------------------------------------------------------------------------- //
+// Itens (livros, e depois cenas e elementos)
+// --------------------------------------------------------------------------- //
+
+/** O corpo da lixeira de um tipo de **item**: carregando, erro, vazia ou a lista (com o cartão de cada tipo). */
+@Composable
+private fun <T : ItemDaLixeira> CorpoDaLixeiraDeItens(
+    estado: EstadoDaLixeiraDeItens<T>,
+    textos: TextosDaLixeira,
+    aoTentarDeNovo: () -> Unit,
+    aoRestaurar: (Int) -> Unit,
+    aoPedirApagarDeVez: (T) -> Unit,
+    cartao: @Composable (item: T, ocupado: Boolean, restaurar: () -> Unit, apagar: () -> Unit) -> Unit,
+) {
+    when (val carga = estado.carga) {
+        CargaDeItens.Carregando -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+        is CargaDeItens.Erro -> ErroDaLixeira(carga.motivo, aoTentarDeNovo)
+        is CargaDeItens.Pronta -> if (carga.itens.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(24.dp), Alignment.Center) {
+                Text(textos.vazia, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(textos.resumo(carga.itens.size, carga.totalEmBytes), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Nada daqui some sozinho: fica até você apagar de vez.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        estado.recado?.let {
+                            Text(it, style = MaterialTheme.typography.bodyMedium, color = if (estado.recadoEhErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary)
+                        }
+                    }
+                }
+                items(carga.itens, key = { it.id }) { item ->
+                    val ocupado = item.id in estado.ocupados || estado.esvaziando
+                    cartao(item, ocupado, { aoRestaurar(item.id) }, { aoPedirApagarDeVez(item) })
+                }
+            }
+        }
+    }
+}
+
+/** O cartão de um livro da lixeira: a capa, o título, o autor (na fonte do livro), o que ele leva junto e os botões. */
+@Composable
+private fun CartaoDoLivroNaLixeira(
+    livro: com.allan.imagineer.rede.LivroNaLixeira,
+    ocupado: Boolean,
+    aoRestaurar: () -> Unit,
+    aoApagarDeVez: () -> Unit,
+) {
+    val urlBase = urlDoServidorEmUso()
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (urlBase != null && livro.tem_capa) {
+                AsyncImage(
+                    model = enderecoDaCapa(urlBase, livro.id, 0),
+                    contentDescription = "Capa de ${livro.titulo}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(width = 64.dp, height = 96.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black),
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(livro.titulo, style = MaterialTheme.typography.titleMedium)
+                livro.autor?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic) }
+                Text(detalhesDoLivroNaLixeira(livro), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoRestaurar, enabled = !ocupado) { Text("Restaurar", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = aoApagarDeVez, enabled = !ocupado) {
+                        Text("Apagar de vez", maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

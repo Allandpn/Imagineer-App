@@ -33,13 +33,13 @@ fun DialogoDeRemocao(
 
     AlertDialog(
         onDismissRequest = aoCancelar,
-        title = { Text("Remover livro?") },
+        title = { Text("Mover o livro para a lixeira?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("\"${livro.titulo}\"", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    "Isto apaga também os capítulos, elementos, frames, prompts e " +
-                        "imagens deste livro. Não dá para desfazer.",
+                    "O livro, com os capítulos, elementos, cenas, prompts e imagens, vai para a lixeira. " +
+                        "Dá para restaurá-lo lá; só some de vez quando você o apagar da lixeira.",
                 )
                 if (remocao is EstadoDaRemocao.Falhou) {
                     Text(remocao.motivo, color = MaterialTheme.colorScheme.error)
@@ -51,7 +51,7 @@ fun DialogoDeRemocao(
         },
         confirmButton = {
             TextButton(onClick = aoConfirmar, enabled = !removendo) {
-                Text(if (remocao is EstadoDaRemocao.Falhou) "Tentar de novo" else "Remover")
+                Text(if (remocao is EstadoDaRemocao.Falhou) "Tentar de novo" else "Para a lixeira")
             }
         },
         dismissButton = {
