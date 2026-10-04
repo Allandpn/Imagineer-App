@@ -123,6 +123,33 @@ class ImagemExistenteNoPainelTest {
     }
 
     @Test
+    fun `VM5 a imagem usada, que e de outro frame, aparece como miniatura canonica do frame`() = runTest {
+        val elementos = ElementosFalso().also { it.porCapitulo = ResultadoDaChamada.Sucesso(listOf(capitulo1)) }
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(sugestoes)).also { it.canonicaDoFrame = 100 }
+        val vm = vm(elementos, repositorio)
+
+        vm.abrirImagemExistente(jon, frameId = 80); advanceUntilIdle()
+        vm.usarImagemExistente(100); advanceUntilIdle()
+
+        assertEquals(100, vm.estado.value.canonicasDosFrames[80])
+        // Os prompts deste frame não têm essa imagem (ela é de outro frame): a miniatura vem da canônica.
+        val miniaturas = imagensDoFrameComACanonica(emptyList(), vm.estado.value.canonicasDosFrames[80])
+        assertEquals(listOf(100), miniaturas.map { it.id })
+        assertTrue(miniaturas.single().canonica)
+    }
+
+    @Test
+    fun `VM5 ao abrir o frame a canonica que ja estava la tambem e lida`() = runTest {
+        val elementos = ElementosFalso()
+        val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(sugestoes)).also { it.canonicaDoFrame = 555 }
+        val vm = vm(elementos, repositorio)
+
+        vm.carregarPrompts(80); advanceUntilIdle()
+
+        assertEquals(555, vm.estado.value.canonicasDosFrames[80])
+    }
+
+    @Test
     fun `VM4 sem frame cria o retrato do elemento e depois aponta a imagem`() = runTest {
         val elementos = ElementosFalso().also { it.porCapitulo = ResultadoDaChamada.Sucesso(listOf(capitulo1)) }
         val repositorio = SugestoesFalso(leitura = ResultadoDaChamada.Sucesso(sugestoes))

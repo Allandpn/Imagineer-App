@@ -212,6 +212,11 @@ data class EstadoDoPainel(
     val resultadoDoLote: String? = null,
     /** Os prompts de cada frame, por id do frame (G2). Só existe a entrada de quem já foi aberto. */
     val prompts: Map<Int, PromptsDoFrame> = emptyMap(),
+    /**
+     * A imagem canônica de cada frame, por id do frame (VM5). Existe porque ela pode ser de **outro** frame (a "imagem existente" que a
+     * pessoa usou): ela não vem na lista de imagens dos prompts deste frame, e a miniatura não aparecia.
+     */
+    val canonicasDosFrames: Map<Int, Int> = emptyMap(),
     /** Frames com uma geração de prompt em andamento (G4): um por vez. */
     val gerandoPrompt: Set<Int> = emptySet(),
     /** O recado de cada frame sobre o prompt: o erro da geração, ou o aviso do que acabou de acontecer (G5, G7). */
@@ -624,7 +629,8 @@ class PainelDeIaViewModel(
                 is ResultadoDaChamada.Sucesso -> PromptsDoFrame.Pronto(comAsImagens(resultado.dado).reversed())
                 is ResultadoDaChamada.Falha -> PromptsDoFrame.Erro(resultado.motivo)
             }
-            _estado.update { it.copy(prompts = it.prompts + (frameId to novo)) }
+            val canonica = lerAImagemCanonicaDoFrame(frameId)
+            _estado.update { it.copy(prompts = it.prompts + (frameId to novo), canonicasDosFrames = it.canonicasDosFrames.com(frameId, canonica)) }
         }
     }
 
@@ -653,12 +659,18 @@ class PainelDeIaViewModel(
     }
 
     /** O que vem depois de uma mudança na imagem do frame (canônica ou oculta): relê os prompts sem piscar e a tela relê os artefatos. */
+    /** O id da imagem canônica do frame; uma falha de leitura é "sem canônica" (a miniatura só não aparece, nada quebra). */
+    private suspend fun lerAImagemCanonicaDoFrame(frameId: Int): Int? =
+        (sugestoes.imagemCanonicaDoFrame(frameId) as? ResultadoDaChamada.Sucesso)?.dado
+
     private suspend fun aplicarMudancaDeImagemDoFrame(frameId: Int, resultado: ResultadoDaChamada<Unit>) {
         when (resultado) {
             is ResultadoDaChamada.Sucesso -> {
                 val lista = (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado
+                val canonica = lerAImagemCanonicaDoFrame(frameId)
                 _estado.update { atual ->
                     atual.copy(
+                        canonicasDosFrames = atual.canonicasDosFrames.com(frameId, canonica),
                         prompts = if (lista != null) atual.prompts + (frameId to PromptsDoFrame.Pronto(comAsImagensLidas(lista))) else atual.prompts,
                         mensagensDePrompt = atual.mensagensDePrompt - frameId,
                         versaoDosFrames = atual.versaoDosFrames + 1,

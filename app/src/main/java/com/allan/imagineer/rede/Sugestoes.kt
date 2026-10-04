@@ -151,4 +151,6 @@ data class FrameComVinculados(
     val vinculados: List<VinculadoDoFrame> = emptyList(),
     /** As imagens escolhidas como referência para a próxima geração, guardadas no servidor (RS1). */
     val imagens_de_referencia: List<Int> = emptyList(),
+    /** A imagem canônica do frame (CAN1): pode ser de **outro** frame do mesmo elemento ("usar imagem existente", VM3). */
+    val imagem_canonica_id: Int? = null,
 )

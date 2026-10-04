@@ -166,6 +166,11 @@ internal class SugestoesFalso(
     val referenciasGuardadas = mutableListOf<Pair<Int, List<Int>>>()
     var resultadoDeGuardarReferencias: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
 
+    /** A canônica que `GET /frames/{id}` devolve (VM5); pode ser de outro frame. */
+    var canonicaDoFrame: Int? = null
+
+    override suspend fun imagemCanonicaDoFrame(frameId: Int): ResultadoDaChamada<Int?> = ResultadoDaChamada.Sucesso(canonicaDoFrame)
+
     override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {
         leiturasDeReferencias += frameId
         return ResultadoDaChamada.Sucesso(referenciasNoServidor[frameId].orEmpty())

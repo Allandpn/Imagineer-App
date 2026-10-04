@@ -81,6 +81,12 @@ interface RepositorioDeSugestoes {
     /** `GET /frames/{id}`: as imagens escolhidas como referência, guardadas no servidor (RS1); valem em qualquer aparelho. */
     suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>>
 
+    /**
+     * `GET /frames/{id}`: o id da imagem canônica do frame, ou `null` se não há. Ela pode ser de **outro** frame do mesmo elemento (VM3), e
+     * então não está entre as imagens dos prompts deste frame: sem isto, a miniatura de uma imagem "usada" não aparecia (VM5).
+     */
+    suspend fun imagemCanonicaDoFrame(frameId: Int): ResultadoDaChamada<Int?> = ResultadoDaChamada.Sucesso(null)
+
     /** `PUT /frames/{id}/referencias`: guarda a escolha (até 4 imagens; vazia limpa). Não gasta IA. */
     suspend fun guardarReferencias(frameId: Int, imagensIds: List<Int>): ResultadoDaChamada<Unit>
 
@@ -208,6 +214,11 @@ class RepositorioDeSugestoesPeloRetrofit(
     override suspend fun referenciasDoFrame(frameId: Int): ResultadoDaChamada<List<Int>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.frame(frameId).imagens_de_referencia }
+    }
+
+    override suspend fun imagemCanonicaDoFrame(frameId: Int): ResultadoDaChamada<Int?> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.frame(frameId).imagem_canonica_id }
     }
 
     override suspend fun guardarReferencias(frameId: Int, imagensIds: List<Int>): ResultadoDaChamada<Unit> {

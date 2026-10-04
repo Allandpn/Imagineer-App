@@ -645,6 +645,16 @@ fun indiceInicialDoBloco(bloco: com.allan.imagineer.telas.capitulo.BlocoDoTexto)
 /** O botão que aponta, para o retrato, uma imagem que o elemento já tem (VM3). */
 const val ROTULO_USAR_IMAGEM_EXISTENTE = "Usar imagem existente"
 
+/** O mapa com a canônica de [frameId] posta (ou tirada, se [canonica] é nula). */
+fun Map<Int, Int>.com(frameId: Int, canonica: Int?): Map<Int, Int> = if (canonica == null) this - frameId else this + (frameId to canonica)
+
+/**
+ * As imagens a mostrar como miniaturas de um frame (VM5): as dos prompts dele e, se a **canônica é de outro frame** (a imagem existente
+ * que a pessoa usou, VM3), ela também, marcada como canônica. Sem isto a imagem usada não aparecia na área do elemento.
+ */
+fun imagensDoFrameComACanonica(doFrame: List<ImagemDoPrompt>, canonicaId: Int?): List<ImagemDoPrompt> =
+    if (canonicaId == null || doFrame.any { it.id == canonicaId }) doFrame else doFrame + ImagemDoPrompt(id = canonicaId, canonica = true)
+
 /** O botão que gera só o prompt, sem a imagem (GP1). */
 const val ROTULO_SO_O_PROMPT = "Só o prompt"
 

@@ -116,7 +116,7 @@ internal fun SecaoDaImagemDoFrame(
     // Z6: a lista de modelos vem do servidor, uma vez.
     LaunchedEffect(Unit) { acoes.aoCarregarModelosDeImagem() }
     Text("Imagens", style = MaterialTheme.typography.titleSmall)
-    Miniaturas(frameId, lista.flatMap { it.imagens }, "Imagem", acoes)
+    Miniaturas(frameId, imagensDoFrameComACanonica(lista.flatMap { it.imagens }, estado.canonicasDosFrames[frameId]), "Imagem", acoes)
     if (etapa != null || gerandoAlgum || gerandoPrompt) {
         // O servidor não informa o andamento, então a barra é indeterminada (K2).
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
