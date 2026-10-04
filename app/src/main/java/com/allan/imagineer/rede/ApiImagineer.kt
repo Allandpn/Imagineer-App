@@ -100,6 +100,10 @@ interface ApiImagineer {
         @Body ajuste: CapituloAjuste,
     ): CapituloResumo
 
+    /** `GET /custos` — os custos de IA de um mês (`AAAA-MM`; sem `mes`, o atual), por provedor, operação, livro e modelo (CU4). */
+    @GET("custos")
+    suspend fun custos(@Query("mes") mes: String? = null): CustosDoMes
+
     /** `GET /livros/{id}/marcador` — onde a pessoa parou; `marcador` nulo = nunca leu (LE2). */
     @GET("livros/{id}/marcador")
     suspend fun marcador(@Path("id") livroId: Int): MarcadorDoLivro

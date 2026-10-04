@@ -1,5 +1,14 @@
 package com.allan.imagineer.telas.menu
 
+import com.allan.imagineer.rede.GastoAgrupado
+import com.allan.imagineer.rede.CustosDoMes
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import com.allan.imagineer.ui.theme.DestaqueEscolhido
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -217,26 +226,94 @@ fun TelaModelos(aoVoltar: () -> Unit) {
 // MN6 — Custos
 // --------------------------------------------------------------------------- //
 
-/** Os custos (MN6): só a interface — cartões com "—" até a soma dos três provedores existir no servidor. */
+/**
+ * Os custos de IA (MN6, CU5): o mês escolhido (setas para os meses com gasto), o total — com "~" quando parte dele é estimada — e o
+ * gasto por provedor, por operação, por livro e por modelo. Tudo em dólares. Os valores do fal.ai e do Replicate são **estimados**
+ * por uma tabela de preços (eles não informam o custo).
+ */
 @Composable
 fun TelaCustos(aoVoltar: () -> Unit) {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val viewModel: CustosViewModel = viewModel(
+        factory = viewModelFactory { initializer { CustosViewModel(aplicacao.repositorioDeCustos) } },
+    )
+    val estado by viewModel.estado.collectAsState()
+    // Relê ao abrir (e ao voltar para a tela): o gasto muda a cada imagem gerada.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
+
     TelaDoMenu("Custos", aoVoltar) {
-        CartaoDeCusto("Este mês", listOf("Total" to "—"))
-        CartaoDeCusto("Por provedor", listOf("OpenRouter" to "—", "fal.ai" to "—", "Replicate" to "—"))
-        CartaoDeCusto("Por livro", listOf("Nenhum gasto contado ainda" to ""))
-        AvisoDeEmBreve("Você paga em três lugares; o total junto, por mês, provedor e livro, vem em breve.")
+        when (val atual = estado) {
+            EstadoDosCustos.Carregando -> Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) { CircularProgressIndicator() }
+            EstadoDosCustos.Indisponivel -> AvisoDeEmBreve("Os custos não estão disponíveis neste servidor. Atualize o servidor para ver os gastos.")
+            is EstadoDosCustos.Erro -> {
+                Text(atual.motivo, color = MaterialTheme.colorScheme.error)
+                Button(onClick = { viewModel.carregar(null) }) { Text("Tentar de novo") }
+            }
+            is EstadoDosCustos.Pronto -> ConteudoDosCustos(atual.dados, viewModel::mesAnterior, viewModel::mesSeguinte)
+        }
     }
 }
 
 @Composable
-private fun CartaoDeCusto(titulo: String, linhas: List<Pair<String, String>>) {
+private fun ConteudoDosCustos(dados: CustosDoMes, aoVoltarUmMes: () -> Unit, aoAvancarUmMes: () -> Unit) {
+    val estimado = (dados.estimado.toDoubleOrNull() ?: 0.0) > 0.0
+    // O mês, com as setas.
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = aoVoltarUmMes, enabled = temMesAnterior(dados)) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mês anterior")
+        }
+        Text(nomeDoMes(dados.mes), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        IconButton(onClick = aoAvancarUmMes, enabled = temMesSeguinte(dados)) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Próximo mês")
+        }
+    }
+    // O total.
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Total do mês", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(formatarDolar(dados.total, estimado), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${dados.chamadas} chamadas de IA" + if (dados.sem_custo > 0) " · ${dados.sem_custo} sem custo conhecido" else "",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (estimado) {
+                Text(
+                    "Inclui ${formatarDolar(dados.estimado)} estimados pela tabela de preços (o fal.ai e o Replicate não informam o custo).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    if (dados.chamadas == 0) {
+        AvisoDeEmBreve("Nenhuma chamada de IA neste mês.")
+        return
+    }
+    CartaoDeCusto("Por provedor", dados.por_provedor.map { it.copy(nome = nomeDoProvedor(it.nome)) })
+    CartaoDeCusto("Por tipo de chamada", dados.por_operacao.map { it.copy(nome = nomeDaOperacao(it.nome)) })
+    CartaoDeCusto("Por livro", dados.por_livro)
+    CartaoDeCusto("Por modelo", dados.por_modelo.take(8))
+    AvisoDeEmBreve("Valores em dólares. As chamadas sem custo conhecido não entram na soma.")
+}
+
+@Composable
+private fun CartaoDeCusto(titulo: String, linhas: List<GastoAgrupado>) {
+    if (linhas.isEmpty()) return
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(titulo, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            linhas.forEach { (nome, valor) ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(nome, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Start)
-                    Text(valor, style = MaterialTheme.typography.bodyMedium)
+            linhas.forEach { linha ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(linha.nome, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "${linha.chamadas} chamadas" + if (linha.sem_custo > 0) " · ${linha.sem_custo} sem custo" else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text(formatarDolar(linha.total), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
