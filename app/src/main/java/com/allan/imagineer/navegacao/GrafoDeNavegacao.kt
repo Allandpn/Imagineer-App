@@ -1,5 +1,9 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.menu.TelaConfiguracoes
+import com.allan.imagineer.telas.menu.TelaModelos
+import com.allan.imagineer.telas.menu.TelaCustos
+import com.allan.imagineer.telas.menu.TelaPerfil
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -85,9 +89,21 @@ fun GrafoDeNavegacao() {
         composable<Biblioteca> {
             TelaBiblioteca(
                 aoAbrirLivro = { livroId -> controle.navigate(Livro(livroId)) },
-                aoAbrirConfiguracao = { controle.navigate(Configuracao) },
-                aoAbrirPerfis = { controle.navigate(PerfisDeRenderizacao) },
+                aoAbrirPerfil = { controle.navigate(Perfil) },
+                aoAbrirConfiguracoes = { controle.navigate(Configuracoes) },
                 aoAbrirLixeira = { controle.navigate(Lixeira) },
+                aoAbrirCustos = { controle.navigate(Custos) },
+            )
+        }
+        composable<Perfil> { TelaPerfil(aoVoltar = { controle.popBackStack() }) }
+        composable<Custos> { TelaCustos(aoVoltar = { controle.popBackStack() }) }
+        composable<ModelosDeIa> { TelaModelos(aoVoltar = { controle.popBackStack() }) }
+        composable<Configuracoes> { entrada ->
+            TelaConfiguracoes(
+                aoVoltar = { controle.popBackStack() },
+                aoAbrirServidor = { if (entrada.estaNaFrente()) controle.navigate(Configuracao) },
+                aoAbrirPerfisDeRenderizacao = { if (entrada.estaNaFrente()) controle.navigate(PerfisDeRenderizacao) },
+                aoAbrirModelos = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
             )
         }
         composable<Lixeira> {

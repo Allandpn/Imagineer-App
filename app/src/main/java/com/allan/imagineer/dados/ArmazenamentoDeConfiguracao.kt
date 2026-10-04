@@ -1,5 +1,6 @@
 package com.allan.imagineer.dados
 
+import kotlinx.coroutines.flow.flowOf
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -22,6 +23,11 @@ interface ArmazenamentoDeConfiguracao {
 
     /** Grava o endereço, que deve vir já normalizado por [normalizarUrl]. */
     suspend fun salvarUrlDoServidor(url: String)
+
+    /** Como a biblioteca mostra os livros (`CAPAS` ou `LISTA`); `null` = nada guardado (vale capas). Padrão: sem armazenamento. */
+    val modoDaBiblioteca: Flow<String?> get() = flowOf(null)
+
+    suspend fun salvarModoDaBiblioteca(modo: String) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -36,7 +42,15 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
         contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_URL] = url }
     }
 
+    override val modoDaBiblioteca: Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[CHAVE_MODO_DA_BIBLIOTECA] }
+
+    override suspend fun salvarModoDaBiblioteca(modo: String) {
+        contexto.armazenamento.edit { preferencias -> preferencias[CHAVE_MODO_DA_BIBLIOTECA] = modo }
+    }
+
     private companion object {
         val CHAVE_URL = stringPreferencesKey("url_do_servidor")
+        val CHAVE_MODO_DA_BIBLIOTECA = stringPreferencesKey("modo_da_biblioteca")
     }
 }

@@ -1,5 +1,14 @@
 package com.allan.imagineer.telas.biblioteca
 
+import com.allan.imagineer.telas.menu.ModoDaBiblioteca
+import com.allan.imagineer.telas.menu.ItemDoMenu
+import com.allan.imagineer.telas.menu.GavetaDaBiblioteca
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.automirrored.filled.ViewList
@@ -71,9 +80,10 @@ import com.allan.imagineer.telas.importacao.ImportacaoViewModel
 @Composable
 fun TelaBiblioteca(
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoAbrirConfiguracao: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
+    aoAbrirPerfil: () -> Unit,
+    aoAbrirConfiguracoes: () -> Unit,
     aoAbrirLixeira: () -> Unit,
+    aoAbrirCustos: () -> Unit,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: BibliotecaViewModel = viewModel(
@@ -92,6 +102,7 @@ fun TelaBiblioteca(
     val estadoDaImportacao by importacao.estado.collectAsState()
     val livroParaAbrir by importacao.irParaLivro.collectAsState()
     val versaoDaBiblioteca by importacao.versaoDaBiblioteca.collectAsState()
+    val modoGuardado by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
 
     // O seletor de arquivos do sistema. Aceita "octet-stream" também: alguns
     // gerenciadores de arquivos classificam EPUB assim, e com o filtro estrito o
@@ -124,9 +135,15 @@ fun TelaBiblioteca(
         remocao = remocao,
         aoAtualizar = viewModel::carregar,
         aoAbrirLivro = aoAbrirLivro,
-        aoAbrirConfiguracao = aoAbrirConfiguracao,
-        aoAbrirPerfis = aoAbrirPerfis,
-        aoAbrirLixeira = aoAbrirLixeira,
+        aoAbrirMenu = { item ->
+            when (item) {
+                ItemDoMenu.PERFIL -> aoAbrirPerfil()
+                ItemDoMenu.CONFIGURACOES -> aoAbrirConfiguracoes()
+                ItemDoMenu.LIXEIRA -> aoAbrirLixeira()
+                ItemDoMenu.CUSTOS -> aoAbrirCustos()
+            }
+        },
+        modo = ModoDaBiblioteca.deTexto(modoGuardado),
         aoPedirRemocao = viewModel::pedirRemocao,
         aoCancelarRemocao = viewModel::cancelarRemocao,
         aoConfirmarRemocao = viewModel::confirmarRemocao,
@@ -154,16 +171,25 @@ fun ConteudoDaBiblioteca(
     remocao: EstadoDaRemocao,
     aoAtualizar: () -> Unit,
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoAbrirConfiguracao: () -> Unit,
-    aoAbrirPerfis: () -> Unit,
-    aoAbrirLixeira: () -> Unit,
+    aoAbrirMenu: (ItemDoMenu) -> Unit,
+    modo: ModoDaBiblioteca,
     aoPedirRemocao: (LivroResumo) -> Unit,
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
 ) {
-    // CP4: as capas em grade (como no Kindle) ou a lista de antes; a escolha sobrevive a girar o aparelho.
-    var emGrade by rememberSaveable { mutableStateOf(true) }
+    // MN1, MN2: a barra só tem o hambúrguer; tudo o mais mora na gaveta.
+    val gaveta = rememberDrawerState(DrawerValue.Closed)
+    val escopo = rememberCoroutineScope()
+    ModalNavigationDrawer(
+        drawerState = gaveta,
+        drawerContent = {
+            GavetaDaBiblioteca { item ->
+                escopo.launch { gaveta.close() }
+                aoAbrirMenu(item)
+            }
+        },
+    ) {
     Scaffold(
         floatingActionButton = {
             // Visível em todos os estados, inclusive Vazia e Erro: escolher o arquivo é
@@ -178,19 +204,9 @@ fun ConteudoDaBiblioteca(
         topBar = {
             TopAppBar(
                 title = { Text("Biblioteca") },
-                actions = {
-                    IconButton(onClick = { emGrade = !emGrade }) {
-                        Icon(
-                            if (emGrade) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
-                            contentDescription = if (emGrade) "Ver em lista" else "Ver em capas",
-                        )
-                    }
-                    // Texto, e não ícone: o conjunto básico de ícones do Material não tem
-                    // um apropriado (item 7.3a, incremento 4).
-                    TextButton(onClick = aoAbrirPerfis) { Text("Perfis") }
-                    TextButton(onClick = aoAbrirLixeira) { Text("Lixeira") }
-                    IconButton(onClick = aoAbrirConfiguracao) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Configuração")
+                navigationIcon = {
+                    IconButton(onClick = { escopo.launch { gaveta.open() } }) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Menu")
                     }
                 },
             )
@@ -207,7 +223,7 @@ fun ConteudoDaBiblioteca(
                     onRefresh = aoAtualizar,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (emGrade) {
+                    if (modo == ModoDaBiblioteca.CAPAS) {
                         GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
                     } else {
                         ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao)
@@ -240,6 +256,7 @@ fun ConteudoDaBiblioteca(
     }
 
     DialogoDeRemocao(remocao, aoCancelarRemocao, aoConfirmarRemocao)
+    }
 }
 
 /** Conteúdo no meio da tela, com largura máxima (o alvo de teste é um tablet). */

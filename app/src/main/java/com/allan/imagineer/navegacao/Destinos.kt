@@ -83,3 +83,19 @@ object Lixeira
 /** Configuração do app: endereço do servidor, chave própria, modelos (item 7.10). */
 @Serializable
 object Configuracao
+
+/** O perfil da conta, aberto pelo menu da biblioteca (MN3). */
+@Serializable
+object Perfil
+
+/** As configurações (servidor, perfis de renderização, modelos, exibição), abertas pelo menu da biblioteca (MN4). */
+@Serializable
+object Configuracoes
+
+/** Os modelos de IA (MN4): só interface. */
+@Serializable
+object ModelosDeIa
+
+/** Os custos de IA (MN6): só interface. */
+@Serializable
+object Custos
