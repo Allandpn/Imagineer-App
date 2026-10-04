@@ -52,6 +52,8 @@ fun TelaCapitulosArquivados(
     aoVoltar: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     viewModel: LivroViewModel,
+    /** A barra de baixo do livro (LY1); nulo = sem a barra. */
+    aoIrParaODoLivro: ((DestinoDoLivro) -> Unit)? = null,
 ) {
     val estado by viewModel.estado.collectAsState()
     val selecao by viewModel.selecao.collectAsState()
@@ -75,6 +77,7 @@ fun TelaCapitulosArquivados(
         aoConfirmarSelecao = viewModel::confirmarSelecao,
         aoAlternarTodos = viewModel::alternarTodos,
         aoAbrirCapitulo = aoAbrirCapitulo,
+        aoIrParaODoLivro = aoIrParaODoLivro,
     )
 }
 
@@ -92,8 +95,10 @@ fun ConteudoDosArquivados(
     aoConfirmarSelecao: () -> Unit,
     aoAlternarTodos: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
+    aoIrParaODoLivro: ((DestinoDoLivro) -> Unit)? = null,
 ) {
     Scaffold(
+        bottomBar = { aoIrParaODoLivro?.let { BarraDeNavegacaoDoLivro(DestinoDoLivro.ARQUIVADOS, it) } },
         snackbarHost = { HostDeAvisos(avisos) },
         topBar = {
             if (selecao != null) {

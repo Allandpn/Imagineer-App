@@ -53,6 +53,14 @@ data class Frame(val frameId: Int)
 @Serializable
 data class Prompt(val frameId: Int, val promptId: Int? = null)
 
+/** As cenas de um livro, por capítulo (LY8). */
+@Serializable
+data class CenasDoLivro(val livroId: Int)
+
+/** As pendências de um livro (sugestões ainda não confirmadas), por capítulo (LY7). */
+@Serializable
+data class PendenciasDoLivro(val livroId: Int)
+
 /** Os elementos de um livro (item 7.8). */
 @Serializable
 data class ElementosDoLivro(val livroId: Int)

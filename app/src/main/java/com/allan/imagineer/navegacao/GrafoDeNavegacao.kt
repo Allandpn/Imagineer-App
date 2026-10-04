@@ -1,5 +1,9 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.livro.AlvoNoCapitulo
+import com.allan.imagineer.telas.livro.DestinoDoLivro
+import com.allan.imagineer.telas.livro.TipoDaListaDoLivro
+import com.allan.imagineer.telas.livro.TelaDaListaDoLivro
 import com.allan.imagineer.telas.menu.TelaConfiguracoes
 import com.allan.imagineer.telas.menu.TelaModelos
 import com.allan.imagineer.telas.menu.TelaCustos
@@ -66,6 +70,29 @@ import kotlinx.coroutines.flow.first
  */
 private fun NavBackStackEntry.estaNaFrente(): Boolean = lifecycle.currentState == Lifecycle.State.RESUMED
 
+/**
+ * Um ícone da barra de baixo do livro (LY1): vai para a tela irmã **sem empilhar** — tudo acima da lista de capítulos sai da pilha, então
+ * voltar leva sempre à lista. A tela do capítulo e a ficha não passam por aqui (ficam em tela cheia).
+ */
+private fun irParaODoLivro(controle: NavHostController, livroId: Int, destino: DestinoDoLivro, entrada: NavBackStackEntry) {
+    if (!entrada.estaNaFrente()) return
+    val opcoes: androidx.navigation.NavOptionsBuilder.() -> Unit = {
+        popUpTo<Livro> { inclusive = false }
+        launchSingleTop = true
+    }
+    when (destino) {
+        DestinoDoLivro.ELEMENTOS -> controle.navigate(ElementosDoLivro(livroId), opcoes)
+        DestinoDoLivro.CENAS -> controle.navigate(CenasDoLivro(livroId), opcoes)
+        DestinoDoLivro.PENDENCIAS -> controle.navigate(PendenciasDoLivro(livroId), opcoes)
+        DestinoDoLivro.ARQUIVADOS -> controle.navigate(CapitulosArquivados(livroId), opcoes)
+    }
+}
+
+/** Abre o capítulo de um item das listas Pendências e Cenas, já com o que abrir nele (LY7, LY8). */
+private fun abrirNoCapitulo(controle: NavHostController, alvo: AlvoNoCapitulo) {
+    controle.navigate(Capitulo(alvo.capituloId, abrirFrameId = alvo.abrirFrameId, abrirRotulo = alvo.abrirRotulo, abrirPainel = alvo.abrirPainel))
+}
+
 @Composable
 fun GrafoDeNavegacao() {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
@@ -123,13 +150,32 @@ fun GrafoDeNavegacao() {
             val destino = entrada.toRoute<Livro>()
             TelaLivro(
                 livroId = destino.livroId,
+                aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
-                aoAbrirElementos = { controle.navigate(ElementosDoLivro(destino.livroId)) },
-                aoAbrirArquivados = { controle.navigate(CapitulosArquivados(destino.livroId)) },
                 aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
                 aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
+            )
+        }
+        composable<CenasDoLivro> { entrada ->
+            val destino = entrada.toRoute<CenasDoLivro>()
+            TelaDaListaDoLivro(
+                livroId = destino.livroId,
+                tipo = TipoDaListaDoLivro.CENAS,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrir = { alvo -> if (entrada.estaNaFrente()) abrirNoCapitulo(controle, alvo) },
+                aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
+            )
+        }
+        composable<PendenciasDoLivro> { entrada ->
+            val destino = entrada.toRoute<PendenciasDoLivro>()
+            TelaDaListaDoLivro(
+                livroId = destino.livroId,
+                tipo = TipoDaListaDoLivro.PENDENCIAS,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrir = { alvo -> if (entrada.estaNaFrente()) abrirNoCapitulo(controle, alvo) },
+                aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
             )
         }
         composable<CapitulosArquivados> { entrada ->
@@ -140,6 +186,7 @@ fun GrafoDeNavegacao() {
             TelaCapitulosArquivados(
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
+                aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
                 viewModel = livroViewModel(destino.livroId, dono = entradaDoLivro),
             )
         }
@@ -201,6 +248,7 @@ fun GrafoDeNavegacao() {
             TelaElementos(
                 livroId = destino.livroId,
                 aoVoltar = { controle.popBackStack() },
+                aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
                 aoAbrirFicha = { elementoId ->
                     if (entrada.estaNaFrente()) {
                         controle.navigate(FichaDoElemento(elementoId, destino.livroId)) { launchSingleTop = true }

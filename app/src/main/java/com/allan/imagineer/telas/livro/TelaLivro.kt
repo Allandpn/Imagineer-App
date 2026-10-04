@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.SmallFloatingActionButton
 import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -141,8 +142,8 @@ fun TelaLivro(
     livroId: Int,
     aoVoltar: () -> Unit,
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
-    aoAbrirElementos: () -> Unit,
-    aoAbrirArquivados: () -> Unit,
+    /** A barra de baixo do livro (LY1): o ícone tocado. */
+    aoIrParaODoLivro: (DestinoDoLivro) -> Unit = {},
     aoAbrirPesquisa: () -> Unit = {},
     aoAbrirLixeira: (() -> Unit)? = null,
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
@@ -188,9 +189,8 @@ fun TelaLivro(
         aoCancelarSelecao = viewModel::cancelarSelecao,
         aoConfirmarSelecao = viewModel::confirmarSelecao,
         aoAlternarTodos = viewModel::alternarTodos,
-        aoAbrirArquivados = aoAbrirArquivados,
+        aoIrParaODoLivro = aoIrParaODoLivro,
         aoAbrirCapitulo = aoAbrirCapitulo,
-        aoAbrirElementos = aoAbrirElementos,
         aoAbrirPesquisa = aoAbrirPesquisa,
         aoAbrirLixeira = aoAbrirLixeira,
         aoAlternarLido = viewModel::alternarLido,
@@ -233,9 +233,8 @@ fun ConteudoDoLivro(
     aoCancelarSelecao: () -> Unit,
     aoConfirmarSelecao: () -> Unit,
     aoAlternarTodos: () -> Unit,
-    aoAbrirArquivados: () -> Unit,
+    aoIrParaODoLivro: (DestinoDoLivro) -> Unit = {},
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
-    aoAbrirElementos: () -> Unit,
     aoAbrirPesquisa: () -> Unit = {},
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAlternarLido: (capituloId: Int) -> Unit = {},
@@ -251,8 +250,19 @@ fun ConteudoDoLivro(
     if (metadadosAbertos && pronto != null) {
         DialogoDosMetadados(livro = pronto.livro, perfil = pronto.perfil, aoFechar = { metadadosAbertos = false })
     }
+    val continuar = pronto?.let { continuarLendo(it.livro, marcador) }
     Scaffold(
         snackbarHost = { HostDeAvisos(avisos) },
+        // LY1: a barra de navegação do livro (só ícones); some no modo de seleção, que tem a barra dele.
+        bottomBar = { if (selecao == null && pronto != null) BarraDeNavegacaoDoLivro(selecionado = null, aoIr = aoIrParaODoLivro) },
+        // LY3: "Continuar lendo" é um botão pequeno, só com o ícone, no canto de baixo.
+        floatingActionButton = {
+            if (selecao == null && continuar != null) {
+                SmallFloatingActionButton(onClick = { aoContinuarLendo(continuar.capituloId, continuar.posicao) }) {
+                    Icon(IconesDaTelaDoLivro.continuar, contentDescription = continuar.rotulo)
+                }
+            }
+        },
         topBar = {
             if (selecao != null) {
                 // Modo de seleção: enquanto seleciona, as outras ações ficam indisponíveis.
@@ -266,7 +276,7 @@ fun ConteudoDoLivro(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Livro") },
+                    title = { Text("Capítulos") },
                     navigationIcon = {
                         IconButton(onClick = aoVoltar) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -275,21 +285,13 @@ fun ConteudoDoLivro(
                     actions = {
                         // Só com o livro na tela: os atalhos não fazem sentido em erro.
                         if (estado is EstadoDoLivro.Pronto) {
-                            // LV2: os textos viraram ícones com selo; o perfil e as configurações do livro vão para o ⋮.
-                            AcoesDaBarraDoLivro(
-                                continuar = continuarLendo(estado.livro, marcador),
-                                aoContinuar = { alvo -> aoContinuarLendo(alvo.capituloId, alvo.posicao) },
-                                aoAbrirElementos = aoAbrirElementos,
-                                aoPesquisar = aoAbrirPesquisa,
-                                aoAbrirMetadados = { metadadosAbertos = true },
-                            )
-                            // O mesmo menu ⋮ da biblioteca, com os itens que só valem dentro do livro. "Arquivo" abre os capítulos
-                            // arquivados (de lá também se arquivam mais).
+                            // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
+                            // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
                             MenuDoLivro(
+                                aoPesquisar = aoAbrirPesquisa,
                                 aoEditar = aoEditar,
                                 aoDefinirCapa = aoDefinirCapa,
                                 aoEscolherPerfilPadrao = aoEscolherPerfilPadrao,
-                                aoAbrirArquivo = aoAbrirArquivados,
                                 aoAbrirLixeira = aoAbrirLixeira,
                                 aoApagar = aoApagar,
                             )
@@ -328,6 +330,7 @@ fun ConteudoDoLivro(
                     aoAlternarSelecao = aoAlternarSelecao,
                     aoAbrirCapitulo = aoAbrirCapitulo,
                     aoAlternarLido = aoAlternarLido,
+                    aoAbrirMetadados = { metadadosAbertos = true },
                 )
             }
         }
@@ -342,6 +345,7 @@ private fun ListaDoLivro(
     aoAlternarSelecao: (Int) -> Unit,
     aoAbrirCapitulo: (Int) -> Unit,
     aoAlternarLido: (Int) -> Unit,
+    aoAbrirMetadados: () -> Unit,
 ) {
     val livro = estado.livro
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
@@ -353,7 +357,7 @@ private fun ListaDoLivro(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
-            item { CabecalhoDoLivro(livro) }
+            item { CabecalhoDoLivro(livro, aoAbrirMetadados) }
 
             if (ativos.isEmpty()) {
                 item {
@@ -391,18 +395,24 @@ private fun ListaDoLivro(
 
 /** O cabeçalho da lista (LV2, minimalista): só o **título**, grande e em destaque, e o **autor**. O resto está nos metadados. */
 @Composable
-private fun CabecalhoDoLivro(livro: LivroDetalhe) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+private fun CabecalhoDoLivro(livro: LivroDetalhe, aoAbrirMetadados: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 16.dp, bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        // O autor: do tamanho e da cor dos títulos dos capítulos, numa fonte diferente (serifada, em itálico).
-        Text(
-            livro.autor ?: "Autor desconhecido",
-            style = MaterialTheme.typography.bodyLarge,
-            fontFamily = FontFamily.Serif,
-            fontStyle = FontStyle.Italic,
-        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(livro.titulo, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            // O autor: do tamanho e da cor dos títulos dos capítulos, numa fonte diferente (serifada, em itálico).
+            Text(
+                livro.autor ?: "Autor desconhecido",
+                style = MaterialTheme.typography.bodyLarge,
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+            )
+        }
+        // LY4: o ícone que abre o modal com os demais metadados do livro.
+        IconButton(onClick = aoAbrirMetadados) {
+            Icon(IconesDaTelaDoLivro.metadados, contentDescription = "Metadados do livro", tint = MaterialTheme.colorScheme.primary)
+        }
     }
 }

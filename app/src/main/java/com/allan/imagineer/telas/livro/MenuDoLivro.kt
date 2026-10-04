@@ -38,6 +38,7 @@ fun MenuDoLivro(
     aoEscolherPerfilPadrao: (() -> Unit)? = null,
     aoAbrirArquivo: (() -> Unit)? = null,
     aoAbrirLixeira: (() -> Unit)? = null,
+    aoPesquisar: (() -> Unit)? = null,
     aoApagar: (() -> Unit)? = null,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -52,6 +53,7 @@ fun MenuDoLivro(
             IconButton(onClick = { aberto = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções") }
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, onClick = { aberto = false; it() }) }
             aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, onClick = { aberto = false; it() }) }
             aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, onClick = { aberto = false; it() }) }
             aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, onClick = { aberto = false; it() }) }

@@ -77,6 +77,8 @@ fun TelaElementos(
     aoAbrirFicha: (elementoId: Int) -> Unit,
     /** Abre o capítulo com a área de IA do elemento (LV3). */
     aoAbrirNoCapitulo: (capituloId: Int, elementoId: Int) -> Unit = { _, _ -> },
+    /** A barra de baixo do livro (LY1); nulo = sem a barra. */
+    aoIrParaODoLivro: ((com.allan.imagineer.telas.livro.DestinoDoLivro) -> Unit)? = null,
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: ListaDeElementosViewModel = viewModel(
@@ -91,6 +93,9 @@ fun TelaElementos(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
 
     Scaffold(
+        bottomBar = {
+            aoIrParaODoLivro?.let { com.allan.imagineer.telas.livro.BarraDeNavegacaoDoLivro(com.allan.imagineer.telas.livro.DestinoDoLivro.ELEMENTOS, it) }
+        },
         topBar = {
             TopAppBar(
                 title = { Text("Elementos") },
