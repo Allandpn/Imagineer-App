@@ -9,15 +9,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -134,9 +135,9 @@ fun ControleDeNarracao(
                     }
                     BotaoDeIcone(Icons.Filled.SkipNext, "Próximo parágrafo", aoTocar = atual::proximo)
                     BotaoDeIcone(Icons.Filled.Stop, "Parar de ouvir", aoTocar = atual::parar)
-                    TextButton(onClick = { val nova = maisLenta(estado.velocidade); atual.mudarVelocidade(nova); aoMudarVelocidade(nova) }) { Text("−") }
+                    BotaoDeIcone(Icons.Filled.Remove, "Mais devagar", aoTocar = { val nova = maisLenta(estado.velocidade); atual.mudarVelocidade(nova); aoMudarVelocidade(nova) })
                     Text(descreverVelocidade(estado.velocidade), style = MaterialTheme.typography.labelLarge)
-                    TextButton(onClick = { val nova = maisRapida(estado.velocidade); atual.mudarVelocidade(nova); aoMudarVelocidade(nova) }) { Text("+") }
+                    BotaoDeIcone(Icons.Filled.Add, "Mais rápido", aoTocar = { val nova = maisRapida(estado.velocidade); atual.mudarVelocidade(nova); aoMudarVelocidade(nova) })
                 }
             }
         }

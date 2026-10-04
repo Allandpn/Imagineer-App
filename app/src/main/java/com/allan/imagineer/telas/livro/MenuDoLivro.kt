@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 /**
  * O menu ⋮ **de um livro**, o mesmo na **biblioteca** (no cartão e sobre a capa) e dentro do **livro** (barra de cima). Cada item só
@@ -62,7 +64,7 @@ fun MenuDoLivro(
                 }
             }
         } else {
-            IconButton(onClick = { aberto = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções") }
+            BotaoDeIcone(Icons.Filled.MoreVert, "Mais opções", aoTocar = { aberto = true }, cor = LocalContentColor.current)
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
             aoAbrirDados?.let { DropdownMenuItem(text = { Text("Informações") }, onClick = { aberto = false; it() }) }

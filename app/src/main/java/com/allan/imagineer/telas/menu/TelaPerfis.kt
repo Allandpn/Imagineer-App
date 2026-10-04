@@ -5,7 +5,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,11 +30,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -58,6 +57,7 @@ import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.CategoriaDeEstilo
 import com.allan.imagineer.rede.PerfilEdicao
 import com.allan.imagineer.rede.PerfilRenderizacao
+import com.allan.imagineer.telas.comum.BotaoFlutuante
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 /** O aviso que acompanha a escolha da categoria (BT6): o bloco fixo só rende quando o texto do perfil combina com ela. */
@@ -92,15 +92,12 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Perfis de renderização") },
-                navigationIcon = { IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") } },
+                navigationIcon = { BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current) },
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = viewModel::novo,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Criar novo perfil") },
-            )
+            // Só o "+", como na Biblioteca (PB5); "Criar novo perfil" fica na dica e para leitor de tela.
+            BotaoFlutuante(Icons.Filled.Add, "Criar novo perfil", viewModel::novo)
         },
     ) { margens ->
         Box(modifier = Modifier.padding(margens).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -210,9 +207,15 @@ private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, ao
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             // Os botões vêm logo no alto: o texto técnico embaixo é longo e empurrava "Editar" para fora da vista.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!perfil.de_fabrica) Button(onClick = aoEditar, modifier = Modifier.weight(1f)) { Text("Editar") }
-                OutlinedButton(onClick = aoCopiar, modifier = Modifier.weight(1f)) { Text("Criar a partir deste") }
+            // PB1: a ação principal é preenchida e a alternativa, de contorno. Num perfil próprio a principal é Editar; num de fábrica,
+            // que não se edita, "Criar a partir deste" é a única ação e fica preenchida.
+            if (perfil.de_fabrica) {
+                Button(onClick = aoCopiar, modifier = Modifier.fillMaxWidth()) { Text("Criar a partir deste") }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = aoEditar, modifier = Modifier.weight(1f)) { Text("Editar") }
+                    OutlinedButton(onClick = aoCopiar, modifier = Modifier.weight(1f)) { Text("Criar a partir deste") }
+                }
             }
             CampoDoDetalhe("Categoria", perfil.categoria?.rotulo ?: "Sem categoria")
             CampoDoDetalhe("Estilo", perfil.estilo)

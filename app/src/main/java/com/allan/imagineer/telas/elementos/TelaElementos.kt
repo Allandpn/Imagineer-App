@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.elementos
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -36,8 +37,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -62,6 +61,7 @@ import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.telas.capitulo.painel.TIPOS_DE_ELEMENTO
 import com.allan.imagineer.telas.capitulo.painel.rotuloDoTipo
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 /**
  * A tela de Elementos do livro (item 7.8, E20): todos os elementos já cadastrados, com busca por
@@ -100,9 +100,7 @@ fun TelaElementos(
             TopAppBar(
                 title = { Text("Elementos") },
                 navigationIcon = {
-                    IconButton(onClick = aoVoltar) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
+                    BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                 },
             )
         },

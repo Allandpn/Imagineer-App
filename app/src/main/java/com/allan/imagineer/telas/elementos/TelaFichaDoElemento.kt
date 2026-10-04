@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.elementos
 
+import androidx.compose.material3.LocalContentColor
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,8 +29,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -103,21 +102,13 @@ fun TelaFichaDoElemento(
             TopAppBar(
                 title = { Text(detalhe?.nome ?: "Elemento") },
                 navigationIcon = {
-                    IconButton(onClick = aoVoltar) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                    }
+                    BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                 },
                 actions = {
                     if (detalhe != null) {
-                        IconButton(onClick = viewModel::abrirMesclagem) {
-                            Icon(Icons.Filled.MergeType, contentDescription = "Mesclar com outro elemento")
-                        }
-                        IconButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ELEMENTO) }) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Editar o elemento")
-                        }
-                        IconButton(onClick = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ELEMENTO) }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Apagar o elemento")
-                        }
+                        BotaoDeIcone(Icons.Filled.MergeType, "Mesclar com outro elemento", viewModel::abrirMesclagem, cor = LocalContentColor.current)
+                        BotaoDeIcone(Icons.Filled.Edit, "Editar o elemento", aoTocar = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ELEMENTO) }, cor = LocalContentColor.current)
+                        BotaoDeIcone(Icons.Filled.Delete, "Apagar o elemento", aoTocar = { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ELEMENTO) }, cor = LocalContentColor.current)
                     }
                 },
             )

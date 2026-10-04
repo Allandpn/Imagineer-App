@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -110,7 +111,7 @@ fun FolhaDoDicionario(palavra: String, livroId: Int, aoFechar: () -> Unit) {
                 EstadoDoDicionario.Carregando -> CircularProgressIndicator()
                 is EstadoDoDicionario.Erro -> {
                     Text(atual.motivo, color = MaterialTheme.colorScheme.error)
-                    TextButton(onClick = { viewModel.consultar() }) { Text("Tentar de novo") }
+                    Button(onClick = { viewModel.consultar() }) { Text("Tentar de novo") }
                 }
                 is EstadoDoDicionario.Pronto -> {
                     if (atual.resultados.isEmpty()) {
