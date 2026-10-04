@@ -49,7 +49,10 @@ class MotorDeVozDoAndroid(
 
             @Deprecated("A versão com o código do erro é a usada nas versões novas do Android.")
             override fun onError(utteranceId: String?) {
-                principal.post { narrador?.aoFalhar() }
+                principal.post {
+                    aoAvisar("A voz do aparelho não conseguiu ler este trecho.")
+                    narrador?.aoFalhar()
+                }
             }
         })
     }

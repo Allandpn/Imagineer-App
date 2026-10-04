@@ -840,15 +840,6 @@ private fun PaginaDoCapitulo(
             var posicaoDaVoz by remember(capituloId) { mutableStateOf<Int?>(null) }
             val paragrafosDaVoz = remember(atual.capitulo.id) { dividirEmParagrafosComInicio(atual.capitulo.texto) }
             val escopoDaVoz = androidx.compose.runtime.rememberCoroutineScope()
-            ControleDeNarracao(
-                livroId = atual.capitulo.livro_id,
-                paragrafos = paragrafosDaVoz,
-                ativa = ehAtual,
-                posicaoAtual = { ultimaPosicao },
-                velocidade = leitura.velocidadeDaVoz,
-                aoMudarVelocidade = { v -> escopoDaVoz.launch { aplicacaoDaPagina.armazenamento.salvarPreferenciasDeLeitura(leitura.copy(velocidadeDaVoz = v)) } },
-                aoSeguirParagrafo = { posicaoDaVoz = it },
-            )
             LeitorDeTexto(
                 estado = atual,
                 destaques = destaques,
@@ -884,6 +875,16 @@ private fun PaginaDoCapitulo(
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
+            )
+            // Depois do texto, e não antes: o que vem por último fica por cima, e o botão Ouvir tem de receber o toque (o texto cobre a tela toda).
+            ControleDeNarracao(
+                livroId = atual.capitulo.livro_id,
+                paragrafos = paragrafosDaVoz,
+                ativa = ehAtual,
+                posicaoAtual = { ultimaPosicao },
+                velocidade = leitura.velocidadeDaVoz,
+                aoMudarVelocidade = { v -> escopoDaVoz.launch { aplicacaoDaPagina.armazenamento.salvarPreferenciasDeLeitura(leitura.copy(velocidadeDaVoz = v)) } },
+                aoSeguirParagrafo = { posicaoDaVoz = it },
             )
             }
         }

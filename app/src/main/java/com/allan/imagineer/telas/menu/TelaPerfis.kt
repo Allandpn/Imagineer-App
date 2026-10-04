@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -128,9 +131,17 @@ fun TelaPerfis(aoVoltar: () -> Unit) {
                         items(carga.perfis, key = { it.id }) { perfil ->
                             Card(modifier = Modifier.fillMaxWidth().clickable { viewModel.ver(perfil) }) {
                                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(perfil.nome, style = MaterialTheme.typography.titleMedium)
-                                    if (perfil.de_fabrica) {
-                                        Text("De fábrica", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(perfil.nome, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
+                                        // Só o perfil próprio é sinalizado: os de fábrica são a regra e não precisam de marca.
+                                        if (!perfil.de_fabrica) {
+                                            Icon(
+                                                Icons.Filled.Person,
+                                                contentDescription = "Perfil próprio",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                        }
                                     }
                                     Text(
                                         resumoDoPerfil(perfil),
