@@ -366,6 +366,15 @@ private fun LeitorPaginado(
         painel.imagemEscolhida(uri?.let { aplicacaoDoSeletor.leitorDeArquivos.descrever(it.toString()) }, cancelou = uri == null)
     }
 
+    // Posicionando com o painel em tela cheia: o painel fecha e, quando o modo termina (escolheu o parágrafo ou cancelou), volta.
+    var reabrirPainelAoFim by remember { mutableStateOf(false) }
+    LaunchedEffect(estadoDoPainel.posicionando) {
+        if (estadoDoPainel.posicionando == null && reabrirPainelAoFim) {
+            reabrirPainelAoFim = false
+            if (!painelAberto) aoAlternarPainel()
+        }
+    }
+
     val acoesDoPainel = AcoesDoPainel(
         aoAnalisar = painel::analisar,
         aoPedirReanalise = painel::pedirReanalise,
@@ -413,8 +422,15 @@ private fun LeitorPaginado(
         aoPedirExcluirImagem = painel::pedirExcluirImagem,
         aoDefinirImagemCanonica = painel::definirImagemCanonica,
         aoDefinirImagemOculta = painel::definirImagemOculta,
-        aoIniciarPosicionamento = painel::iniciarPosicionamento,
-        aoIniciarPosicionamentoDeFrame = painel::iniciarPosicionamentoDeFrame,
+        // Com o painel em tela cheia (tela estreita), o texto fica escondido: fecha o painel para a pessoa tocar no parágrafo e o reabre ao fim.
+        aoIniciarPosicionamento = { ehCena, sugestaoId, rotulo ->
+            painel.iniciarPosicionamento(ehCena, sugestaoId, rotulo)
+            if (painelCheio) { reabrirPainelAoFim = true; aoFecharPainel() }
+        },
+        aoIniciarPosicionamentoDeFrame = { ehCena, frameId, rotulo ->
+            painel.iniciarPosicionamentoDeFrame(ehCena, frameId, rotulo)
+            if (painelCheio) { reabrirPainelAoFim = true; aoFecharPainel() }
+        },
         aoTirarPosicao = painel::tirarPosicao,
         aoPedirApagarFrame = { frameId, rotulo, deSugestao -> painel.pedirApagarFrame(frameId, rotulo, deSugestao) },
         aoCancelarApagarFrame = painel::cancelarApagarFrame,
