@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.foundation.shape.CircleShape
 import android.widget.Toast
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.foundation.layout.height
@@ -538,6 +539,7 @@ private fun LeitorPaginado(
                     // Celular com o painel aberto: no MESMO canto, o botão de voltar ao texto (P4).
                     painelAberto -> ExtendedFloatingActionButton(
                         onClick = aoAlternarPainel,
+                        shape = CircleShape, // pílula, como antes (o tema agora tem cantos retos)
                         icon = { Icon(Icons.Filled.Description, contentDescription = null) },
                         text = { Text("Voltar ao texto") },
                     )
@@ -545,6 +547,7 @@ private fun LeitorPaginado(
                     else -> AnimatedVisibility(visible = botaoVisivel, enter = fadeIn(), exit = fadeOut()) {
                         ExtendedFloatingActionButton(
                             onClick = aoAlternarPainel,
+                            shape = CircleShape,
                             icon = { Icon(Icons.Filled.AutoAwesome, contentDescription = null) },
                             text = { Text("IA") },
                         )
