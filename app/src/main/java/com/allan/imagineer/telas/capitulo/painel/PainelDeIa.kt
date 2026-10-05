@@ -1,5 +1,9 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Restore
@@ -104,6 +108,8 @@ class AcoesDoPainel(
     val aoRecarregarLista: () -> Unit,
     val aoRestaurar: (ElementoSugerido) -> Unit,
     val aoEscolherFiltro: (FiltroDoPainel) -> Unit,
+    /** Abre a tela de Modelos de IA, a partir do painel (nulo = sem o botão). */
+    val aoAbrirModelosDeIa: (() -> Unit)? = null,
     /** Abre a tela da ficha (E22). `doCapitulo`: a ficha veio de uma sugestão deste capítulo. */
     val aoAbrirFicha: (elementoId: Int, doCapitulo: Boolean) -> Unit,
     val aoAlternarApagarEstado: () -> Unit,
@@ -214,7 +220,7 @@ fun PainelDeIa(
 ) {
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(modifier = Modifier.fillMaxSize()) {
-            CabecalhoDoPainel(aoFechar)
+            CabecalhoDoPainel(aoFechar, acoes.aoAbrirModelosDeIa)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 CorpoDoPainel(estado, acoes, retratos)
             }
@@ -370,7 +376,7 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
 }
 
 @Composable
-private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?) {
+private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Unit)?) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -380,10 +386,10 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?) {
             Icon(Icons.Filled.AutoAwesome, contentDescription = null)
             Text("IA do capítulo", style = MaterialTheme.typography.titleMedium)
         }
-        if (aoFechar != null) {
-            IconButton(onClick = aoFechar) {
-                Icon(Icons.Filled.Close, contentDescription = "Fechar o painel de IA")
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // Escolher os modelos de IA (extração, prompt, vídeo...) sem sair do capítulo para procurar nas Configurações.
+            if (aoAbrirModelos != null) BotaoDeIcone(Icons.Filled.Tune, "Modelos de IA", aoAbrirModelos, cor = LocalContentColor.current)
+            if (aoFechar != null) BotaoDeIcone(Icons.Filled.Close, "Fechar o painel de IA", aoFechar, cor = LocalContentColor.current)
         }
     }
 }
@@ -467,8 +473,25 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
     val cenasDosElementos = cenasDoElemento(sugestoes)
     val cenas = cenasDoFiltro(sugestoes.cenas, estado.filtro) // D2: as cenas também obedecem ao filtro
 
+    // Deslizar para a esquerda vai ao filtro seguinte (Pendentes, Confirmados, Descartados); para a direita, ao anterior.
+    val limiarDoDeslize = with(androidx.compose.ui.platform.LocalDensity.current) { DESLIZE_MINIMO_ENTRE_FILTROS_DP.dp.toPx() }
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().pointerInput(estado.filtro) {
+            var andou = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { andou = 0f },
+                onDragEnd = {
+                    val novo = when {
+                        andou <= -limiarDoDeslize -> filtroVizinho(estado.filtro, +1)
+                        andou >= limiarDoDeslize -> filtroVizinho(estado.filtro, -1)
+                        else -> estado.filtro
+                    }
+                    if (novo != estado.filtro) acoes.aoEscolherFiltro(novo)
+                },
+                onDragCancel = { andou = 0f },
+                onHorizontalDrag = { _, quanto -> andou += quanto },
+            )
+        },
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

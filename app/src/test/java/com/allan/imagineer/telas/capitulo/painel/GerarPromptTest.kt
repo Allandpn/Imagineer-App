@@ -35,9 +35,12 @@ internal class PromptsFalso : RepositorioDePrompts {
     var geracao: ResultadoDaChamada<PromptDeFrame> = ResultadoDaChamada.Sucesso(prompt(99))
     var travaDaGeracao: CompletableDeferred<Unit>? = null
 
+    /** Respostas de `listar` em sequência (a primeira chamada leva a primeira...); acabando, vale [lista]. Para simular o servidor mudando. */
+    val sequenciaDeListagens = mutableListOf<ResultadoDaChamada<List<PromptDeFrame>>>()
+
     override suspend fun listar(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> {
         listagens++
-        return lista
+        return if (sequenciaDeListagens.isNotEmpty()) sequenciaDeListagens.removeAt(0) else lista
     }
 
     override suspend fun gerar(frameId: Int, comentario: String?): ResultadoDaChamada<PromptDeFrame> {

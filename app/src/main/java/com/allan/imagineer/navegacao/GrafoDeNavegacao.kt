@@ -227,6 +227,7 @@ fun GrafoDeNavegacao() {
                 abrirRotulo = destino.abrirRotulo,
                 abrirPainel = destino.abrirPainel,
                 aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
+                aoAbrirModelosDeIa = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa

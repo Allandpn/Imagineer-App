@@ -249,6 +249,8 @@ fun TelaCapitulo(
     abrirPainel: Boolean = false,
     /** Abre a pesquisa (LV5): o livro e o capítulo de onde se pesquisa. */
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit = { _, _ -> },
+    /** Abre a tela de Modelos de IA (botão do painel de IA). */
+    aoAbrirModelosDeIa: () -> Unit = {},
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
@@ -287,6 +289,7 @@ fun TelaCapitulo(
             posicaoPendente = posicaoPendente,
             aoAtenderPosicao = { posicaoPendente = null },
             aoPesquisar = aoPesquisar,
+            aoAbrirModelosDeIa = aoAbrirModelosDeIa,
             modoDireto = abrirElementoId != null || abrirFrameId != null,
             framePendente = framePendente,
             rotuloDoFramePendente = abrirRotulo,
@@ -309,6 +312,7 @@ private fun LeitorPaginado(
     posicaoPendente: Int?,
     aoAtenderPosicao: () -> Unit,
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
+    aoAbrirModelosDeIa: () -> Unit,
     /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
     modoDireto: Boolean,
     framePendente: Int?,
@@ -555,6 +559,7 @@ private fun LeitorPaginado(
         aoAbrirImagemExistente = painel::abrirImagemExistente,
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
+        aoAbrirModelosDeIa = aoAbrirModelosDeIa,
         aoCarregarVideos = painel::carregarVideos,
         aoAbrirDialogoDeVideo = painel::abrirDialogoDeVideo,
         aoEscolherImagemDoVideo = painel::escolherImagemDoVideo,

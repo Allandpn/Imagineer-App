@@ -127,6 +127,16 @@ enum class FiltroDoPainel(val rotulo: String) {
     DESCARTADOS("Descartados"),
 }
 
+/**
+ * O filtro vizinho de [atual] ao deslizar o dedo: [passo] +1 vai ao próximo (deslizar para a **esquerda**), -1 ao anterior (para a
+ * **direita**). Nas pontas **não dá a volta**: continua no mesmo filtro.
+ */
+fun filtroVizinho(atual: FiltroDoPainel, passo: Int): FiltroDoPainel =
+    FiltroDoPainel.entries.getOrElse(atual.ordinal + passo) { atual }
+
+/** O quanto o dedo precisa andar na horizontal, em dp, para valer como um deslize entre os filtros. */
+const val DESLIZE_MINIMO_ENTRE_FILTROS_DP = 80
+
 /** Em qual filtro cai uma sugestão: descartada, confirmada, ou o resto (pendente: pede ação). */
 fun filtroDoElemento(elemento: ElementoSugerido): FiltroDoPainel = when {
     elemento.descartada -> FiltroDoPainel.DESCARTADOS

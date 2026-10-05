@@ -10,6 +10,7 @@ import com.allan.imagineer.rede.SugestoesDeCapitulo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -97,7 +98,12 @@ class ServicoDeAnalises(
     ): Deferred<ResultadoDaChamada<PromptDeFrame>> = synchronized(trava) {
         promptsEmAndamento[frameId]?.let { return it }
         val trabalho = escopo.async {
-            val resultado = prompts.gerar(frameId, comentario)
+            // O que o frame já tinha antes: se a conexão cair no meio, é por aqui que se descobre que o servidor terminou mesmo assim.
+            val ultimoAntes = ultimoPromptDoFrame(frameId)
+            var resultado = prompts.gerar(frameId, comentario)
+            if (resultado is ResultadoDaChamada.Falha && resultado.codigoHttp == null && ultimoAntes != null) {
+                resultado = esperarOPromptQueOServidorTerminou(frameId, ultimoAntes) ?: resultado
+            }
             synchronized(trava) { promptsEmAndamento.remove(frameId) }
             _eventos.emit(
                 EventoDeAnalise(
@@ -115,6 +121,24 @@ class ServicoDeAnalises(
         }
         promptsEmAndamento[frameId] = trabalho
         trabalho
+    }
+
+    /** O id do prompt mais recente do frame (0 se não há nenhum), ou `null` se não deu para ler (sem conexão). */
+    private suspend fun ultimoPromptDoFrame(frameId: Int): Int? =
+        (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado?.let { lista -> lista.maxOfOrNull { it.id } ?: 0 }
+
+    /**
+     * A conexão caiu **durante** a geração do prompt (a tela apagou, o app foi para o fundo, o Tailscale oscilou), mas o servidor **não**
+     * para por isso: ele termina, grava o prompt e só não tem a quem responder. Então, em vez de dar a geração por falha, o app **procura**
+     * o prompt que passou a existir (id maior que o último de antes), a cada poucos segundos, por até ~2 minutos. Sem achar, vale a falha.
+     */
+    private suspend fun esperarOPromptQueOServidorTerminou(frameId: Int, ultimoAntes: Int): ResultadoDaChamada<PromptDeFrame>? {
+        repeat(TENTATIVAS_DE_CONFERIR_O_PROMPT) {
+            delay(INTERVALO_DE_CONFERIR_O_PROMPT_MS)
+            val lista = (prompts.listar(frameId) as? ResultadoDaChamada.Sucesso)?.dado ?: return@repeat
+            lista.filter { it.id > ultimoAntes && !it.so_imagem && it.tipo == "IMAGEM" }.maxByOrNull { it.id }?.let { return ResultadoDaChamada.Sucesso(it) }
+        }
+        return null
     }
 
     private val imagensEmAndamento = mutableMapOf<Int, Deferred<ResultadoDaChamada<ResultadoDaGeracao>>>()
@@ -323,3 +347,8 @@ private fun descreverAvisoDeImagem(
 /** "capítulo 3" ou "capítulo «O muro»": como o capítulo aparece nos avisos. */
 fun rotuloDoCapituloNoAviso(ordem: Int, titulo: String?): String =
     if (titulo.isNullOrBlank()) "capítulo $ordem" else "capítulo «$titulo»"
+
+/** Quantas vezes o app confere se o servidor terminou o prompt depois de a conexão cair (a cada [INTERVALO_DE_CONFERIR_O_PROMPT_MS]). */
+const val TENTATIVAS_DE_CONFERIR_O_PROMPT = 24
+
+const val INTERVALO_DE_CONFERIR_O_PROMPT_MS = 5_000L
