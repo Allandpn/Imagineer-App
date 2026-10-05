@@ -185,6 +185,13 @@ class AcoesDoPainel(
     val aoAbrirImagemExistente: (ElementoSugerido, frameId: Int?) -> Unit,
     val aoFecharImagemExistente: () -> Unit,
     val aoUsarImagemExistente: (imagemId: Int) -> Unit,
+    // O prompt de vídeo (item 4.8).
+    val aoCarregarVideos: (frameId: Int) -> Unit = {},
+    val aoAbrirDialogoDeVideo: (frameId: Int, rotulo: String, imagens: List<com.allan.imagineer.rede.ImagemDoPrompt>) -> Unit = { _, _, _ -> },
+    val aoEscolherImagemDoVideo: (imagemId: Int) -> Unit = {},
+    val aoMudarComentarioDoVideo: (String) -> Unit = {},
+    val aoFecharDialogoDeVideo: () -> Unit = {},
+    val aoGerarVideo: () -> Unit = {},
     val aoConfirmarExclusaoDeImagem: () -> Unit,
     val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
@@ -231,6 +238,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
     estado.usandoImagemExistente?.let { DialogoDeImagemExistente(it, estado.capituloAtualId, acoes) }
+    estado.dialogoDeVideo?.let { DialogoDeVideo(it, acoes) }
     estado.trechoParaImagem?.let { DialogoDoTrecho(it, estado, acoes) }
     estado.apagandoFrame?.let { DialogoApagarFrame(it, acoes) }
     estado.editandoCena?.let { DialogoDeEdicaoDaCena(it, acoes) }
@@ -1005,6 +1013,9 @@ internal fun BlocoDePrompts(
 
     // Q1: a imagem em destaque, com o botão que faz o que falta.
     SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena)
+
+    // Item 4.8: o prompt de vídeo, a partir de uma das imagens do frame.
+    SecaoDeVideo(frameId, rotulo, imagensDoFrameComACanonica(lista.flatMap { it.imagens }, estado.canonicasDosFrames[frameId]), estado, acoes)
 
     // Falhas do prompt (do fluxo ou do Novo prompt) ficam fora do recolhido: a pessoa precisa vê-las.
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }

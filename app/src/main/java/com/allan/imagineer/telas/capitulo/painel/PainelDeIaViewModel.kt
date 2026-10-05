@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.ImagemDoPrompt
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allan.imagineer.analise.ServicoDeAnalises
@@ -99,6 +100,24 @@ data class ApagandoFrame(
     val erro: String? = null,
     /** O frame é o de uma **sugestão de cena** (o modal da cena): depois de apagado, a sugestão continua na lista como pendente. */
     val deSugestao: Boolean = false,
+)
+
+/** Os prompts de **vídeo** de um frame (item 4.8): lidos uma vez, e o novo entra na frente ao gerar. */
+sealed interface VideosDoFrame {
+    data object Lendo : VideosDoFrame
+    data class Pronto(val lista: List<PromptDeFrame>) : VideosDoFrame
+    data class Erro(val motivo: String) : VideosDoFrame
+}
+
+/** O diálogo "Prompt de vídeo" (VD9): as [imagens] do frame, qual é o primeiro quadro ([escolhida]), o comentário e o andamento. */
+data class DialogoDeVideo(
+    val frameId: Int,
+    val rotulo: String,
+    val imagens: List<ImagemDoPrompt>,
+    val escolhida: Int?,
+    val comentario: String = "",
+    val gerando: Boolean = false,
+    val erro: String? = null,
 )
 
 /** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
@@ -212,6 +231,10 @@ data class EstadoDoPainel(
     val resultadoDoLote: String? = null,
     /** Os prompts de cada frame, por id do frame (G2). Só existe a entrada de quem já foi aberto. */
     val prompts: Map<Int, PromptsDoFrame> = emptyMap(),
+    /** Os prompts de vídeo de cada frame, por id do frame (item 4.8). Só existe a entrada de quem já foi aberto. */
+    val videos: Map<Int, VideosDoFrame> = emptyMap(),
+    /** O diálogo de gerar o prompt de vídeo; `null` = fechado. */
+    val dialogoDeVideo: DialogoDeVideo? = null,
     /**
      * A imagem canônica de cada frame, por id do frame (VM5). Existe porque ela pode ser de **outro** frame (a "imagem existente" que a
      * pessoa usou): ela não vem na lista de imagens dos prompts deste frame, e a miniatura não aparecia.
@@ -1971,6 +1994,61 @@ class PainelDeIaViewModel(
                     atualizarUsoDeImagem { it.copy(carga = CargaPorCapitulo.Pronta(resultado.dado)) }
                 }
                 is ResultadoDaChamada.Falha -> atualizarUsoDeImagem { it.copy(carga = CargaPorCapitulo.Erro(resultado.motivo)) }
+            }
+        }
+    }
+
+    // --- O prompt de vídeo (item 4.8) ---------------------------------------- //
+
+    /** Lê **uma vez** os prompts de vídeo do frame. Não gasta IA. */
+    fun carregarVideos(frameId: Int) {
+        if (_estado.value.videos[frameId] != null) return
+        _estado.update { it.copy(videos = it.videos + (frameId to VideosDoFrame.Lendo)) }
+        viewModelScope.launch {
+            val lido = when (val r = prompts.listarVideos(frameId)) {
+                is ResultadoDaChamada.Sucesso -> VideosDoFrame.Pronto(r.dado)
+                is ResultadoDaChamada.Falha -> VideosDoFrame.Erro(r.motivo)
+            }
+            _estado.update { it.copy(videos = it.videos + (frameId to lido)) }
+        }
+    }
+
+    /** Abre o diálogo com a canônica (ou a imagem mais recente) já escolhida como primeiro quadro. */
+    fun abrirDialogoDeVideo(frameId: Int, rotulo: String, imagens: List<ImagemDoPrompt>) {
+        if (imagens.isEmpty()) return
+        _estado.update { it.copy(dialogoDeVideo = DialogoDeVideo(frameId, rotulo, imagens, escolhida = imagemDePartidaPadrao(imagens))) }
+    }
+
+    fun escolherImagemDoVideo(imagemId: Int) {
+        _estado.update { atual -> atual.dialogoDeVideo?.let { atual.copy(dialogoDeVideo = it.copy(escolhida = imagemId, erro = null)) } ?: atual }
+    }
+
+    fun mudarComentarioDoVideo(texto: String) {
+        _estado.update { atual -> atual.dialogoDeVideo?.let { atual.copy(dialogoDeVideo = it.copy(comentario = texto)) } ?: atual }
+    }
+
+    fun fecharDialogoDeVideo() {
+        if (_estado.value.dialogoDeVideo?.gerando == true) return
+        _estado.update { it.copy(dialogoDeVideo = null) }
+    }
+
+    /**
+     * **Gera** o prompt de vídeo (uma chamada de IA). Sucesso: fecha o diálogo e o prompt novo entra na seção Vídeo. Falha (a imagem não
+     * é do frame, sem chave, IA fora): a mensagem do servidor no próprio diálogo, que continua aberto.
+     */
+    fun gerarVideo() {
+        val dialogo = _estado.value.dialogoDeVideo ?: return
+        if (dialogo.gerando || dialogo.escolhida == null) return
+        _estado.update { it.copy(dialogoDeVideo = dialogo.copy(gerando = true, erro = null)) }
+        viewModelScope.launch {
+            when (val r = prompts.gerarVideo(dialogo.frameId, dialogo.escolhida, dialogo.comentario)) {
+                is ResultadoDaChamada.Sucesso -> _estado.update { atual ->
+                    val antes = (atual.videos[dialogo.frameId] as? VideosDoFrame.Pronto)?.lista.orEmpty()
+                    atual.copy(dialogoDeVideo = null, videos = atual.videos + (dialogo.frameId to VideosDoFrame.Pronto(antes + r.dado)))
+                }
+                is ResultadoDaChamada.Falha -> _estado.update { atual ->
+                    atual.copy(dialogoDeVideo = atual.dialogoDeVideo?.copy(gerando = false, erro = r.motivo))
+                }
             }
         }
     }

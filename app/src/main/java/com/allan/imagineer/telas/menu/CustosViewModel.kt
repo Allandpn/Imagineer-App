@@ -98,6 +98,7 @@ fun nomeDaOperacao(operacao: String): String = when (operacao) {
     "identidade" -> "Identidade do elemento"
     "fundamentacao" -> "Contexto da cena"
     "prompt" -> "Prompt de imagem"
+    "prompt_de_video" -> "Prompt de vídeo"
     "suavizacao" -> "Suavização do prompt"
     "traducao" -> "Tradução de prompt"
     "perfil" -> "Perfil de renderização"

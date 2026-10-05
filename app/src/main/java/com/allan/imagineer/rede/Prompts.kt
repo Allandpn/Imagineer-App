@@ -47,6 +47,10 @@ data class PromptDeFrame(
     val sem_filtro_de_seguranca: Boolean = false,
     /** Os ids das imagens enviadas como referência na última tentativa (W7); vazia = nenhuma. */
     val imagens_de_referencia: List<Int> = emptyList(),
+    /** `IMAGEM` (padrão) ou `VIDEO` (item 4.8): o prompt de vídeo vai ao Gemini, não gera imagem. */
+    val tipo: String = "IMAGEM",
+    /** Só no `VIDEO`: a imagem que vira o primeiro quadro; nulo = sem imagem de partida. */
+    val imagem_partida_id: Int? = null,
 )
 
 /**
@@ -171,6 +175,16 @@ interface RepositorioDePrompts {
      */
     suspend fun gerar(frameId: Int, comentario: String?): ResultadoDaChamada<PromptDeFrame>
 
+    /** `GET /frames/{id}/prompts?tipo=VIDEO`: os prompts de vídeo do frame, do mais antigo ao mais recente (VD7). Nunca gasta IA. */
+    suspend fun listarVideos(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> = ResultadoDaChamada.Falha("Os prompts de vídeo não estão disponíveis.")
+
+    /**
+     * `POST /frames/{id}/prompts` com `tipo=VIDEO`: **gera** (e cobra, uma chamada) o prompt de vídeo (VD8). [imagemPartidaId] é o
+     * primeiro quadro (422 se não é deste frame); [comentario] vale mais que tudo.
+     */
+    suspend fun gerarVideo(frameId: Int, imagemPartidaId: Int?, comentario: String?): ResultadoDaChamada<PromptDeFrame> =
+        ResultadoDaChamada.Falha("Os prompts de vídeo não estão disponíveis.")
+
     /**
      * `POST /prompts/{id}/gerar-imagem`: **gera** (e cobra) a imagem (K1). [textoEditado] é o prompt que a pessoa editou à
      * mão depois de uma recusa (K4): o servidor o envia direto, sem suavizar. Recusa responde 200 com `RECUSADA`.
@@ -248,6 +262,21 @@ class RepositorioDePromptsPeloRetrofit(
     override suspend fun listar(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.prompts(frameId) }
+    }
+
+    override suspend fun listarVideos(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.prompts(frameId, tipo = "VIDEO") }
+    }
+
+    override suspend fun gerarVideo(frameId: Int, imagemPartidaId: Int?, comentario: String?): ResultadoDaChamada<PromptDeFrame> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject {
+            put("tipo", "VIDEO")
+            if (imagemPartidaId != null) put("imagem_partida_id", imagemPartidaId)
+            if (!comentario.isNullOrBlank()) put("comentario", comentario.trim())
+        }
+        return chamarApi { api.gerarPrompt(frameId, corpo) }
     }
 
     override suspend fun gerar(frameId: Int, comentario: String?): ResultadoDaChamada<PromptDeFrame> {

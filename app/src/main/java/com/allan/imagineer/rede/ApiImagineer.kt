@@ -330,7 +330,7 @@ interface ApiImagineer {
 
     /** `GET /frames/{id}/prompts` — o que já foi gerado para o frame; só leitura, nunca gasta IA (item 6.6). */
     @GET("frames/{id}/prompts")
-    suspend fun prompts(@Path("id") frameId: Int): List<PromptDeFrame>
+    suspend fun prompts(@Path("id") frameId: Int, @Query("tipo") tipo: String? = null): List<PromptDeFrame>
 
     /**
      * `POST /frames/{id}/prompts` — **gera** (e cobra) um prompt com a IA (item 6.6): lê o capítulo e monta o texto.

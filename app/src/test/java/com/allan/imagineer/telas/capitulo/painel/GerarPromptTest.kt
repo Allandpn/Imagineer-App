@@ -46,6 +46,22 @@ internal class PromptsFalso : RepositorioDePrompts {
         return geracao
     }
 
+    /** Os prompts de vídeo (item 4.8): o que `listarVideos` devolve e o que cada `gerarVideo` pediu (frame, imagem de partida, comentário). */
+    var videos: ResultadoDaChamada<List<PromptDeFrame>> = ResultadoDaChamada.Sucesso(emptyList())
+    val videosPedidos = mutableListOf<Triple<Int, Int?, String?>>()
+    var geracaoDeVideo: ResultadoDaChamada<PromptDeFrame> = ResultadoDaChamada.Sucesso(prompt(300).copy(tipo = "VIDEO", imagem_partida_id = 10))
+    var videosListados = 0
+
+    override suspend fun listarVideos(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> {
+        videosListados++
+        return videos
+    }
+
+    override suspend fun gerarVideo(frameId: Int, imagemPartidaId: Int?, comentario: String?): ResultadoDaChamada<PromptDeFrame> {
+        videosPedidos += Triple(frameId, imagemPartidaId, comentario)
+        return geracaoDeVideo
+    }
+
     /** O detalhe de cada prompt (com as imagens), por id; o que não foi combinado falha. */
     val detalhes = mutableMapOf<Int, PromptDeFrame>()
     val detalhesPedidos = mutableListOf<Int>()
