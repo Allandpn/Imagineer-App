@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.menu
 
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.filled.Person
@@ -200,7 +201,7 @@ private fun DetalheDoPerfil(perfil: PerfilRenderizacao, aoCopiar: () -> Unit, ao
     // Abre já inteira: a meia altura escondia os botões embaixo, atrás de uma rolagem que ninguém procurava.
     ModalBottomSheet(onDismissRequest = aoFechar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(perfil.nome, style = MaterialTheme.typography.titleLarge)
@@ -252,7 +253,7 @@ private fun FormularioDoPerfilNaTela(
     val e = formulario.edicao
     ModalBottomSheet(onDismissRequest = aoFechar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
+            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(if (formulario.perfilId == null) "Novo perfil" else "Editar perfil", style = MaterialTheme.typography.titleLarge)

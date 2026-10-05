@@ -131,6 +131,7 @@ import com.allan.imagineer.telas.capitulo.painel.DialogosDoPainel
 import com.allan.imagineer.telas.capitulo.painel.ModaisDoPainel
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIa
 import com.allan.imagineer.telas.capitulo.painel.PainelDeIaViewModel
+import com.allan.imagineer.telas.capitulo.painel.cenasDeTrechos
 import com.allan.imagineer.telas.capitulo.painel.retratosPorSugestao
 import com.allan.imagineer.telas.capitulo.painel.SEM_PROMPT
 import com.allan.imagineer.telas.capitulo.painel.VisibilidadeDoBotao
@@ -560,6 +561,7 @@ private fun LeitorPaginado(
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
         aoAbrirModelosDeIa = aoAbrirModelosDeIa,
+        aoAbrirCenaDeTrecho = painel::abrirModalDeFrame,
         aoCarregarVideos = painel::carregarVideos,
         aoAbrirDialogoDeVideo = painel::abrirDialogoDeVideo,
         aoEscolherImagemDoVideo = painel::escolherImagemDoVideo,
@@ -720,6 +722,7 @@ private fun LeitorPaginado(
                         aoFechar = aoAlternarPainel,
                         modifier = Modifier.width(380.dp).fillMaxHeight(),
                         retratos = retratosPorSugestao(artefatosDaTela),
+                        cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
                     )
                 }
             }
@@ -732,6 +735,7 @@ private fun LeitorPaginado(
                     aoFechar = null,
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {},
                     retratos = retratosPorSugestao(artefatosDaTela),
+                    cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
                 )
             }
         }

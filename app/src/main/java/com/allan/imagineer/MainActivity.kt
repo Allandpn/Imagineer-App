@@ -1,5 +1,8 @@
 package com.allan.imagineer
 
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.fillMaxSize
 import com.allan.imagineer.ui.theme.DestaqueEscolhido
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
@@ -22,7 +25,9 @@ class MainActivity : ComponentActivity() {
             val aplicacao = applicationContext as ImagineerApp
             val nomeDoDestaque by aplicacao.armazenamento.corDeDestaque.collectAsState(initial = null)
             ImagineerTheme(destaque = DestaqueEscolhido.deNome(nomeDoDestaque)) {
-                GrafoDeNavegacao()
+                // Com a tela de ponta a ponta o Android não encolhe mais o app para o teclado: o recuo do teclado é feito aqui, na raiz,
+                // para que nada que se digita fique escondido atrás dele.
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().imePadding()) { GrafoDeNavegacao() }
             }
         }
     }

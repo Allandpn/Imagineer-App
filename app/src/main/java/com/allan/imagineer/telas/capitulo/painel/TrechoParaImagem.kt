@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.layout.imePadding
 import android.os.PersistableBundle
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ClipEntry
@@ -262,7 +263,7 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(rotulo, style = MaterialTheme.typography.titleLarge)

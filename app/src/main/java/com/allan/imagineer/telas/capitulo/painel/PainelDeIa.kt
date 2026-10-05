@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.Artefato
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.LocalContentColor
@@ -110,6 +112,8 @@ class AcoesDoPainel(
     val aoEscolherFiltro: (FiltroDoPainel) -> Unit,
     /** Abre a tela de Modelos de IA, a partir do painel (nulo = sem o botão). */
     val aoAbrirModelosDeIa: (() -> Unit)? = null,
+    /** Abre o modal da cena de um trecho (um frame de cena sem sugestão da IA). */
+    val aoAbrirCenaDeTrecho: (frameId: Int, rotulo: String) -> Unit = { _, _ -> },
     /** Abre a tela da ficha (E22). `doCapitulo`: a ficha veio de uma sugestão deste capítulo. */
     val aoAbrirFicha: (elementoId: Int, doCapitulo: Boolean) -> Unit,
     val aoAlternarApagarEstado: () -> Unit,
@@ -217,12 +221,14 @@ fun PainelDeIa(
     modifier: Modifier = Modifier,
     /** Qual sugestão de elemento já tem retrato neste capítulo: sugestão -> frame (N4). */
     retratos: Map<Int, Int> = emptyMap(),
+    /** As cenas criadas de um texto selecionado (sem sugestão da IA): listadas junto das confirmadas. */
+    cenasDeTrechos: List<Artefato> = emptyList(),
 ) {
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(modifier = Modifier.fillMaxSize()) {
             CabecalhoDoPainel(aoFechar, acoes.aoAbrirModelosDeIa)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                CorpoDoPainel(estado, acoes, retratos)
+                CorpoDoPainel(estado, acoes, retratos, cenasDeTrechos)
             }
         }
     }
@@ -292,7 +298,7 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {
@@ -395,7 +401,7 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Un
 }
 
 @Composable
-private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>) {
+private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>, cenasDeTrechos: List<Artefato>) {
     when (val conteudo = estado.conteudo) {
         // P1: o painel só pede algo ao servidor depois de aberto; até lá não há o que mostrar.
         ConteudoDoPainel.NaoCarregado, ConteudoDoPainel.Lendo -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -418,7 +424,7 @@ private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos
 
         is ConteudoDoPainel.NuncaAnalisado -> NuncaAnalisado(conteudo, estado, acoes)
 
-        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes, retratos)
+        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes, retratos, cenasDeTrechos)
     }
 }
 
@@ -460,7 +466,13 @@ private fun NuncaAnalisado(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>) {
+private fun ListaDeSugestoes(
+    sugestoes: SugestoesDeCapitulo,
+    estado: EstadoDoPainel,
+    acoes: AcoesDoPainel,
+    retratos: Map<Int, Int>,
+    cenasDeTrechos: List<Artefato>,
+) {
     val abertos = rememberSaveable { mutableStateListOf<String>() }
     fun alternar(chave: String) {
         if (chave in abertos) abertos.remove(chave) else abertos.add(chave)
@@ -527,22 +539,24 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
             }
         }
 
-        if (sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty()) {
+        if (sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty() || cenasDeTrechos.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Elementos e cenas", style = MaterialTheme.typography.titleSmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FiltroDoPainel.entries.forEach { filtro ->
+                            // As cenas de trechos já nascem confirmadas: contam em "Confirmados".
+                            val total = (contagem[filtro] ?: 0) + if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos.size else 0
                             FilterChip(
                                 selected = estado.filtro == filtro,
                                 onClick = { acoes.aoEscolherFiltro(filtro) },
-                                label = { Text("${filtro.rotulo} (${contagem[filtro]})") },
+                                label = { Text("${filtro.rotulo} ($total)") },
                             )
                         }
                     }
                 }
             }
-            if (doFiltro.isEmpty() && cenas.isEmpty()) {
+            if (doFiltro.isEmpty() && cenas.isEmpty() && !(estado.filtro == FiltroDoPainel.CONFIRMADOS && cenasDeTrechos.isNotEmpty())) {
                 item {
                     Text(
                         when (estado.filtro) {
@@ -578,6 +592,23 @@ private fun ListaDeSugestoes(sugestoes: SugestoesDeCapitulo, estado: EstadoDoPai
             items(cenas, key = { "c${it.id}" }) { cena ->
                 val chaveDaCena = "cena:${cena.id}"
                 CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+            }
+        }
+
+        // As cenas criadas de um texto selecionado não vêm da análise da IA: sem esta seção, só se chegava a elas pelo ícone no texto.
+        if (estado.filtro == FiltroDoPainel.CONFIRMADOS && cenasDeTrechos.isNotEmpty()) {
+            item { Text("Cenas de trechos (${cenasDeTrechos.size})", style = MaterialTheme.typography.titleSmall) }
+            items(cenasDeTrechos, key = { "t${it.frame_id}" }) { cena ->
+                Card(modifier = Modifier.fillMaxWidth().clickable { acoes.aoAbrirCenaDeTrecho(cena.frame_id!!, cena.rotulo) }) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(cena.rotulo, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            descreverSituacaoDaCenaDeTrecho(cena.situacao),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }
@@ -1444,7 +1475,7 @@ fun ModalDaCena(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int) {
     ) {
         // Com rolagem: o que passa da altura da folha (um prompt longo, por exemplo) ficava cortado.
         Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             when {

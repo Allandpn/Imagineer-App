@@ -807,6 +807,22 @@ fun retratosPorSugestao(artefatos: List<Artefato>): Map<Int, Int> =
         .filter { it.tipo == "ELEMENTO" && it.sugestao_id != null && it.frame_id != null }
         .associate { it.sugestao_id!! to it.frame_id!! }
 
+/**
+ * As **cenas de trechos** do capítulo: frames de cena criados a partir de um texto selecionado, que **não têm sugestão** da IA e por
+ * isso não aparecem na lista de cenas sugeridas. Vêm dos artefatos (o `frame_id` sem `sugestao_id`), uma vez por frame, na ordem do capítulo.
+ */
+fun cenasDeTrechos(artefatos: List<Artefato>): List<Artefato> =
+    artefatos
+        .filter { it.tipo == "CENA" && it.sugestao_id == null && it.frame_id != null }
+        .distinctBy { it.frame_id }
+
+/** Como a cena de um trecho está: com imagem, com prompt ou ainda sem nada. */
+fun descreverSituacaoDaCenaDeTrecho(situacao: String): String = when (situacao) {
+    "ILUSTRADO" -> "Com imagem"
+    "PROMPT_PRONTO" -> "Prompt pronto"
+    else -> "Sem prompt ainda"
+}
+
 // ---------------------------------------------------------------------------------------------------------------- //
 // O seletor de elementos e imagens (EV1 a EV10)
 // ---------------------------------------------------------------------------------------------------------------- //
