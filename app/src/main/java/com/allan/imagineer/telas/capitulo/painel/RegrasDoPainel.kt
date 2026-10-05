@@ -847,7 +847,7 @@ fun elementoFixo(elemento: ElementoParaVincular): Boolean = elemento.no_frame &&
  * ele, **só as que ainda existem**. As âncoras não vêm marcadas sozinhas: nada entra sem a pessoa escolher.
  */
 fun selecaoInicial(dados: ElementosParaVincular, imagensEscolhidas: List<Int>): SelecaoNoSeletor {
-    val existentes = todosOsElementos(dados).flatMap { it.imagens }.map { it.id }.toSet()
+    val existentes = (todosOsElementos(dados).flatMap { it.imagens } + dados.cenas.flatMap { it.imagens }).map { it.id }.toSet()
     return SelecaoNoSeletor(
         elementos = todosOsElementos(dados).filter { it.no_frame }.map { it.estado_id }.toSet(),
         imagens = imagensEscolhidas.filter { it in existentes }.toSet(),
@@ -865,7 +865,9 @@ private fun cabeMaisUmElemento(dados: ElementosParaVincular, selecao: SelecaoNoS
 fun alternarImagemNoSeletor(dados: ElementosParaVincular, selecao: SelecaoNoSeletor, imagemId: Int, ehCena: Boolean): SelecaoNoSeletor {
     if (imagemId in selecao.imagens) return selecao.copy(imagens = selecao.imagens - imagemId)
     if (selecao.imagens.size >= MAXIMO_DE_REFERENCIAS) return selecao
-    val dono = todosOsElementos(dados).firstOrNull { e -> e.imagens.any { it.id == imagemId } } ?: return selecao
+    val dono = todosOsElementos(dados).firstOrNull { e -> e.imagens.any { it.id == imagemId } }
+        // EV15: a imagem de uma cena só vai como referência; não há elemento a colocar junto.
+        ?: return if (dados.cenas.any { c -> c.imagens.any { it.id == imagemId } }) selecao.copy(imagens = selecao.imagens + imagemId) else selecao
     if (dono.estado_id !in selecao.elementos && !cabeMaisUmElemento(dados, selecao, ehCena)) return selecao
     return SelecaoNoSeletor(selecao.elementos + dono.estado_id, selecao.imagens + imagemId)
 }

@@ -155,6 +155,20 @@ data class ElementosParaVincular(
     val outros: List<ElementoParaVincular> = emptyList(),
     /** Os demais elementos do livro, sem estado neste capítulo (VM7): cada um traz o estado vigente até aqui, ou o primeiro que tem. */
     val de_outros_capitulos: List<ElementoParaVincular> = emptyList(),
+    /** As cenas do livro com imagem (EV15): as imagens delas também podem ir como referência. */
+    val cenas: List<CenaComImagens> = emptyList(),
+)
+
+/** Uma cena do livro e as imagens dela, para usar como referência de outra cena (EV15). */
+@Serializable
+@Suppress("PropertyName")
+data class CenaComImagens(
+    val frame_id: Int,
+    val titulo: String,
+    val capitulo_id: Int,
+    val ordem_do_capitulo: Int,
+    val titulo_do_capitulo: String? = null,
+    val imagens: List<ImagemCandidata> = emptyList(),
 )
 
 /** O que o modal de referências mostra (W2, W9). */

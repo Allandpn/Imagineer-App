@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.allan.imagineer.rede.CenaComImagens
 import com.allan.imagineer.rede.ElementoParaVincular
 import com.allan.imagineer.rede.ImagemCandidata
 import com.allan.imagineer.rede.ImagemDoPrompt
@@ -127,7 +128,7 @@ internal fun DialogoDoSeletorDeElementos(escolha: EscolhaDeElementos, acoes: Aco
                 Text(
                     "Marcar uma imagem coloca o elemento " + (if (escolha.ehCena) "na cena" else "no retrato") +
                         " e manda a imagem junto, para o modelo manter a aparência. A imagem pode custar mais, e o resultado muda: " +
-                        "o modelo pode copiar demais a pose. Personagens ficam individuais nos retratos.",
+                        "o modelo pode copiar demais a pose. Personagens ficam individuais nos retratos. As imagens de cenas só vão como referência.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 when (val candidatos = escolha.candidatos) {
@@ -149,6 +150,13 @@ internal fun DialogoDoSeletorDeElementos(escolha: EscolhaDeElementos, acoes: Aco
                         SecaoDoSeletor("Outros elementos deste capítulo", candidatos.dados.outros, escolha, acoes)
                         // VM7: os do resto do livro; marcar um usa o estado dele até este capítulo (ou o primeiro, se só aparece depois).
                         SecaoDoSeletor("De outros capítulos", candidatos.dados.de_outros_capitulos, escolha, acoes)
+                        // EV15: as imagens das cenas do livro também servem de referência (só as imagens; a cena não entra como elemento).
+                        if (candidatos.dados.cenas.isNotEmpty()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Cenas do livro", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                                candidatos.dados.cenas.forEach { FaixaDaCena(it, escolha, acoes) }
+                            }
+                        }
                     }
                 }
                 escolha.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
@@ -178,11 +186,8 @@ private fun SecaoDoSeletor(titulo: String, elementos: List<ElementoParaVincular>
 }
 
 /** Uma faixa: a caixa de marcar e o nome em cima, o carrossel de imagens embaixo (EV3). */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FaixaDoElemento(elemento: ElementoParaVincular, escolha: EscolhaDeElementos, acoes: AcoesDoPainel) {
-    val urlBase = urlDoServidorEmUso()
-    var ampliada by remember { mutableStateOf<ImagemCandidata?>(null) }
     val marcado = elemento.estado_id in escolha.selecao.elementos
     val fixo = elementoFixo(elemento)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -196,46 +201,71 @@ private fun FaixaDoElemento(elemento: ElementoParaVincular, escolha: EscolhaDeEl
                 if (fixo) Text("na cena", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
             }
         }
-        if (elemento.imagens.isEmpty()) {
-            Text("Ainda sem imagem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else if (urlBase != null) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 2.dp)) {
-                items(elemento.imagens, key = { it.id }) { imagem ->
-                    val daSelecao = imagem.id in escolha.selecao.imagens
-                    Column(modifier = Modifier.size(width = 96.dp, height = if (imagem.ancora) 124.dp else 100.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(96.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black)
-                                .border(
-                                    if (daSelecao) 3.dp else 1.dp,
-                                    if (daSelecao) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                                    RoundedCornerShape(8.dp),
-                                )
-                                .combinedClickable(
-                                    onClick = { acoes.aoAlternarImagemDoSeletor(imagem.id) },
-                                    onLongClick = { ampliada = imagem },
-                                )
-                                .semantics { contentDescription = "Imagem de ${elemento.nome}, ${if (daSelecao) "marcada" else "não marcada"}. Segure para ampliar." },
-                        ) {
-                            AsyncImage(
-                                model = enderecoDaImagem(urlBase, imagem.id, "miniatura"),
-                                contentDescription = null,
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(96.dp),
+        CarrosselDeImagens(elemento.imagens, elemento.nome, escolha, acoes)
+    }
+}
+
+/** Uma cena do livro (EV15): o título e o capítulo em cima, o carrossel das imagens dela embaixo. **Só imagens**: uma cena não entra como elemento. */
+@Composable
+private fun FaixaDaCena(cena: CenaComImagens, escolha: EscolhaDeElementos, acoes: AcoesDoPainel) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column {
+            Text(cena.titulo, style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Capítulo ${cena.ordem_do_capitulo}" + (cena.titulo_do_capitulo?.let { " · $it" } ?: ""),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        CarrosselDeImagens(cena.imagens, cena.titulo, escolha, acoes)
+    }
+}
+
+/** O carrossel de imagens marcáveis de um elemento ou de uma cena: tocar marca, segurar amplia (EV3). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CarrosselDeImagens(imagens: List<ImagemCandidata>, dono: String, escolha: EscolhaDeElementos, acoes: AcoesDoPainel) {
+    val urlBase = urlDoServidorEmUso()
+    var ampliada by remember { mutableStateOf<ImagemCandidata?>(null) }
+    if (imagens.isEmpty()) {
+        Text("Ainda sem imagem.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else if (urlBase != null) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 2.dp)) {
+            items(imagens, key = { it.id }) { imagem ->
+                val daSelecao = imagem.id in escolha.selecao.imagens
+                Column(modifier = Modifier.size(width = 96.dp, height = if (imagem.ancora) 124.dp else 100.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black)
+                            .border(
+                                if (daSelecao) 3.dp else 1.dp,
+                                if (daSelecao) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                RoundedCornerShape(8.dp),
                             )
-                            // O quadradinho de seleção, no canto superior direito (EV3).
-                            Icon(
-                                imageVector = if (daSelecao) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
-                                contentDescription = null,
-                                tint = if (daSelecao) MaterialTheme.colorScheme.primary else Color.White,
-                                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp)
-                                    .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(4.dp)),
+                            .combinedClickable(
+                                onClick = { acoes.aoAlternarImagemDoSeletor(imagem.id) },
+                                onLongClick = { ampliada = imagem },
                             )
-                        }
-                        if (imagem.ancora) Text("referência principal", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
+                            .semantics { contentDescription = "Imagem de $dono, ${if (daSelecao) "marcada" else "não marcada"}. Segure para ampliar." },
+                    ) {
+                        AsyncImage(
+                            model = enderecoDaImagem(urlBase, imagem.id, "miniatura"),
+                            contentDescription = null,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(96.dp),
+                        )
+                        // O quadradinho de seleção, no canto superior direito (EV3).
+                        Icon(
+                            imageVector = if (daSelecao) Icons.Filled.CheckBox else Icons.Filled.CheckBoxOutlineBlank,
+                            contentDescription = null,
+                            tint = if (daSelecao) MaterialTheme.colorScheme.primary else Color.White,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(24.dp)
+                                .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(4.dp)),
+                        )
                     }
+                    if (imagem.ancora) Text("referência principal", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
                 }
             }
         }
