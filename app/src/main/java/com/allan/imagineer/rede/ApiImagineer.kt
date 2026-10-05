@@ -576,6 +576,8 @@ data class ConfiguracaoAtual(
     val modelo_suavizacao: String? = null,
     /** O modelo que traduz os prompts; vazio = o da suavização, senão o de extração, senão o de prompt (MT1). */
     val modelo_traducao: String? = null,
+    /** O modelo que monta o prompt de vídeo; vazio = o do prompt de imagem (item 4.8, VD11). */
+    val modelo_video: String? = null,
     /** O modelo de imagem padrão do servidor (item 7.5b, Z2). */
     val modelo_imagem: String? = null,
     /** Os modelos de imagem que o usuário pode escolher (Z2). */

@@ -19,6 +19,7 @@ enum class TarefaDeTexto(val campo: String, val titulo: String, val descricao: S
     PERFIL("modelo_perfil", "Perfil de renderização", "Sugere o perfil de um livro (uma vez por livro, então vale um modelo melhor).", false),
     SUAVIZACAO("modelo_suavizacao", "Suavização", "Reescreve um prompt que o provedor de imagem recusou.", true),
     TRADUCAO("modelo_traducao", "Tradução", "Traduz os prompts entre português e inglês. Curta e barata.", true),
+    VIDEO("modelo_video", "Prompt de vídeo", "Monta o prompt de vídeo de uma cena. É raro e tem muitas regras, então vale um modelo mais forte.", true),
 }
 
 /** O modelo escolhido para a [tarefa], ou `null` se ainda não há. */
@@ -28,11 +29,12 @@ fun modeloEscolhido(config: ConfiguracaoAtual, tarefa: TarefaDeTexto): String? =
     TarefaDeTexto.PERFIL -> config.modelo_perfil
     TarefaDeTexto.SUAVIZACAO -> config.modelo_suavizacao
     TarefaDeTexto.TRADUCAO -> config.modelo_traducao
+    TarefaDeTexto.VIDEO -> config.modelo_video
 }?.takeIf { it.isNotBlank() }
 
 /** O modelo que **vale** para a tarefa quando nada foi escolhido (a mesma regra do servidor); `null` se nem isso há. */
 fun modeloPadraoDe(config: ConfiguracaoAtual, tarefa: TarefaDeTexto): String? = when (tarefa) {
-    TarefaDeTexto.SUAVIZACAO -> config.modelo_prompt
+    TarefaDeTexto.SUAVIZACAO, TarefaDeTexto.VIDEO -> config.modelo_prompt
     TarefaDeTexto.TRADUCAO -> config.modelo_suavizacao ?: config.modelo_extracao ?: config.modelo_prompt
     else -> null
 }?.takeIf { it.isNotBlank() }

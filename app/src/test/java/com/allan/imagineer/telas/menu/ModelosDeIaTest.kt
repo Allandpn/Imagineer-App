@@ -70,6 +70,7 @@ class ModelosDeIaTest {
     fun tarefa_obrigatoria_sem_modelo_diz_que_falta_escolher() {
         assertEquals("Nenhum escolhido", descricaoDoModeloAtual(config(extracao = null), TarefaDeTexto.EXTRACAO))
         assertEquals("Padrão: g/prompt", descricaoDoModeloAtual(config(), TarefaDeTexto.SUAVIZACAO))
+        assertEquals("Padrão: g/prompt", descricaoDoModeloAtual(config(), TarefaDeTexto.VIDEO))  // vazio, o vídeo usa o do prompt de imagem (VD11)
     }
 
     @Test
