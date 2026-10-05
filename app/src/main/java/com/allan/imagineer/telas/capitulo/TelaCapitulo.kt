@@ -63,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -365,6 +366,8 @@ private fun LeitorPaginado(
     // As ações de elemento (10a) precisam saber de qual livro é o capítulo.
     val livroDoCapitulo = (estadoDaTela as? EstadoDoCapitulo.Pronto)?.capitulo?.livro_id
     LaunchedEffect(livroDoCapitulo, painel) { livroDoCapitulo?.let(painel::definirLivro) }
+    // RL36: os favoritos do livro, para o coração do painel e dos modais (a chamada é condicional, mas só vira de nula para presente uma vez).
+    val favoritosDaTela = livroDoCapitulo?.let { com.allan.imagineer.telas.favoritos.rememberControleDeFavoritos(it) }
 
     // D1: o aviso de "análise concluída" precisa saber como o capítulo se chama...
     val capituloDaTela = (estadoDaTela as? EstadoDoCapitulo.Pronto)?.capitulo
@@ -716,6 +719,7 @@ private fun LeitorPaginado(
                 }
                 if (painelAberto && aside) {
                     VerticalDivider()
+                    CompositionLocalProvider(com.allan.imagineer.telas.favoritos.LocalFavoritos provides favoritosDaTela) {
                     PainelDeIa(
                         estado = estadoDoPainel,
                         acoes = acoesDoPainel,
@@ -724,11 +728,13 @@ private fun LeitorPaginado(
                         retratos = retratosPorSugestao(artefatosDaTela),
                         cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
                     )
+                    }
                 }
             }
             // Celular: o painel é a tela inteira, POR CIMA do pager — que continua composto por baixo, e por isso
             // a posição de leitura de cada capítulo não se perde (E43). O pointerInput vazio impede o toque de vazar.
             if (painelCheio) {
+                CompositionLocalProvider(com.allan.imagineer.telas.favoritos.LocalFavoritos provides favoritosDaTela) {
                 PainelDeIa(
                     estado = estadoDoPainel,
                     acoes = acoesDoPainel,
@@ -737,6 +743,7 @@ private fun LeitorPaginado(
                     retratos = retratosPorSugestao(artefatosDaTela),
                     cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
                 )
+                }
             }
         }
     }
@@ -754,8 +761,10 @@ private fun LeitorPaginado(
     // Efeito colateral aceito: ao voltar da ficha o modal aparece só depois da animação (~0,3 s), e não junto dela.
     val estadoDoCiclo by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     if (estadoDoCiclo == Lifecycle.State.RESUMED) {
-        ModaisDoPainel(estadoDoPainel, acoesDoPainel, retratosPorSugestao(artefatosDaTela))
-        DialogosDoPainel(estadoDoPainel, acoesDoPainel)
+        CompositionLocalProvider(com.allan.imagineer.telas.favoritos.LocalFavoritos provides favoritosDaTela) {
+            ModaisDoPainel(estadoDoPainel, acoesDoPainel, retratosPorSugestao(artefatosDaTela))
+            DialogosDoPainel(estadoDoPainel, acoesDoPainel)
+        }
     }
 }
 
@@ -819,6 +828,8 @@ private fun PaginaDoCapitulo(
             }
 
             is EstadoDoCapitulo.Pronto -> {
+            // RL36: os favoritos do livro, para o coração dos parágrafos (e o da imagem aberta do texto). O aviso é do LeitorPaginado.
+            com.allan.imagineer.telas.favoritos.ComFavoritosDoLivro(atual.capitulo.livro_id, avisar = false) {
             // RL14: os elementos do livro, para marcar os nomes no texto; sem eles (ou sem conexão) o texto fica como está.
             val nomesDoLivro by produceState<LocalizadorDeNomes?>(initialValue = null, atual.capitulo.livro_id) {
                 value = (aplicacaoDaPagina.repositorioDeElementos.listar(atual.capitulo.livro_id) as? ResultadoDaChamada.Sucesso)
@@ -903,6 +914,7 @@ private fun PaginaDoCapitulo(
                 aoMudarVelocidade = { v -> escopoDaVoz.launch { aplicacaoDaPagina.armazenamento.salvarPreferenciasDeLeitura(leitura.copy(velocidadeDaVoz = v)) } },
                 aoSeguirParagrafo = { posicaoDaVoz = it },
             )
+            }
             }
         }
     }
@@ -1206,6 +1218,8 @@ private fun LeitorDeTexto(
                 },
                 aoVoltarAoNormal = { marcados = emptySet() },
                 modifier = Modifier.padding(16.dp),
+                paraFavoritar = marcados.sorted().mapNotNull { trechos.getOrNull(it)?.inicio }
+                    .map { com.allan.imagineer.rede.AlvoDeFavorito.Paragrafo(capitulo.id, it) },
             )
         }
     }

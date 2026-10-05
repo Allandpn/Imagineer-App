@@ -110,6 +110,60 @@ class FavoritosDoLivroTest {
         assertNull(f.elemento_id)
     }
 
+    // ---- a tela de Favoritos
+
+    @Test
+    fun a_tela_lista_so_o_de_dentro_do_livro_e_filtra_por_tipo() {
+        val lista = listOf(
+            favorito(1, "PARAGRAFO", capitulo = 5, posicao = 0),
+            favorito(2, "ELEMENTO", elemento = 7),
+            favorito(3, "LIVRO"),
+            favorito(4, "CAPITULO"),  // um tipo de um servidor mais novo
+            favorito(5, "CENA", frame = 8),
+        )
+
+        assertEquals(listOf(1, 2, 5), favoritosParaMostrar(lista, null).map { it.id })  // sem o livro e sem o tipo desconhecido
+        assertEquals(listOf(2), favoritosParaMostrar(lista, TipoDeFavorito.ELEMENTO).map { it.id })
+        assertTrue(favoritosParaMostrar(lista, TipoDeFavorito.IMAGEM).isEmpty())
+        assertTrue(favoritosParaMostrar(lista, TipoDeFavorito.LIVRO).isEmpty())  // o livro favorito aparece na biblioteca, não aqui
+    }
+
+    @Test
+    fun o_local_do_favorito_diz_o_capitulo() {
+        val f = favorito(1, "PARAGRAFO", capitulo = 5, posicao = 0)
+
+        assertEquals("Capítulo 3 · A chegada", localDoFavorito(f.copy(ordem_do_capitulo = 3, titulo_do_capitulo = "A chegada")))
+        assertEquals("Capítulo 3", localDoFavorito(f.copy(ordem_do_capitulo = 3, titulo_do_capitulo = " ")))
+        assertEquals("A chegada", localDoFavorito(f.copy(titulo_do_capitulo = "A chegada")))
+        assertNull(localDoFavorito(favorito(2, "ELEMENTO", elemento = 7)))
+    }
+
+    @Test
+    fun so_abre_o_favorito_que_sabe_para_onde_ir() {
+        assertTrue(podeAbrirOFavorito(favorito(1, "PARAGRAFO", capitulo = 5, posicao = 0)))
+        assertFalse(podeAbrirOFavorito(favorito(2, "PARAGRAFO", capitulo = 5)))  // sem a posição
+        assertTrue(podeAbrirOFavorito(favorito(3, "ELEMENTO", elemento = 7)))
+        assertTrue(podeAbrirOFavorito(favorito(4, "CENA", capitulo = 5, frame = 8)))
+        assertFalse(podeAbrirOFavorito(favorito(5, "IMAGEM", imagem = 9)))  // sem o frame nem o capítulo
+        assertFalse(podeAbrirOFavorito(favorito(6, "CAPITULO")))
+    }
+
+    @Test
+    fun remover_tira_da_lista_e_volta_se_o_servidor_falhar() = runTest {
+        val falso = FavoritosFalsos(listOf(favorito(1, "ELEMENTO", elemento = 7), favorito(2, "CENA", frame = 8)))
+        val vm = FavoritosDoLivroViewModel(1, falso)
+        vm.carregar(); advanceUntilIdle()
+
+        vm.remover(vm.estado.value.favoritos.first()); advanceUntilIdle()
+        assertEquals(listOf(2), vm.estado.value.favoritos.map { it.id })
+        assertEquals(listOf(1), falso.desfavoritados)
+
+        falso.falhar = "fora do ar"
+        vm.remover(vm.estado.value.favoritos.single()); advanceUntilIdle()
+        assertEquals(listOf(2), vm.estado.value.favoritos.map { it.id })  // voltou
+        assertFalse(vm.estado.value.aviso.isNullOrBlank())
+    }
+
     // ---- o ViewModel
 
     @Test

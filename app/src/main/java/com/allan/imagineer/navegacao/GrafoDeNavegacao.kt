@@ -4,6 +4,7 @@ import com.allan.imagineer.telas.menu.TelaNarracao
 import com.allan.imagineer.telas.menu.TelaDicionarios
 import com.allan.imagineer.telas.menu.TelaPerfis
 import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
+import com.allan.imagineer.telas.favoritos.TelaFavoritosDoLivro
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
@@ -100,6 +101,19 @@ private fun irParaODoLivro(controle: NavHostController, livroId: Int, destino: D
 }
 
 /** Abre o capítulo de um item das listas Pendências e Cenas, já com o que abrir nele (LY7, LY8). */
+/** Leva ao lugar do [favorito]: o parágrafo no texto, a ficha do elemento, ou a cena/imagem no modal do capítulo (RL36). */
+private fun abrirFavorito(controle: NavHostController, livroId: Int, favorito: com.allan.imagineer.rede.Favorito) {
+    when (favorito.tipoDoFavorito) {
+        com.allan.imagineer.rede.TipoDeFavorito.PARAGRAFO ->
+            controle.navigate(Capitulo(favorito.capitulo_id ?: return, irParaPosicao = favorito.posicao))
+        com.allan.imagineer.rede.TipoDeFavorito.ELEMENTO ->
+            controle.navigate(FichaDoElemento(favorito.elemento_id ?: return, livroId))
+        com.allan.imagineer.rede.TipoDeFavorito.CENA, com.allan.imagineer.rede.TipoDeFavorito.IMAGEM ->
+            controle.navigate(Capitulo(favorito.capitulo_id ?: return, abrirFrameId = favorito.frame_id, abrirRotulo = favorito.rotulo))
+        else -> Unit
+    }
+}
+
 private fun abrirNoCapitulo(controle: NavHostController, alvo: AlvoNoCapitulo) {
     controle.navigate(Capitulo(alvo.capituloId, abrirFrameId = alvo.abrirFrameId, abrirRotulo = alvo.abrirRotulo, abrirPainel = alvo.abrirPainel))
 }
@@ -175,6 +189,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirPesquisa = { controle.navigate(Pesquisa(destino.livroId)) },
                 aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
                 aoAbrirDestaques = { controle.navigate(DestaquesDoLivro(destino.livroId)) },
+                aoAbrirFavoritos = { controle.navigate(FavoritosDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }
@@ -183,6 +198,16 @@ fun GrafoDeNavegacao() {
                 livroId = entrada.toRoute<DestaquesDoLivro>().livroId,
                 aoVoltar = { controle.popBackStack() },
                 aoAbrir = { capituloId, posicao -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
+            )
+        }
+        composable<FavoritosDoLivro> { entrada ->
+            val destino = entrada.toRoute<FavoritosDoLivro>()
+            TelaFavoritosDoLivro(
+                livroId = destino.livroId,
+                aoVoltar = { controle.popBackStack() },
+                aoAbrir = { favorito ->
+                    if (entrada.estaNaFrente()) abrirFavorito(controle, destino.livroId, favorito)
+                },
             )
         }
         composable<CenasDoLivro> { entrada ->
@@ -289,6 +314,7 @@ fun GrafoDeNavegacao() {
         }
         composable<FichaDoElemento> { entrada ->
             val destino = entrada.toRoute<FichaDoElemento>()
+            com.allan.imagineer.telas.favoritos.ComFavoritosDoLivro(destino.livroId) {
             TelaFichaDoElemento(
                 elementoId = destino.elementoId,
                 capituloId = destino.capituloId,
@@ -298,6 +324,7 @@ fun GrafoDeNavegacao() {
                     if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloIdDaPassagem, irParaPosicao = posicao))
                 },
             )
+            }
         }
         composable<PerfisDeRenderizacao> { TelaPerfis(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracao> {

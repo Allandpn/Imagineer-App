@@ -104,7 +104,14 @@ internal fun ComMarcaDeParagrafo(
 
 /** A barra horizontal de ícones, sem rótulo, que aparece embaixo enquanto há parágrafos marcados. */
 @Composable
-internal fun BarraDeParagrafos(aoCopiar: () -> Unit, aoGerarPrompt: () -> Unit, aoVoltarAoNormal: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BarraDeParagrafos(
+    aoCopiar: () -> Unit,
+    aoGerarPrompt: () -> Unit,
+    aoVoltarAoNormal: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** RL36: os parágrafos marcados, para o coração de favoritar (vazio = sem coração). */
+    paraFavoritar: List<com.allan.imagineer.rede.AlvoDeFavorito> = emptyList(),
+) {
     Surface(
         color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.96f),
         contentColor = MaterialTheme.colorScheme.inverseOnSurface,
@@ -114,6 +121,7 @@ internal fun BarraDeParagrafos(aoCopiar: () -> Unit, aoGerarPrompt: () -> Unit, 
         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
             IconButton(onClick = aoCopiar) { Icon(IconesDaSelecao.copiar, contentDescription = "Copiar texto") }
             IconButton(onClick = aoGerarPrompt) { Icon(IconesDaSelecao.gerarPrompt, contentDescription = ROTULO_GERAR_IMAGEM_DO_TRECHO) }
+            com.allan.imagineer.telas.favoritos.BotaoDeFavoritoDosAlvos(paraFavoritar, cor = MaterialTheme.colorScheme.inverseOnSurface)
             IconButton(onClick = aoVoltarAoNormal) { Icon(IconesDaSelecao.voltarAoNormal, contentDescription = "Voltar ao normal") }
         }
     }

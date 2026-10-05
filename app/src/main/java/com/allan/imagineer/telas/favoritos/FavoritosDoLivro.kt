@@ -1,8 +1,8 @@
 package com.allan.imagineer.telas.favoritos
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -12,7 +12,9 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -29,7 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-// Os favoritos de UM livro (RL36): uma lista só, lida uma vez, que cada estrela consulta e muda. Favoritar precisa do servidor (RL37).
+// Os favoritos de UM livro (RL36): uma lista só, lida a cada vez que a tela volta, que cada coração consulta e muda. Favoritar precisa do servidor (RL37).
 
 data class EstadoDosFavoritos(
     val favoritos: List<Favorito> = emptyList(),
@@ -74,44 +76,83 @@ class FavoritosDoLivroViewModel(private val livroId: Int, private val repositori
         }
     }
 
+    /** Tira da lista o [favorito] (a estrela da própria tela de Favoritos): some na hora; se o servidor falhar, volta e avisa. */
+    fun remover(favorito: Favorito) {
+        viewModelScope.launch {
+            _estado.update { it.copy(favoritos = it.favoritos - favorito) }
+            if (repositorio.desfavoritar(favorito.id) is ResultadoDaChamada.Falha) {
+                _estado.update { it.copy(favoritos = (listOf(favorito) + it.favoritos).sortedByDescending { f -> f.criado_em }, aviso = "Não consegui desfavoritar.") }
+            }
+        }
+    }
+
     fun avisoLido() {
         _estado.update { it.copy(aviso = null) }
     }
 }
 
-/** O que cada estrela precisa: a lista de favoritos do livro e como alternar um alvo. */
+/** O que cada coração precisa: a lista de favoritos do livro e como alternar um alvo. */
 class ControleDeFavoritos(val favoritos: List<Favorito>, val alternar: (AlvoDeFavorito) -> Unit) {
     fun de(alvo: AlvoDeFavorito): Favorito? = favoritoDe(favoritos, alvo)
 }
 
-/** Os favoritos do livro da tela em que se está; `null` fora de uma tela que os forneça (então a estrela não aparece). */
+/** Os favoritos do livro da tela em que se está; `null` fora de uma tela que os forneça (então o coração não aparece). */
 val LocalFavoritos = compositionLocalOf<ControleDeFavoritos?> { null }
 
-/** Fornece [LocalFavoritos] ao [conteudo], com os favoritos do livro [livroId] (lidos uma vez ao entrar). */
+/**
+ * Os favoritos do livro [livroId], como o [ControleDeFavoritos] que as telas usam. Lê a lista a cada volta à tela (a de Favoritos pode ter
+ * tirado um) e, se [avisar], mostra a falha ao favoritar num aviso curto (só uma tela por vez avisa, para o aviso não sair em dobro).
+ */
 @Composable
-fun ComFavoritosDoLivro(livroId: Int, conteudo: @Composable () -> Unit) {
+fun rememberControleDeFavoritos(livroId: Int, avisar: Boolean = true): ControleDeFavoritos {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: FavoritosDoLivroViewModel = viewModel(
         key = "favoritos-$livroId",
         factory = viewModelFactory { initializer { FavoritosDoLivroViewModel(livroId, aplicacao.repositorioDeFavoritos) } },
     )
     val estado by viewModel.estado.collectAsState()
-    LaunchedEffect(viewModel) { viewModel.carregar() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
     val contexto = LocalContext.current
-    LaunchedEffect(estado.aviso) {
+    if (avisar) LaunchedEffect(estado.aviso) {
         estado.aviso?.let { android.widget.Toast.makeText(contexto, it, android.widget.Toast.LENGTH_SHORT).show(); viewModel.avisoLido() }
     }
-    val controle = androidx.compose.runtime.remember(estado.favoritos, viewModel) { ControleDeFavoritos(estado.favoritos, viewModel::alternar) }
-    CompositionLocalProvider(LocalFavoritos provides controle) { conteudo() }
+    return androidx.compose.runtime.remember(estado.favoritos, viewModel) { ControleDeFavoritos(estado.favoritos, viewModel::alternar) }
 }
 
-/** A estrela de favoritar o [alvo]: cheia se já é favorito, só o contorno se não. Não aparece sem [LocalFavoritos]. */
+/** Fornece [LocalFavoritos] ao [conteudo], com os favoritos do livro [livroId]. */
+@Composable
+fun ComFavoritosDoLivro(livroId: Int, avisar: Boolean = true, conteudo: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalFavoritos provides rememberControleDeFavoritos(livroId, avisar)) { conteudo() }
+}
+
+/**
+ * O coração de favoritar vários [alvos] de uma vez (os parágrafos marcados): cheio se **todos** já são favoritos; tocar favorita os que
+ * faltam ou, se todos já eram, desfavorita todos. Sem alvos, ou sem [LocalFavoritos], não aparece.
+ */
+@Composable
+fun BotaoDeFavoritoDosAlvos(alvos: List<AlvoDeFavorito>, modifier: Modifier = Modifier, cor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary) {
+    val controle = LocalFavoritos.current ?: return
+    if (alvos.isEmpty()) return
+    val todos = alvos.all { controle.de(it) != null }
+    BotaoDeIcone(
+        icone = if (todos) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+        descricao = if (todos) "Desfavoritar" else "Favoritar",
+        aoTocar = { alvos.filter { todos || controle.de(it) == null }.forEach(controle.alternar) },
+        modifier = modifier,
+        cor = cor,
+    )
+}
+
+/**
+ * O coração de favoritar o [alvo]: cheio se já é favorito, só o contorno se não. Não aparece sem [LocalFavoritos]. É coração, e não
+ * estrela, porque a estrela do app já é a da imagem canônica.
+ */
 @Composable
 fun BotaoDeFavorito(alvo: AlvoDeFavorito, modifier: Modifier = Modifier, cor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary) {
     val controle = LocalFavoritos.current ?: return
     val favorito = controle.de(alvo) != null
     BotaoDeIcone(
-        icone = if (favorito) Icons.Filled.Star else Icons.Outlined.StarBorder,
+        icone = if (favorito) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
         descricao = if (favorito) "Desfavoritar" else "Favoritar",
         aoTocar = { controle.alternar(alvo) },
         modifier = modifier,

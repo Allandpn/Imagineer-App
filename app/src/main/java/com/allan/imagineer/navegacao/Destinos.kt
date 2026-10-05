@@ -69,6 +69,10 @@ object Estatisticas
 @Serializable
 data class DestaquesDoLivro(val livroId: Int)
 
+/** Os favoritos de um livro: parágrafos, elementos, cenas e imagens (RL36). */
+@Serializable
+data class FavoritosDoLivro(val livroId: Int)
+
 /** Os elementos de um livro (item 7.8). */
 @Serializable
 data class ElementosDoLivro(val livroId: Int)

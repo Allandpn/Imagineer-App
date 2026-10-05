@@ -269,6 +269,7 @@ internal fun ModalDoFrame(estado: EstadoDoPainel, acoes: AcoesDoPainel, frameId:
             Text(rotulo, style = MaterialTheme.typography.titleLarge)
             // PM3: reposicionar, tirar a posição; editar e apagar a cena (só frames sem sugestão chegam a este modal). Quebra de linha, não corte.
             FlowRow {
+                com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(frameId))
                 BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, rotulo) })
                 BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, null, frameId) })
                 BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDeFrame(frameId, rotulo) })

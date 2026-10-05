@@ -109,6 +109,10 @@ fun TelaFichaDoElemento(
                 },
                 actions = {
                     if (detalhe != null) {
+                        com.allan.imagineer.telas.favoritos.BotaoDeFavorito(
+                            com.allan.imagineer.rede.AlvoDeFavorito.Elemento(elementoId),
+                            cor = androidx.compose.material3.LocalContentColor.current,
+                        )
                         IconButton(onClick = viewModel::abrirMesclagem) {
                             Icon(Icons.Filled.MergeType, contentDescription = "Mesclar com outro elemento")
                         }

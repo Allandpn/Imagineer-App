@@ -659,6 +659,8 @@ internal fun CartaoDeElemento(
                     )
                 }
                 Etiqueta(etiquetaDaSituacao(elemento), situacao)
+                // RL36: só o elemento que já existe (confirmado ou criado) se favorita.
+                if (!elemento.descartada) elemento.elemento_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Elemento(it)) }
                 // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
                 if (!elemento.descartada) {
                     IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
@@ -1507,6 +1509,8 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
     ) {
         Text(cena.titulo, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
+        // RL36: a cena confirmada (a que tem frame) se favorita.
+        cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
         IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
             Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
         }

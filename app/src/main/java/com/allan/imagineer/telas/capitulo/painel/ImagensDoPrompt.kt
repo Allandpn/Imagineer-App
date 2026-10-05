@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -412,6 +414,15 @@ internal fun ImagemEmTelaCheia(
                 outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
                 aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
+                // RL36: favoritar a imagem (só onde há favoritos do livro). Coração, porque a estrela daqui é a da canônica.
+                com.allan.imagineer.telas.favoritos.LocalFavoritos.current?.let { favoritos ->
+                    val alvo = com.allan.imagineer.rede.AlvoDeFavorito.Imagem(imagem.id)
+                    val favorita = favoritos.de(alvo) != null
+                    IconeDaBarra(
+                        if (favorita) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        if (favorita) "Desfavoritar" else "Favoritar", "Favorita", marcado = favorita, onClick = { favoritos.alternar(alvo) },
+                    )
+                }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
                 if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", "Lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)
             }

@@ -149,6 +149,7 @@ fun TelaLivro(
     aoAbrirPesquisa: () -> Unit = {},
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
+    aoAbrirFavoritos: (() -> Unit)? = null,
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     viewModel: LivroViewModel = livroViewModel(livroId),
@@ -192,6 +193,8 @@ fun TelaLivro(
         viewModel.livroRemovido.collect { aoVoltar() }
     }
 
+    // RL36: a estrela do livro, na barra de cima, lê os favoritos do livro.
+    com.allan.imagineer.telas.favoritos.ComFavoritosDoLivro(livroId) {
     ConteudoDoLivro(
         estado = estado,
         avisos = avisos,
@@ -208,6 +211,7 @@ fun TelaLivro(
         aoAbrirPesquisa = aoAbrirPesquisa,
         aoAbrirLixeira = aoAbrirLixeira,
         aoAbrirDestaques = aoAbrirDestaques,
+        aoAbrirFavoritos = aoAbrirFavoritos,
         aoApagarCopiaLocal = { viewModel.apagarCopiaLocal(); scopeDaCopia.launch { baixador.remover(livroId) } },
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
@@ -217,6 +221,7 @@ fun TelaLivro(
         aoEditar = viewModel::abrirEdicao,
         aoApagar = viewModel::pedirRemocao,
     )
+    }
 
     if (dialogoDeDownload) DialogoDeDownload(livroId, baixador, download, aoFechar = { dialogoDeDownload = false })
 
@@ -259,6 +264,7 @@ fun ConteudoDoLivro(
     aoAbrirPesquisa: () -> Unit = {},
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
+    aoAbrirFavoritos: (() -> Unit)? = null,
     aoApagarCopiaLocal: () -> Unit = {},
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
@@ -319,6 +325,7 @@ fun ConteudoDoLivro(
                             // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
                             // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
                             // As informações ficam junto do ⋮, na cor neutra da barra (como os outros ícones dela).
+                            com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Livro, cor = LocalContentColor.current)
                             BotaoDeIcone(IconesDaTelaDoLivro.metadados, "Informações", { metadadosAbertos = true }, cor = LocalContentColor.current)
                             // Capa e perfil de renderização moram dentro de "Editar" (DialogoDeEdicao), não mais neste menu.
                             MenuDoLivro(
@@ -328,6 +335,7 @@ fun ConteudoDoLivro(
                                 aoEditar = aoEditar,
                                 aoAbrirLixeira = aoAbrirLixeira,
                                 aoAbrirDestaques = aoAbrirDestaques,
+                                aoAbrirFavoritos = aoAbrirFavoritos,
                                 aoApagar = aoApagar,
                             )
                         }
