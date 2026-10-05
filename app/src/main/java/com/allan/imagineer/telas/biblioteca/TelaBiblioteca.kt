@@ -35,6 +35,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -210,6 +213,8 @@ fun ConteudoDaBiblioteca(
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
 ) {
+    // RL36: o filtro "só os favoritos" (o coração da barra); some ao sair da tela, não é uma preferência.
+    var soFavoritos by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     // MN1, MN2: a barra só tem o hambúrguer; tudo o mais mora na gaveta.
     val gaveta = rememberDrawerState(DrawerValue.Closed)
     val escopo = rememberCoroutineScope()
@@ -247,6 +252,13 @@ fun ConteudoDaBiblioteca(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { soFavoritos = !soFavoritos }) {
+                        Icon(
+                            if (soFavoritos) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (soFavoritos) "Mostrar todos os livros" else "Mostrar só os favoritos",
+                            tint = if (soFavoritos) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                        )
+                    }
                     // Capas ou lista: o mesmo modo que a tela de Configurações guarda.
                     IconButton(onClick = aoAlternarModo) {
                         Icon(
@@ -269,10 +281,13 @@ fun ConteudoDaBiblioteca(
                     onRefresh = aoAtualizar,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (modo == ModoDaBiblioteca.CAPAS) {
-                        GradeDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                    val livros = livrosParaMostrar(estado.livros, soFavoritos)
+                    if (livros.isEmpty()) Centralizado {
+                        Text("Nenhum livro favorito. Toque no coração de um livro, dentro dele.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+                    } else if (modo == ModoDaBiblioteca.CAPAS) {
+                        GradeDeLivros(livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
                     } else {
-                        ListaDeLivros(estado.livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                        ListaDeLivros(livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
                     }
                 }
 
@@ -381,3 +396,7 @@ private fun CartaoDeLivro(
         }
     }
 }
+
+/** Os livros da lista: todos, ou só os favoritos (RL36) quando [soFavoritos]. A ordem é a do servidor. */
+fun livrosParaMostrar(livros: List<LivroResumo>, soFavoritos: Boolean): List<LivroResumo> =
+    if (soFavoritos) livros.filter { it.favorito_id != null } else livros
