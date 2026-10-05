@@ -185,6 +185,18 @@ interface ApiImagineer {
     @POST("livros/{id}/leitura/tempo")
     suspend fun somarTempoDeLeitura(@Path("id") livroId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /livros/{id}/favoritos` — os favoritos do livro, do mais novo ao mais antigo (RL34); `tipo` filtra. */
+    @GET("livros/{id}/favoritos")
+    suspend fun favoritos(@Path("id") livroId: Int, @Query("tipo") tipo: String? = null): List<Favorito>
+
+    /** `POST /livros/{id}/favoritos` — favorita um item; idempotente. */
+    @POST("livros/{id}/favoritos")
+    suspend fun favoritar(@Path("id") livroId: Int, @Body corpo: JsonObject): Favorito
+
+    /** `DELETE /favoritos/{id}`. */
+    @DELETE("favoritos/{id}")
+    suspend fun desfavoritar(@Path("id") favoritoId: Int)
+
     /** `GET /livros/{id}/destaques` — os trechos destacados do livro; com `capitulo_id`, só os de um capítulo (RL9 a RL13). */
     @GET("livros/{id}/destaques")
     suspend fun destaques(@Path("id") livroId: Int, @Query("capitulo_id") capituloId: Int? = null): List<Destaque>

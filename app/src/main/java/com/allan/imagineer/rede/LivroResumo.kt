@@ -29,6 +29,8 @@ data class LivroResumo(
     val total_de_caracteres: Int = 0,
     /** Sobe a cada mudança no livro: vai na URL da capa para o Coil buscar de novo quando ela muda. */
     val revisao: Int = 0,
+    /** O id do favorito deste livro (RL34); nulo = não é favorito. Muda sem subir a [revisao]. */
+    val favorito_id: Int? = null,
 )
 
 /** O endereço da capa de um livro (CP3); a [revisao] na URL faz a capa nova aparecer quando é trocada. */

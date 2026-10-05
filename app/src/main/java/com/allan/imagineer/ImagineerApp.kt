@@ -164,6 +164,10 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.telas.capitulo.RegistroDeTempoDeLeitura(armazenamento, repositorioDeEstatisticas)
     }
 
+    val repositorioDeFavoritos: com.allan.imagineer.rede.RepositorioDeFavoritos by lazy {
+        com.allan.imagineer.rede.RepositorioDeFavoritosPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeDestaques: com.allan.imagineer.rede.RepositorioDeDestaques by lazy {
         com.allan.imagineer.rede.RepositorioDeDestaquesPeloRetrofit(provedorDeApi)
     }
