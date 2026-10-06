@@ -49,6 +49,47 @@ import com.allan.imagineer.telas.comum.BotaoDeIcone
 @Composable
 fun ControleDeNarracao(
     livroId: Int,
+    capituloId: Int,
+    paragrafos: List<ParagrafoDoTexto>,
+    ativa: Boolean,
+    posicaoAtual: () -> Int,
+    velocidade: Float,
+    aoMudarVelocidade: (Float) -> Unit,
+    aoSeguirParagrafo: (Int?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // AN2: com o motor `IA`, o botão é o da voz de IA (o servidor gera o MP3); senão, o de sempre (a voz do aparelho, bloco E).
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val configuracao by produceState<com.allan.imagineer.rede.ConfiguracaoAtual?>(initialValue = null) {
+        value = (aplicacao.repositorioDeModelos.configuracao() as? ResultadoDaChamada.Sucesso)?.dado
+    }
+    val atual = configuracao
+    when {
+        atual == null || atual.narracao_motor != "IA" ->
+            ControleDeNarracaoDoAparelho(livroId, paragrafos, ativa, posicaoAtual, velocidade, aoMudarVelocidade, aoSeguirParagrafo, modifier)
+        com.allan.imagineer.rede.narracaoPorIaDisponivel(atual.modelo_narracao, atual.tem_chave_api) ->
+            ControleDeNarracaoPorIa(capituloId, ativa, velocidade, aoMudarVelocidade, modifier)
+        else -> ControleDeNarracaoSemModelo(modifier)
+    }
+}
+
+/** Motor `IA` escolhido, mas sem modelo de voz (ou sem chave): o botão diz o que falta (AN1). */
+@Composable
+private fun ControleDeNarracaoSemModelo(modifier: Modifier) {
+    val contexto = LocalContext.current
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp, shadowElevation = 3.dp, modifier = Modifier.padding(16.dp)) {
+            BotaoDeIcone(Icons.Filled.VolumeUp, "Ouvir o capítulo", aoTocar = {
+                Toast.makeText(contexto, "Escolha um modelo de voz em Configurações → Narração (e confira a chave).", Toast.LENGTH_LONG).show()
+            })
+        }
+    }
+}
+
+/** O botão Ouvir com a **voz do aparelho** (RL18, bloco E). */
+@Composable
+private fun ControleDeNarracaoDoAparelho(
+    livroId: Int,
     paragrafos: List<ParagrafoDoTexto>,
     ativa: Boolean,
     posicaoAtual: () -> Int,

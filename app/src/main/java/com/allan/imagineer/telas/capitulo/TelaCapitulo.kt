@@ -922,6 +922,7 @@ private fun PaginaDoCapitulo(
             // Depois do texto, e não antes: o que vem por último fica por cima, e o botão Ouvir tem de receber o toque (o texto cobre a tela toda).
             ControleDeNarracao(
                 livroId = atual.capitulo.livro_id,
+                capituloId = atual.capitulo.id,
                 paragrafos = paragrafosDaVoz,
                 ativa = ehAtual,
                 posicaoAtual = { ultimaPosicao },

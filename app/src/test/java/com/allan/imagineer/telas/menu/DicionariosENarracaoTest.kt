@@ -68,6 +68,8 @@ private class ConfiguracaoFalsa(var atual: ConfiguracaoAtual, var falharAoGravar
         falharAoGravar?.let { return ResultadoDaChamada.Falha(it, 500) }
         gravados += campos
         atual = atual.copy(
+            narracao_motor = campos["narracao_motor"] ?: atual.narracao_motor,
+            modelo_narracao = campos["modelo_narracao"]?.ifBlank { null },
             narracao_voz = campos["narracao_voz"]?.ifBlank { null },
             narracao_instrucoes = campos["narracao_instrucoes"]?.ifBlank { null },
         )
@@ -225,7 +227,7 @@ class DicionariosENarracaoTest {
 
         val edicao = atual.paraNarracaoEdicao()
 
-        assertEquals(NarracaoEdicao("alloy", "grave"), edicao)
+        assertEquals(NarracaoEdicao(voz = "alloy", instrucoes = "grave"), edicao)
         assertFalse(mudouANarracao(edicao, atual))
         assertFalse(mudouANarracao(edicao.copy(voz = " alloy "), atual))  // espaço nas pontas não conta
         assertTrue(mudouANarracao(edicao.copy(instrucoes = "grave e calma"), atual))
@@ -243,10 +245,13 @@ class DicionariosENarracaoTest {
         vm.salvar()
         advanceUntilIdle()
 
-        assertEquals(mapOf("narracao_voz" to "nova", "narracao_instrucoes" to "com suspense"), falso.gravados.single())
+        assertEquals(
+            mapOf("narracao_motor" to "APARELHO", "modelo_narracao" to "", "narracao_voz" to "nova", "narracao_instrucoes" to "com suspense"),
+            falso.gravados.single(),
+        )
         assertEquals("Salvo.", vm.estado.value.aviso)
         assertFalse(vm.estado.value.salvando)
-        assertEquals(NarracaoEdicao("nova", "com suspense"), vm.estado.value.edicao)
+        assertEquals(NarracaoEdicao(voz = "nova", instrucoes = "com suspense"), vm.estado.value.edicao)
     }
 
     @Test
@@ -260,7 +265,10 @@ class DicionariosENarracaoTest {
         vm.salvar()
         advanceUntilIdle()
 
-        assertEquals(mapOf("narracao_voz" to "", "narracao_instrucoes" to ""), falso.gravados.single())
+        assertEquals(
+            mapOf("narracao_motor" to "APARELHO", "modelo_narracao" to "", "narracao_voz" to "", "narracao_instrucoes" to ""),
+            falso.gravados.single(),
+        )
         assertEquals(NarracaoEdicao(), vm.estado.value.edicao)
     }
 

@@ -185,6 +185,26 @@ interface ApiImagineer {
     @POST("livros/{id}/leitura/tempo")
     suspend fun somarTempoDeLeitura(@Path("id") livroId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /configuracao/modelos-de-narracao` — os modelos de voz do OpenRouter, com as vozes e o preço (NA1). */
+    @GET("configuracao/modelos-de-narracao")
+    suspend fun modelosDeNarracao(): List<ModeloDeNarracao>
+
+    /** `GET /capitulos/{id}/audio/estimativa` — caracteres, minutos e custo estimado, antes de gerar (NA3). */
+    @GET("capitulos/{id}/audio/estimativa")
+    suspend fun estimativaDaNarracao(@Path("id") capituloId: Int): EstimativaDaNarracao
+
+    /** `GET /capitulos/{id}/audio/estado` — a situação do áudio com o modelo e a voz de agora (NA5). */
+    @GET("capitulos/{id}/audio/estado")
+    suspend fun estadoDaNarracao(@Path("id") capituloId: Int): EstadoDoAudio
+
+    /** `POST /capitulos/{id}/audio` — gera a narração em segundo plano (202) ou devolve a pronta (200). */
+    @POST("capitulos/{id}/audio")
+    suspend fun gerarNarracao(@Path("id") capituloId: Int, @Body corpo: JsonObject): EstadoDoAudio
+
+    /** `DELETE /capitulos/{id}/audio` — apaga os áudios do capítulo e os arquivos. */
+    @DELETE("capitulos/{id}/audio")
+    suspend fun apagarNarracao(@Path("id") capituloId: Int)
+
     /** `GET /configuracao/provedores` — os provedores de IA e o header da chave de cada um (CT24). */
     @GET("configuracao/provedores")
     suspend fun provedoresDeIa(): List<ProvedorDeIa>
@@ -673,6 +693,8 @@ data class ConfiguracaoAtual(
     val narracao_motor: String = "APARELHO",
     /** `UMA_VOZ` ou `POR_PERSONAGEM` (RL25). */
     val narracao_modo: String = "UMA_VOZ",
+    /** O modelo de voz que o servidor usa na narração por IA (NA1); nulo = nenhum escolhido. */
+    val modelo_narracao: String? = null,
     /** A voz do motor de IA (RL24); nula = a padrão. */
     val narracao_voz: String? = null,
     /** As instruções de tom da narração (RL23). */
