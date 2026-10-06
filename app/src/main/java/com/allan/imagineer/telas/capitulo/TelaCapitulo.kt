@@ -977,6 +977,10 @@ private fun LeitorDeTexto(
     val capitulo = estado.capitulo
     // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
     val trechos = remember(capitulo.id) { dividirEmParagrafosComInicio(capitulo.texto) }
+    // PN1: onde o pin vai ser marcado (nulo = sem diálogo aberto).
+    var posicaoDoPin by remember { mutableStateOf<Int?>(null) }
+    val escopoDoPin = androidx.compose.runtime.rememberCoroutineScope()
+    val aplicacaoDoPin = LocalContext.current.applicationContext as ImagineerApp
     val distribuidos = remember(artefatos, trechos) { distribuirArtefatos(artefatos, trechos) }
     // I1 a I6: a imagem ampliada (tela cheia, tamanho normal) e o endereço do servidor para montar as URLs.
     val urlBase = urlDoServidorEmUso()
@@ -1222,6 +1226,25 @@ private fun LeitorDeTexto(
         // AJ2: o puxador da rolagem, na borda direita.
         PuxadorDeRolagem(listaDeParagrafos)
     }
+    // PN1: o diálogo da nota do pin; marcar cria o pin no começo do parágrafo e desfaz a marcação.
+    posicaoDoPin?.let { posicao ->
+        com.allan.imagineer.telas.pins.DialogoDaNotaDoPin(
+            titulo = "Marcar pin",
+            notaInicial = "",
+            rotuloDoBotao = "Marcar",
+            aoConfirmar = { nota ->
+                posicaoDoPin = null
+                escopoDoPin.launch {
+                    val aviso = when (val r = aplicacaoDoPin.repositorioDePins.criar(capitulo.livro_id, capitulo.id, posicao, nota)) {
+                        is ResultadoDaChamada.Sucesso -> { marcados = emptySet(); "Pin marcado." }
+                        is ResultadoDaChamada.Falha -> "Não consegui marcar o pin: ${r.motivo}"
+                    }
+                    android.widget.Toast.makeText(contextoDaTela, aviso, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            aoFechar = { posicaoDoPin = null },
+        )
+    }
     // LV4: a barra de ícones dos parágrafos marcados; some quando o último é desmarcado.
     if (marcados.isNotEmpty() && posicionando == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
@@ -1235,6 +1258,8 @@ private fun LeitorDeTexto(
                 modifier = Modifier.padding(16.dp),
                 paraFavoritar = marcados.sorted().mapNotNull { trechos.getOrNull(it)?.inicio }
                     .map { com.allan.imagineer.rede.AlvoDeFavorito.Paragrafo(capitulo.id, it) },
+                // PN1: um pin é um ponto, então só com um parágrafo marcado.
+                aoMarcarPin = marcados.singleOrNull()?.let { indice -> trechos.getOrNull(indice)?.inicio }?.let { inicio -> { posicaoDoPin = inicio } },
             )
         }
     }

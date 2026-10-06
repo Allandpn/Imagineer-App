@@ -185,6 +185,22 @@ interface ApiImagineer {
     @POST("livros/{id}/leitura/tempo")
     suspend fun somarTempoDeLeitura(@Path("id") livroId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /livros/{id}/pins` — as posições marcadas à mão, na ordem do livro, com o começo do parágrafo (PN3). */
+    @GET("livros/{id}/pins")
+    suspend fun pins(@Path("id") livroId: Int): List<PinDoLivro>
+
+    /** `POST /livros/{id}/pins` — marca um ponto (`capitulo_id`, `posicao_no_texto`, `nota` opcional). */
+    @POST("livros/{id}/pins")
+    suspend fun criarPin(@Path("id") livroId: Int, @Body corpo: JsonObject): PinDoLivro
+
+    /** `PATCH /pins/{id}` — troca a nota (`null` a apaga). */
+    @PATCH("pins/{id}")
+    suspend fun ajustarPin(@Path("id") pinId: Int, @Body corpo: JsonObject): PinDoLivro
+
+    /** `DELETE /pins/{id}`. */
+    @DELETE("pins/{id}")
+    suspend fun apagarPin(@Path("id") pinId: Int)
+
     /** `GET /livros/{id}/favoritos` — os favoritos do livro, do mais novo ao mais antigo (RL34); `tipo` filtra. */
     @GET("livros/{id}/favoritos")
     suspend fun favoritos(@Path("id") livroId: Int, @Query("tipo") tipo: String? = null): List<Favorito>

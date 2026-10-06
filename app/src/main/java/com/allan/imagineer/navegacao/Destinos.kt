@@ -69,6 +69,10 @@ object Estatisticas
 @Serializable
 data class DestaquesDoLivro(val livroId: Int)
 
+/** Os pins de um livro: as posições marcadas à mão (bloco J). */
+@Serializable
+data class PinsDoLivro(val livroId: Int)
+
 /** Os favoritos de um livro: parágrafos, elementos, cenas e imagens (RL36). */
 @Serializable
 data class FavoritosDoLivro(val livroId: Int)

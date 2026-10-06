@@ -5,6 +5,7 @@ import com.allan.imagineer.telas.menu.TelaDicionarios
 import com.allan.imagineer.telas.menu.TelaPerfis
 import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
 import com.allan.imagineer.telas.favoritos.TelaFavoritosDoLivro
+import com.allan.imagineer.telas.pins.TelaPinsDoLivro
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
@@ -190,6 +191,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
                 aoAbrirDestaques = { controle.navigate(DestaquesDoLivro(destino.livroId)) },
                 aoAbrirFavoritos = { controle.navigate(FavoritosDoLivro(destino.livroId)) },
+                aoAbrirPins = { controle.navigate(PinsDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }
@@ -198,6 +200,14 @@ fun GrafoDeNavegacao() {
                 livroId = entrada.toRoute<DestaquesDoLivro>().livroId,
                 aoVoltar = { controle.popBackStack() },
                 aoAbrir = { capituloId, posicao -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
+            )
+        }
+        composable<PinsDoLivro> { entrada ->
+            TelaPinsDoLivro(
+                livroId = entrada.toRoute<PinsDoLivro>().livroId,
+                aoVoltar = { controle.popBackStack() },
+                // Como o favorito de parágrafo: o capítulo abre na posição do pin.
+                aoAbrir = { pin -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(pin.capitulo_id, irParaPosicao = pin.posicao_no_texto)) },
             )
         }
         composable<FavoritosDoLivro> { entrada ->

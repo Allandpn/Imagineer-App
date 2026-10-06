@@ -169,6 +169,10 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.rede.PostersDeVideo(provedorDeApi, java.io.File(cacheDir, "posters_de_video"))
     }
 
+    val repositorioDePins: com.allan.imagineer.rede.RepositorioDePins by lazy {
+        com.allan.imagineer.rede.RepositorioDePinsPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeFavoritos: com.allan.imagineer.rede.RepositorioDeFavoritos by lazy {
         com.allan.imagineer.rede.RepositorioDeFavoritosPeloRetrofit(provedorDeApi)
     }

@@ -150,6 +150,7 @@ fun TelaLivro(
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
     aoAbrirFavoritos: (() -> Unit)? = null,
+    aoAbrirPins: (() -> Unit)? = null,
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
     viewModel: LivroViewModel = livroViewModel(livroId),
@@ -212,6 +213,7 @@ fun TelaLivro(
         aoAbrirLixeira = aoAbrirLixeira,
         aoAbrirDestaques = aoAbrirDestaques,
         aoAbrirFavoritos = aoAbrirFavoritos,
+        aoAbrirPins = aoAbrirPins,
         aoApagarCopiaLocal = { viewModel.apagarCopiaLocal(); scopeDaCopia.launch { baixador.remover(livroId) } },
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
@@ -265,6 +267,7 @@ fun ConteudoDoLivro(
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
     aoAbrirFavoritos: (() -> Unit)? = null,
+    aoAbrirPins: (() -> Unit)? = null,
     aoApagarCopiaLocal: () -> Unit = {},
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
@@ -336,6 +339,7 @@ fun ConteudoDoLivro(
                                 aoAbrirLixeira = aoAbrirLixeira,
                                 aoAbrirDestaques = aoAbrirDestaques,
                                 aoAbrirFavoritos = aoAbrirFavoritos,
+                                aoAbrirPins = aoAbrirPins,
                                 aoApagar = aoApagar,
                             )
                         }
