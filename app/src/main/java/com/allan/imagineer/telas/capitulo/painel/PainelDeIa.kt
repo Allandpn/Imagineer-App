@@ -554,7 +554,8 @@ private fun ListaDeSugestoes(
             // As abas ficam fixas no alto enquanto a lista rola, e acompanham o deslize para os lados (um toque também vale).
             stickyHeader {
                 androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surface) {
-                    androidx.compose.material3.PrimaryTabRow(selectedTabIndex = estado.filtro.ordinal) {
+                    // Cada aba tem o tamanho do próprio texto; se não couberem, a barra rola para os lados (e a aba escolhida vem para a vista).
+                    androidx.compose.material3.PrimaryScrollableTabRow(selectedTabIndex = estado.filtro.ordinal, edgePadding = 0.dp) {
                         FiltroDoPainel.entries.forEach { filtro ->
                             // As cenas de trechos já nascem confirmadas: contam em "Confirmados".
                             val total = (contagem[filtro] ?: 0) + if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos.size else 0
@@ -611,13 +612,17 @@ private fun ListaDeSugestoes(
             item { Text("Cenas de trechos (${cenasDeTrechos.size})", style = MaterialTheme.typography.titleSmall) }
             items(cenasDeTrechos, key = { "t${it.frame_id}" }) { cena ->
                 Card(modifier = Modifier.fillMaxWidth().clickable { acoes.aoAbrirCenaDeTrecho(cena.frame_id!!, cena.rotulo) }) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(cena.rotulo, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            descreverSituacaoDaCenaDeTrecho(cena.situacao),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(cena.rotulo, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                descreverSituacaoDaCenaDeTrecho(cena.situacao),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // RL36: a cena de trecho também se favorita.
+                        cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
                     }
                 }
             }
