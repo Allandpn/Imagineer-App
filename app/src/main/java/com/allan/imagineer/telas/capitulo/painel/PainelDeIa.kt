@@ -1,5 +1,8 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.snapshotFlow
 import com.allan.imagineer.rede.Artefato
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -491,140 +494,165 @@ private fun ListaDeSugestoes(
     LaunchedEffect(estado.filtro) { abertos.clear() }
 
     val contagem = contagemPorFiltro(sugestoes.elementos, sugestoes.cenas)
-    val doFiltro = elementosDoFiltro(sugestoes.elementos, estado.filtro)
     val cenasDosElementos = cenasDoElemento(sugestoes)
-    val cenas = cenasDoFiltro(sugestoes.cenas, estado.filtro) // D2: as cenas também obedecem ao filtro
+    val temLista = sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty() || cenasDeTrechos.isNotEmpty()
 
-    // Deslizar para a esquerda vai ao filtro seguinte (Pendentes, Confirmados, Descartados); para a direita, ao anterior.
-    val limiarDoDeslize = with(androidx.compose.ui.platform.LocalDensity.current) { DESLIZE_MINIMO_ENTRE_FILTROS_DP.dp.toPx() }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().pointerInput(estado.filtro) {
-            var andou = 0f
-            detectHorizontalDragGestures(
-                onDragStart = { andou = 0f },
-                onDragEnd = {
-                    val novo = when {
-                        andou <= -limiarDoDeslize -> filtroVizinho(estado.filtro, +1)
-                        andou >= limiarDoDeslize -> filtroVizinho(estado.filtro, -1)
-                        else -> estado.filtro
-                    }
-                    if (novo != estado.filtro) acoes.aoEscolherFiltro(novo)
-                },
-                onDragCancel = { andou = 0f },
-                onHorizontalDrag = { _, quanto -> andou += quanto },
-            )
-        },
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item {
-            // O título numa linha e os botões embaixo, numa FlowRow: com dois botões, a linha única espremia o texto
-            // do segundo ("Reanalisar" saía na vertical) em telas estreitas. Aqui os botões quebram de linha se faltar espaço.
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Sugestões da IA", style = MaterialTheme.typography.titleSmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // L1: só tem sentido quando há algo a confirmar; o diálogo mostra a conta antes de agir.
-                    Button(
-                        onClick = acoes.aoPedirConfirmarTodos,
-                        enabled = !estado.analisando && !estado.executandoLote && resumoParaConfirmarTodos(sugestoes).temAlgoParaConfirmar,
-                    ) { Text("Confirmar todos", maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
-                        Text("Reanalisar", maxLines = 1, softWrap = false)
-                    }
+    // As três listas são **páginas** de um pager: o conteúdo acompanha o dedo e traz a próxima lista junto, como o texto do capítulo.
+    // O pager e o filtro do ViewModel andam juntos: o toque numa aba rola o pager; terminar de deslizar escolhe o filtro.
+    val paginas = rememberPagerState(initialPage = estado.filtro.ordinal) { FiltroDoPainel.entries.size }
+    LaunchedEffect(estado.filtro) { if (paginas.targetPage != estado.filtro.ordinal) paginas.animateScrollToPage(estado.filtro.ordinal) }
+    LaunchedEffect(paginas) {
+        snapshotFlow { paginas.settledPage }.collect { acoes.aoEscolherFiltro(FiltroDoPainel.entries[it]) }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // O alto fica fixo: o título e os botões em duas linhas (com dois botões, a linha única espremia o texto do segundo em telas
+        // estreitas), os avisos da análise e as abas.
+        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Sugestões da IA", style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // L1: só tem sentido quando há algo a confirmar; o diálogo mostra a conta antes de agir.
+                Button(
+                    onClick = acoes.aoPedirConfirmarTodos,
+                    enabled = !estado.analisando && !estado.executandoLote && resumoParaConfirmarTodos(sugestoes).temAlgoParaConfirmar,
+                ) { Text("Confirmar todos", maxLines = 1, softWrap = false) }
+                OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
+                    Text("Reanalisar", maxLines = 1, softWrap = false)
                 }
             }
+            ErroDaAnalise(estado)
+            AnaliseEmAndamento(estado)
+            ResultadoDoLote(estado, acoes)
         }
-        item { ErroDaAnalise(estado) }
-        item { AnaliseEmAndamento(estado) }
-        item { ResultadoDoLote(estado, acoes) }
 
         // P14: uma análise que não achou nada é um resultado, não um erro.
-        if (sugestoes.elementos.isEmpty() && sugestoes.cenas.isEmpty()) {
-            item {
-                Text(
-                    "A análise não encontrou elementos nem cenas neste capítulo.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (!temLista) {
+            Text(
+                "A análise não encontrou elementos nem cenas neste capítulo.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(16.dp),
+            )
+            return@Column
+        }
+
+        // Cada aba tem o tamanho do próprio texto; se não couberem, a barra rola para os lados (e a aba escolhida vem para a vista).
+        androidx.compose.material3.PrimaryScrollableTabRow(selectedTabIndex = paginas.currentPage, edgePadding = 0.dp) {
+            FiltroDoPainel.entries.forEach { filtro ->
+                // As cenas adicionais já nascem confirmadas: contam em "Confirmados".
+                val total = (contagem[filtro] ?: 0) + if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos.size else 0
+                androidx.compose.material3.Tab(
+                    selected = paginas.currentPage == filtro.ordinal,
+                    onClick = { acoes.aoEscolherFiltro(filtro) },
+                    text = { Text("${filtro.rotulo} ($total)", maxLines = 1) },
                 )
             }
         }
 
-        if (sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty() || cenasDeTrechos.isNotEmpty()) {
-            item { Text("Elementos e cenas", style = MaterialTheme.typography.titleSmall) }
-            // As abas ficam fixas no alto enquanto a lista rola, e acompanham o deslize para os lados (um toque também vale).
-            stickyHeader {
-                androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surface) {
-                    // Cada aba tem o tamanho do próprio texto; se não couberem, a barra rola para os lados (e a aba escolhida vem para a vista).
-                    androidx.compose.material3.PrimaryScrollableTabRow(selectedTabIndex = estado.filtro.ordinal, edgePadding = 0.dp) {
-                        FiltroDoPainel.entries.forEach { filtro ->
-                            // As cenas de trechos já nascem confirmadas: contam em "Confirmados".
-                            val total = (contagem[filtro] ?: 0) + if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos.size else 0
-                            androidx.compose.material3.Tab(
-                                selected = estado.filtro == filtro,
-                                onClick = { acoes.aoEscolherFiltro(filtro) },
-                                text = { Text("${filtro.rotulo} ($total)", maxLines = 1) },
-                            )
-                        }
+        HorizontalPager(state = paginas, modifier = Modifier.fillMaxSize(), key = { it }) { indice ->
+            val filtro = FiltroDoPainel.entries[indice]
+            val doFiltro = elementosDoFiltro(sugestoes.elementos, filtro)
+            val cenas = cenasDoFiltro(sugestoes.cenas, filtro) // D2: as cenas também obedecem ao filtro
+            val adicionais = if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos else emptyList()
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (doFiltro.isEmpty() && cenas.isEmpty() && adicionais.isEmpty()) {
+                    item {
+                        Text(
+                            when (filtro) {
+                                FiltroDoPainel.PENDENTES -> "Nada pendente por aqui."
+                                FiltroDoPainel.CONFIRMADOS -> "Nada confirmado neste capítulo ainda."
+                                FiltroDoPainel.DESCARTADOS -> "Nada descartado."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                items(doFiltro, key = { "e${it.id}" }) { elemento ->
+                    if (elemento.descartada) {
+                        CartaoDeElementoDescartado(elemento, estado, acoes)
+                    } else {
+                        val chave = chaveDoCartao(elemento)
+                        CartaoDeElemento(
+                            elemento = elemento,
+                            cenas = cenasDosElementos[elemento.id].orEmpty(),
+                            aberto = chave in abertos,
+                            aoAlternar = { alternar(chave) },
+                            estado = estado,
+                            acoes = acoes,
+                            frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
+                        )
+                    }
+                }
+
+                if (cenas.isNotEmpty()) {
+                    item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
+                    items(cenas, key = { "c${it.id}" }) { cena ->
+                        val chaveDaCena = "cena:${cena.id}"
+                        CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+                    }
+                }
+
+                // As cenas criadas de um texto selecionado não vêm da análise da IA: sem esta seção, só se chegava a elas pelo ícone no texto.
+                if (adicionais.isNotEmpty()) {
+                    item { Text("Cenas adicionais (${adicionais.size})", style = MaterialTheme.typography.titleSmall) }
+                    items(adicionais, key = { "t${it.frame_id}" }) { cena ->
+                        val chaveDaCena = "adicional:${cena.frame_id}"
+                        CartaoDeCenaAdicional(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
                     }
                 }
             }
-            if (doFiltro.isEmpty() && cenas.isEmpty() && !(estado.filtro == FiltroDoPainel.CONFIRMADOS && cenasDeTrechos.isNotEmpty())) {
-                item {
+        }
+    }
+}
+
+/**
+ * Uma **cena adicional** (a criada de um texto selecionado, sem sugestão da IA): o **mesmo cartão** das demais cenas. Fechado: o título, "Criada de um
+ * trecho", a etiqueta, o coração e o ícone de posicionar. Aberto: tirar a posição, editar, apagar e a área de imagens e prompts da cena.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CartaoDeCenaAdicional(cena: Artefato, aberto: Boolean, aoAlternar: () -> Unit, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val frameId = cena.frame_id ?: return
+    Card(onClick = aoAlternar, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        when (estado.filtro) {
-                            FiltroDoPainel.PENDENTES -> "Nada pendente por aqui."
-                            FiltroDoPainel.CONFIRMADOS -> "Nada confirmado neste capítulo ainda."
-                            FiltroDoPainel.DESCARTADOS -> "Nada descartado."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
+                        cena.rotulo,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = if (aberto) Int.MAX_VALUE else 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "Criada de um trecho · ${descreverSituacaoDaCenaDeTrecho(cena.situacao)}",
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            items(doFiltro, key = { "e${it.id}" }) { elemento ->
-                if (elemento.descartada) {
-                    CartaoDeElementoDescartado(elemento, estado, acoes)
-                } else {
-                    val chave = chaveDoCartao(elemento)
-                    CartaoDeElemento(
-                        elemento = elemento,
-                        cenas = cenasDosElementos[elemento.id].orEmpty(),
-                        aberto = chave in abertos,
-                        aoAlternar = { alternar(chave) },
-                        estado = estado,
-                        acoes = acoes,
-                        frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
-                    )
+                EtiquetaDaCena("Confirmada", FiltroDoPainel.CONFIRMADOS)
+                // RL36: a cena adicional também se favorita.
+                com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(frameId))
+                IconButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, cena.rotulo) }) {
+                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
                 }
             }
-        }
-
-        if (cenas.isNotEmpty()) {
-            item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
-            items(cenas, key = { "c${it.id}" }) { cena ->
-                val chaveDaCena = "cena:${cena.id}"
-                CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
-            }
-        }
-
-        // As cenas criadas de um texto selecionado não vêm da análise da IA: sem esta seção, só se chegava a elas pelo ícone no texto.
-        if (estado.filtro == FiltroDoPainel.CONFIRMADOS && cenasDeTrechos.isNotEmpty()) {
-            item { Text("Cenas de trechos (${cenasDeTrechos.size})", style = MaterialTheme.typography.titleSmall) }
-            items(cenasDeTrechos, key = { "t${it.frame_id}" }) { cena ->
-                Card(modifier = Modifier.fillMaxWidth().clickable { acoes.aoAbrirCenaDeTrecho(cena.frame_id!!, cena.rotulo) }) {
-                    Row(modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(cena.rotulo, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                descreverSituacaoDaCenaDeTrecho(cena.situacao),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // RL36: a cena de trecho também se favorita.
-                        cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
-                    }
+            if (aberto) {
+                FlowRow {
+                    BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, null, frameId) })
+                    BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDeFrame(frameId, cena.rotulo) })
+                    BotaoDeIcone(Icons.Filled.Delete, ROTULO_APAGAR_A_CENA, { acoes.aoPedirApagarFrame(frameId, cena.rotulo, false) }, cor = MaterialTheme.colorScheme.error)
                 }
+                estado.mensagensDePrompt[frameId]?.takeIf { it.ehErro }?.let { Text(it.texto, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                BlocoDePrompts(
+                    frameId, cena.rotulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true,
+                    aoEscolherElementos = { acoes.aoAbrirSeletorDaCena(frameId) },
+                )
             }
         }
     }
