@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.runtime.getValue
 import androidx.compose.material.icons.filled.PlayArrow
 import com.allan.imagineer.rede.Destaque
 import androidx.compose.ui.text.SpanStyle
@@ -53,7 +55,16 @@ import com.allan.imagineer.rede.enderecoDaImagem
 @Composable
 internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier: Modifier, aoTocar: () -> Unit) {
     val imagemId = artefato.imagem_id ?: return
-    val proporcao = if (quadroDaImagem(artefato.imagem_orientacao) == QuadroDaImagem.RETRATO) 2f / 3f else 16f / 9f
+    // VD17: com vídeo no texto, o quadro mostra o **primeiro quadro do vídeo** (e não a imagem da cena). Enquanto ele não vem (o aparelho o
+    // tira do vídeo na primeira vez), fica preto; se não der para tirá-lo, cai na imagem da cena.
+    val aplicacao = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp
+    val primeiroQuadro by androidx.compose.runtime.produceState<Pair<Boolean, android.graphics.Bitmap?>>(false to null, artefato.video_id) {
+        value = true to artefato.video_id?.let { aplicacao.postersDeVideo.obter(it) }
+    }
+    val (leu, poster) = primeiroQuadro
+    val esperandoOQuadro = artefato.video_id != null && !leu
+    val proporcao = poster?.let { com.allan.imagineer.rede.proporcaoDoQuadro(it.width, it.height) }
+        ?: if (quadroDaImagem(artefato.imagem_orientacao) == QuadroDaImagem.RETRATO) 2f / 3f else 16f / 9f
     Box(
         modifier = modifier
             .aspectRatio(proporcao)
@@ -61,14 +72,22 @@ internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier
             .background(Color.Black)
             .clickable(onClickLabel = if (artefato.video_id != null) "Tocar o vídeo" else "Ampliar a imagem", onClick = aoTocar),
     ) {
-        AsyncImage(
-            model = enderecoDaImagem(urlBase, imagemId, "leitura"),
-            contentDescription = "Imagem de ${artefato.rotulo}",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().semantics {
-                contentDescription = if (artefato.video_id != null) "Vídeo de ${artefato.rotulo}. Toque para tocar." else "Imagem de ${artefato.rotulo}. Toque para ampliar."
-            },
-        )
+        val descricao = if (artefato.video_id != null) "Vídeo de ${artefato.rotulo}. Toque para tocar." else "Imagem de ${artefato.rotulo}. Toque para ampliar."
+        if (poster != null) {
+            androidx.compose.foundation.Image(
+                bitmap = poster.asImageBitmap(),
+                contentDescription = "Primeiro quadro do vídeo de ${artefato.rotulo}",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().semantics { contentDescription = descricao },
+            )
+        } else if (!esperandoOQuadro) {
+            AsyncImage(
+                model = enderecoDaImagem(urlBase, imagemId, "leitura"),
+                contentDescription = "Imagem de ${artefato.rotulo}",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize().semantics { contentDescription = descricao },
+            )
+        }
         // VD17: o texto mostra o vídeo; a imagem da cena é a capa dele, com o botão de tocar por cima.
         if (artefato.video_id != null) {
             Box(

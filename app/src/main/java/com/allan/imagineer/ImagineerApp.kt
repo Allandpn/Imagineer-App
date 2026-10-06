@@ -164,6 +164,11 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.telas.capitulo.RegistroDeTempoDeLeitura(armazenamento, repositorioDeEstatisticas)
     }
 
+    /** O primeiro quadro dos vídeos importados, que o capítulo mostra no lugar do vídeo (VD17). */
+    val postersDeVideo: com.allan.imagineer.rede.PostersDeVideo by lazy {
+        com.allan.imagineer.rede.PostersDeVideo(provedorDeApi, java.io.File(cacheDir, "posters_de_video"))
+    }
+
     val repositorioDeFavoritos: com.allan.imagineer.rede.RepositorioDeFavoritos by lazy {
         com.allan.imagineer.rede.RepositorioDeFavoritosPeloRetrofit(provedorDeApi)
     }

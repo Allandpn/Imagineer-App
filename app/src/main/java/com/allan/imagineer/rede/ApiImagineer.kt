@@ -470,6 +470,11 @@ interface ApiImagineer {
     @PUT("frames/{id}/video-no-texto")
     suspend fun definirVideoNoTexto(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /videos/{id}/arquivo` — os bytes do vídeo, para tirar o primeiro quadro (VD17). `@Streaming`: o vídeo tem vários MB. */
+    @Streaming
+    @GET("videos/{id}/arquivo")
+    suspend fun baixarVideo(@Path("id") videoId: Int): ResponseBody
+
     /** `DELETE /videos/{id}` — apaga o vídeo e o arquivo, sem lixeira (VD18). */
     @DELETE("videos/{id}")
     suspend fun apagarVideo(@Path("id") videoId: Int)
