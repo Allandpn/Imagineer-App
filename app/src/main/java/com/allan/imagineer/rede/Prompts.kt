@@ -10,6 +10,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 
@@ -51,6 +52,8 @@ data class PromptDeFrame(
     val tipo: String = "IMAGEM",
     /** Só no `VIDEO`: a imagem que vira o primeiro quadro; nulo = sem imagem de partida. */
     val imagem_partida_id: Int? = null,
+    /** Só no `VIDEO`: a pessoa o escondeu da lista (VD12); não foi apagado. */
+    val oculto: Boolean = false,
 )
 
 /**
@@ -256,6 +259,27 @@ interface RepositorioDePrompts {
         aoProgredir: (enviados: Long, total: Long?) -> Unit,
     ): ResultadoDaChamada<ImagemDoPrompt>
 
+    /** `GET /frames/{id}/videos`: os vídeos **importados** do frame, do mais novo ao mais antigo (VD16). */
+    suspend fun listarVideosImportados(frameId: Int): ResultadoDaChamada<List<VideoImportado>> = ResultadoDaChamada.Falha("Os vídeos não estão disponíveis.")
+
+    /** `POST /frames/{id}/videos`: manda o vídeo escolhido (VD16); [promptId] é o prompt de vídeo de origem. [aoProgredir] vem de uma thread de rede. */
+    suspend fun importarVideo(
+        frameId: Int,
+        arquivo: ArquivoEscolhido,
+        promptId: Int?,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<VideoImportado> = ResultadoDaChamada.Falha("Os vídeos não estão disponíveis.")
+
+    /** `DELETE /videos/{id}`: apaga o vídeo e o arquivo (VD18). */
+    suspend fun apagarVideo(videoId: Int): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Os vídeos não estão disponíveis.")
+
+    /** `PUT /frames/{id}/video-no-texto`: o texto passa a mostrar o vídeo [videoId]; `null` volta à imagem (VD17). */
+    suspend fun definirVideoNoTexto(frameId: Int, videoId: Int?): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Os vídeos não estão disponíveis.")
+
+    /** `PATCH /prompts/{id}` num prompt de vídeo: esconde/mostra e/ou edita o texto (VD12, VD13). Só manda o que não é nulo. */
+    suspend fun ajustarPromptDeVideo(promptId: Int, oculto: Boolean? = null, texto: String? = null, textoPt: String? = null): ResultadoDaChamada<PromptDeFrame> =
+        ResultadoDaChamada.Falha("Os prompts de vídeo não estão disponíveis.")
+
     /**
      * `POST /frames/{id}/imagens` (PI1): importa a imagem **para o frame**, mesmo sem prompt (o servidor cria o "prompt só da
      * imagem" se não há nenhum). Não gasta IA.
@@ -281,6 +305,50 @@ class RepositorioDePromptsPeloRetrofit(
     override suspend fun listarVideos(frameId: Int): ResultadoDaChamada<List<PromptDeFrame>> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.prompts(frameId, tipo = "VIDEO") }
+    }
+
+    override suspend fun listarVideosImportados(frameId: Int): ResultadoDaChamada<List<VideoImportado>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.videosDoFrame(frameId) }
+    }
+
+    override suspend fun importarVideo(
+        frameId: Int,
+        arquivo: ArquivoEscolhido,
+        promptId: Int?,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<VideoImportado> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val entrada = leitor.abrir(arquivo.uri) ?: return ResultadoDaChamada.Falha("Não consegui abrir o arquivo escolhido.")
+        val nome = nomeDoVideoParaEnviar(arquivo)
+        val corpo = CorpoComProgresso(entrada, tipoDoVideo(nome).toMediaType(), arquivo.tamanho, aoProgredir)
+        val origem = promptId?.toString()?.toRequestBody("text/plain".toMediaType())
+        return try {
+            chamarApi { api.importarVideo(frameId, MultipartBody.Part.createFormData("arquivo", nome, corpo), origem) }
+        } finally {
+            entrada.close()
+        }
+    }
+
+    override suspend fun apagarVideo(videoId: Int): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.apagarVideo(videoId) }
+    }
+
+    override suspend fun definirVideoNoTexto(frameId: Int, videoId: Int?): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject { put("video_id", videoId) }
+        return chamarApi { api.definirVideoNoTexto(frameId, corpo); Unit }
+    }
+
+    override suspend fun ajustarPromptDeVideo(promptId: Int, oculto: Boolean?, texto: String?, textoPt: String?): ResultadoDaChamada<PromptDeFrame> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject {
+            if (oculto != null) put("oculto", oculto)
+            if (texto != null) put("texto", texto)
+            if (textoPt != null) put("texto_pt", textoPt)
+        }
+        return chamarApi { api.ajustarPrompt(promptId, corpo) }
     }
 
     override suspend fun gerarVideo(frameId: Int, imagemPartidaId: Int?, comentario: String?): ResultadoDaChamada<PromptDeFrame> {

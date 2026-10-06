@@ -453,6 +453,31 @@ interface ApiImagineer {
         @Part arquivo: MultipartBody.Part,
     ): ImagemDoPrompt
 
+    /** `GET /frames/{id}/videos` — os vídeos importados do frame, do mais novo ao mais antigo (VD16). */
+    @GET("frames/{id}/videos")
+    suspend fun videosDoFrame(@Path("id") frameId: Int): List<VideoImportado>
+
+    /** `POST /frames/{id}/videos` — importa um vídeo (até 200 MB); [promptId] é o prompt de vídeo de origem (opcional). */
+    @Multipart
+    @POST("frames/{id}/videos")
+    suspend fun importarVideo(
+        @Path("id") frameId: Int,
+        @Part arquivo: MultipartBody.Part,
+        @Part("prompt_id") promptId: okhttp3.RequestBody?,
+    ): VideoImportado
+
+    /** `PUT /frames/{id}/video-no-texto` — o vídeo que o texto mostra, ou `{"video_id": null}` para voltar à imagem (VD17). */
+    @PUT("frames/{id}/video-no-texto")
+    suspend fun definirVideoNoTexto(@Path("id") frameId: Int, @Body corpo: JsonObject): JsonObject
+
+    /** `DELETE /videos/{id}` — apaga o vídeo e o arquivo, sem lixeira (VD18). */
+    @DELETE("videos/{id}")
+    suspend fun apagarVideo(@Path("id") videoId: Int)
+
+    /** `PATCH /prompts/{id}` — esconde/mostra (`oculto`) e edita (`texto`, `texto_pt`) um prompt de vídeo (VD12, VD13). */
+    @PATCH("prompts/{id}")
+    suspend fun ajustarPrompt(@Path("id") promptId: Int, @Body corpo: JsonObject): PromptDeFrame
+
     /** `POST /frames/{id}/imagens` — importa a imagem para o frame, mesmo sem prompt (PI1). Não gasta IA. */
     @Multipart
     @POST("frames/{id}/imagens")

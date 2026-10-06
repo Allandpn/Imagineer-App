@@ -571,6 +571,13 @@ private fun LeitorPaginado(
         aoMudarComentarioDoVideo = painel::mudarComentarioDoVideo,
         aoFecharDialogoDeVideo = painel::fecharDialogoDeVideo,
         aoGerarVideo = painel::gerarVideo,
+        aoCarregarVideosImportados = painel::carregarVideosImportados,
+        aoImportarVideo = painel::importarVideo,
+        aoApagarVideo = painel::apagarVideo,
+        aoDefinirVideoNoTexto = painel::definirVideoNoTexto,
+        aoOcultarPromptDeVideo = painel::ocultarPromptDeVideo,
+        aoSalvarPromptDeVideo = painel::salvarPromptDeVideo,
+        aoTraduzirPrompt = painel::traduzirPrompt,
         aoConfirmarExclusaoDeImagem = painel::confirmarExclusaoDeImagem,
         aoCancelarExclusaoDeImagem = painel::cancelarExclusaoDeImagem,
         aoCancelarGerarPrompt = painel::cancelarGerarPrompt,
@@ -1248,7 +1255,11 @@ private fun LeitorDeTexto(
     // I4: tocar na imagem a abre no tamanho normal (o arquivo `original`), com zoom por pinça; voltar fecha.
     ampliada?.let { artefato ->
         val imagemId = artefato.imagem_id
-        if (urlBase != null && imagemId != null) {
+        val videoId = artefato.video_id
+        if (videoId != null) {
+            // VD17, VD19: o texto mostra o vídeo desta cena; tocar abre o player em vez da imagem.
+            com.allan.imagineer.telas.capitulo.painel.PlayerDeVideo(videoId) { ampliada = null }
+        } else if (urlBase != null && imagemId != null) {
             ImagemEmTelaCheia(
                 imagem = ImagemDoPrompt(id = imagemId),
                 url = enderecoDaImagem(urlBase, imagemId, "original"),

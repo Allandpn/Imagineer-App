@@ -58,6 +58,9 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    // O player do vídeo importado (VD19).
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
     implementation(libs.retrofit.converter.kotlinx.serialization)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

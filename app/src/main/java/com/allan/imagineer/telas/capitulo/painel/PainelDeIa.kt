@@ -8,6 +8,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.LocationOff
@@ -202,6 +203,14 @@ class AcoesDoPainel(
     val aoMudarComentarioDoVideo: (String) -> Unit = {},
     val aoFecharDialogoDeVideo: () -> Unit = {},
     val aoGerarVideo: () -> Unit = {},
+    val aoCarregarVideosImportados: (frameId: Int) -> Unit = {},
+    val aoImportarVideo: (frameId: Int, promptId: Int?, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit = { _, _, _ -> },
+    val aoApagarVideo: (frameId: Int, videoId: Int) -> Unit = { _, _ -> },
+    val aoDefinirVideoNoTexto: (frameId: Int, videoId: Int?) -> Unit = { _, _ -> },
+    val aoOcultarPromptDeVideo: (frameId: Int, promptId: Int, oculto: Boolean) -> Unit = { _, _, _ -> },
+    val aoSalvarPromptDeVideo: (frameId: Int, promptId: Int, texto: String, textoPt: String?) -> Unit = { _, _, _, _ -> },
+    /** O ícone Traduzir do cartão do prompt de imagem (VD14): abre a edição já na aba Português. */
+    val aoTraduzirPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit = { _, _, _ -> },
     val aoConfirmarExclusaoDeImagem: () -> Unit,
     val aoCancelarExclusaoDeImagem: () -> Unit,
     val aoFecharRecusaDeImagem: () -> Unit,
@@ -1196,6 +1205,8 @@ private fun CartaoDePrompt(
                 ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
                 // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
                 BotaoDeIcone(Icons.Filled.Edit, "Editar o prompt", { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) })
+                // VD14: ver o prompt em português, à vista (o mesmo diálogo da edição, já na aba Português).
+                BotaoDeIcone(Icons.Filled.Translate, "Ver em português", { acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto) })
             }
             ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -1312,6 +1323,7 @@ private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, estado: EstadoDoPain
         aoConfirmar = { texto, modelo, textoPt -> acoes.aoGerarImagem(edicao.frameId, edicao.promptId, texto, modelo, textoPt) },
         aoFechar = acoes.aoFecharEdicaoDePrompt,
         rotuloDoFechar = "Cancelar",
+        iniciarEmPortugues = edicao.emPortugues,
     )
 }
 
@@ -1324,7 +1336,7 @@ private fun DialogoDeEdicaoDePrompt(edicao: EdicaoDePrompt, estado: EstadoDoPain
  * prompt novo guardá-lo). O custo da última tradução aparece embaixo.
  */
 @Composable
-private fun DialogoDoTextoDoPrompt(
+internal fun DialogoDoTextoDoPrompt(
     chave: String,
     titulo: String,
     motivo: String?,
@@ -1340,11 +1352,13 @@ private fun DialogoDoTextoDoPrompt(
     aoConfirmar: (texto: String, modelo: String?, textoPt: String?) -> Unit,
     aoFechar: () -> Unit,
     rotuloDoFechar: String,
+    /** Abre já na aba Português (o ícone Traduzir, VD14): traz a tradução logo ao entrar. */
+    iniciarEmPortugues: Boolean = false,
 ) {
     var texto by rememberSaveable(chave) { mutableStateOf(textoInicial) }
     var modelo by rememberSaveable(chave) { mutableStateOf(modeloInicial) }
     // PT7: a aba, o português (nulo = ainda não trazido), o português que gerou o inglês atual e o que a rede está fazendo.
-    var emPortugues by rememberSaveable(chave) { mutableStateOf(false) }
+    var emPortugues by rememberSaveable(chave) { mutableStateOf(iniciarEmPortugues) }
     var textoPt by rememberSaveable(chave) { mutableStateOf<String?>(null) }
     var portuguesEscrito by rememberSaveable(chave) { mutableStateOf<String?>(null) }
     var traduzindo by remember { mutableStateOf(false) }
@@ -1378,6 +1392,8 @@ private fun DialogoDoTextoDoPrompt(
             }
         }
     }
+
+    if (iniciarEmPortugues) LaunchedEffect(chave) { if (textoPt == null && !traduzindo) trazerOPortugues() }
 
     AlertDialog(
         onDismissRequest = aoFechar,

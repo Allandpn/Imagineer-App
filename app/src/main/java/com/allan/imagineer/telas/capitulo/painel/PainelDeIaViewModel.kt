@@ -14,7 +14,9 @@ import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
 import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.PromptDeFrame
+import com.allan.imagineer.rede.VideoImportado
 import com.allan.imagineer.rede.motivoParaNaoImportar
+import com.allan.imagineer.rede.motivoParaNaoImportarVideo
 import com.allan.imagineer.rede.PromptsSemServidor
 import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDePrompts
@@ -107,6 +109,13 @@ sealed interface VideosDoFrame {
     data object Lendo : VideosDoFrame
     data class Pronto(val lista: List<PromptDeFrame>) : VideosDoFrame
     data class Erro(val motivo: String) : VideosDoFrame
+}
+
+/** Os vídeos **importados** de um frame (item 4.8, VD16): lidos uma vez; o importado entra na frente. */
+sealed interface VideosImportadosDoFrame {
+    data object Lendo : VideosImportadosDoFrame
+    data class Pronto(val lista: List<VideoImportado>) : VideosImportadosDoFrame
+    data class Erro(val motivo: String) : VideosImportadosDoFrame
 }
 
 /** O diálogo "Prompt de vídeo" (VD9): as [imagens] do frame, qual é o primeiro quadro ([escolhida]), o comentário e o andamento. */
@@ -235,6 +244,12 @@ data class EstadoDoPainel(
     val videos: Map<Int, VideosDoFrame> = emptyMap(),
     /** O diálogo de gerar o prompt de vídeo; `null` = fechado. */
     val dialogoDeVideo: DialogoDeVideo? = null,
+    /** Os vídeos importados de cada frame, por id do frame (VD16). Só existe a entrada de quem já foi aberto. */
+    val videosImportados: Map<Int, VideosImportadosDoFrame> = emptyMap(),
+    /** Frames com um vídeo sendo enviado (VD18): a fração enviada, ou `null` se ainda não se sabe. */
+    val importandoVideo: Map<Int, Float?> = emptyMap(),
+    /** O recado de cada frame sobre os vídeos: o erro do envio, ou o aviso do que acabou de acontecer. */
+    val mensagensDeVideo: Map<Int, MensagemDoElemento> = emptyMap(),
     /**
      * A imagem canônica de cada frame, por id do frame (VM5). Existe porque ela pode ser de **outro** frame (a "imagem existente" que a
      * pessoa usou): ela não vem na lista de imagens dos prompts deste frame, e a miniatura não aparecia.
@@ -362,7 +377,7 @@ sealed interface CandidatosDoSeletor {
 }
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
-data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String)
+data class EdicaoDePrompt(val frameId: Int, val promptId: Int, val texto: String, val emPortugues: Boolean = false)
 
 data class RecusaDeImagem(val frameId: Int, val promptId: Int, val texto: String, val motivo: String, val modelo: String? = null)
 
@@ -1153,6 +1168,11 @@ class PainelDeIaViewModel(
     /** **Editar** num prompt (R1): abre o diálogo com o texto dele. */
     fun editarPrompt(frameId: Int, promptId: Int, texto: String) {
         _estado.update { it.copy(edicaoDePrompt = EdicaoDePrompt(frameId, promptId, texto)) }
+    }
+
+    /** O ícone **Traduzir** do cartão do prompt (VD14): o mesmo diálogo de editar, já na aba Português. */
+    fun traduzirPrompt(frameId: Int, promptId: Int, texto: String) {
+        _estado.update { it.copy(edicaoDePrompt = EdicaoDePrompt(frameId, promptId, texto, emPortugues = true)) }
     }
 
     /** "Cancelar" no diálogo de edição (R2): nada muda. */
@@ -2049,6 +2069,115 @@ class PainelDeIaViewModel(
                 is ResultadoDaChamada.Falha -> _estado.update { atual ->
                     atual.copy(dialogoDeVideo = atual.dialogoDeVideo?.copy(gerando = false, erro = r.motivo))
                 }
+            }
+        }
+    }
+
+    // --- O vídeo importado (item 4.8, VD12 a VD18) ---------------------------- //
+
+    /** Lê **uma vez** os vídeos importados do frame. */
+    fun carregarVideosImportados(frameId: Int) {
+        if (_estado.value.videosImportados[frameId] != null) return
+        _estado.update { it.copy(videosImportados = it.videosImportados + (frameId to VideosImportadosDoFrame.Lendo)) }
+        viewModelScope.launch {
+            val lido = when (val r = prompts.listarVideosImportados(frameId)) {
+                is ResultadoDaChamada.Sucesso -> VideosImportadosDoFrame.Pronto(r.dado)
+                is ResultadoDaChamada.Falha -> VideosImportadosDoFrame.Erro(r.motivo)
+            }
+            _estado.update { it.copy(videosImportados = it.videosImportados + (frameId to lido)) }
+        }
+    }
+
+    private fun avisarSobreVideo(frameId: Int, texto: String, ehErro: Boolean) {
+        _estado.update { it.copy(mensagensDeVideo = it.mensagensDeVideo + (frameId to MensagemDoElemento(texto, ehErro))) }
+    }
+
+    private fun mudarVideosImportados(frameId: Int, mudar: (List<VideoImportado>) -> List<VideoImportado>) {
+        _estado.update { atual ->
+            val lista = (atual.videosImportados[frameId] as? VideosImportadosDoFrame.Pronto)?.lista ?: return@update atual
+            atual.copy(videosImportados = atual.videosImportados + (frameId to VideosImportadosDoFrame.Pronto(mudar(lista))))
+        }
+    }
+
+    /**
+     * **Importar vídeo** (VD18): [arquivo] `null` é um arquivo que o app não conseguiu descrever. Confere extensão e tamanho **antes** de
+     * enviar; um envio por frame, sem repetição automática. [promptId] é o prompt de vídeo de origem, se a pessoa disse.
+     */
+    fun importarVideo(frameId: Int, promptId: Int?, arquivo: ArquivoEscolhido?) {
+        if (frameId in _estado.value.importandoVideo) return
+        val recusa = if (arquivo == null) "Não consegui abrir o arquivo escolhido." else motivoParaNaoImportarVideo(arquivo)
+        if (arquivo == null || recusa != null) {
+            avisarSobreVideo(frameId, recusa!!, ehErro = true)
+            return
+        }
+        _estado.update { it.copy(importandoVideo = it.importandoVideo + (frameId to null), mensagensDeVideo = it.mensagensDeVideo - frameId) }
+        viewModelScope.launch {
+            val progresso: (Long, Long?) -> Unit = { enviados, total ->
+                val fracao = if (total != null && total > 0) (enviados.toFloat() / total).coerceIn(0f, 1f) else null
+                _estado.update { atual -> if (frameId in atual.importandoVideo) atual.copy(importandoVideo = atual.importandoVideo + (frameId to fracao)) else atual }
+            }
+            val resultado = prompts.importarVideo(frameId, arquivo, promptId, progresso)
+            _estado.update { it.copy(importandoVideo = it.importandoVideo - frameId) }
+            when (resultado) {
+                is ResultadoDaChamada.Sucesso -> {
+                    mudarVideosImportados(frameId) { listOf(resultado.dado) + it.filter { v -> v.id != resultado.dado.id } }
+                    avisarSobreVideo(frameId, "Vídeo importado.", ehErro = false)
+                }
+                is ResultadoDaChamada.Falha -> avisarSobreVideo(frameId, resultado.motivo, ehErro = true)
+            }
+        }
+    }
+
+    /** **Apagar** o vídeo e o arquivo (VD18, sem lixeira). Se era o do texto, o texto volta à imagem: a tela relê os artefatos. */
+    fun apagarVideo(frameId: Int, videoId: Int) {
+        viewModelScope.launch {
+            when (val r = prompts.apagarVideo(videoId)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    val eraDoTexto = (_estado.value.videosImportados[frameId] as? VideosImportadosDoFrame.Pronto)?.lista?.any { it.id == videoId && it.no_texto } == true
+                    mudarVideosImportados(frameId) { lista -> lista.filter { it.id != videoId } }
+                    if (eraDoTexto) _estado.update { it.copy(versaoDosFrames = it.versaoDosFrames + 1) }
+                }
+                is ResultadoDaChamada.Falha -> avisarSobreVideo(frameId, r.motivo, ehErro = true)
+            }
+        }
+    }
+
+    /** **Mostrar no texto** (VD17): o texto passa a mostrar o vídeo [videoId]; `null` volta à imagem. Um só vídeo fica ligado por vez. */
+    fun definirVideoNoTexto(frameId: Int, videoId: Int?) {
+        viewModelScope.launch {
+            when (val r = prompts.definirVideoNoTexto(frameId, videoId)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    mudarVideosImportados(frameId) { lista -> lista.map { it.copy(no_texto = it.id == videoId) } }
+                    _estado.update { it.copy(versaoDosFrames = it.versaoDosFrames + 1) }  // o artefato do texto muda: a tela o relê
+                }
+                is ResultadoDaChamada.Falha -> avisarSobreVideo(frameId, r.motivo, ehErro = true)
+            }
+        }
+    }
+
+    private fun trocarPromptDeVideo(frameId: Int, novo: PromptDeFrame) {
+        _estado.update { atual ->
+            val lista = (atual.videos[frameId] as? VideosDoFrame.Pronto)?.lista ?: return@update atual
+            atual.copy(videos = atual.videos + (frameId to VideosDoFrame.Pronto(lista.map { if (it.id == novo.id) novo else it })))
+        }
+    }
+
+    /** **Ocultar** (ou mostrar de novo) um prompt de vídeo (VD12): ele sai da lista sem ser apagado. */
+    fun ocultarPromptDeVideo(frameId: Int, promptId: Int, oculto: Boolean) {
+        viewModelScope.launch {
+            when (val r = prompts.ajustarPromptDeVideo(promptId, oculto = oculto)) {
+                is ResultadoDaChamada.Sucesso -> trocarPromptDeVideo(frameId, r.dado)
+                is ResultadoDaChamada.Falha -> avisarSobreVideo(frameId, r.motivo, ehErro = true)
+            }
+        }
+    }
+
+    /** **Salvar** o texto editado de um prompt de vídeo (VD13); [textoPt] vai junto quando o inglês veio da tradução do português. */
+    fun salvarPromptDeVideo(frameId: Int, promptId: Int, texto: String, textoPt: String?) {
+        viewModelScope.launch {
+            when (val r = prompts.ajustarPromptDeVideo(promptId, texto = texto, textoPt = textoPt)) {
+                is ResultadoDaChamada.Sucesso -> trocarPromptDeVideo(frameId, r.dado)
+                is ResultadoDaChamada.Falha -> avisarSobreVideo(frameId, r.motivo, ehErro = true)
             }
         }
     }

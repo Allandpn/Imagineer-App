@@ -2,12 +2,12 @@
 
 package com.allan.imagineer.telas.capitulo.painel
 
-import com.allan.imagineer.rede.extensaoDoTipo
-import com.allan.imagineer.rede.enderecoDaImagem
 import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,9 +23,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -38,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,18 +62,25 @@ import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.VideoImportado
+import com.allan.imagineer.rede.enderecoDaImagem
+import com.allan.imagineer.rede.extensaoDoTipo
+import com.allan.imagineer.rede.tamanhoDoVideoParaLer
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 import kotlinx.coroutines.launch
 import java.io.File
 
-// O prompt de vídeo (item 4.8, VD9): a pessoa escolhe a imagem que será o primeiro quadro, a IA monta o prompt e ela o leva, com a imagem,
-// ao app do Gemini (Veo). O Imagineer **não** gera o vídeo.
+// O vídeo de um frame (item 4.8): a pessoa escolhe a imagem que será o primeiro quadro, a IA monta o prompt e ela o leva, com a imagem,
+// a um gerador de vídeo (o Gemini, por exemplo). O Imagineer **não** gera o vídeo: o vídeo pronto volta por **Importar vídeo** (VD18) e
+// pode ser o que o texto mostra no lugar da imagem (VD17), tocado por um player (VD19).
 
 /** O que o diálogo explica antes de gerar (VD9): o custo e quem gera o vídeo. */
 const val AVISO_DO_PROMPT_DE_VIDEO =
-    "A IA monta o prompt do vídeo (uma chamada, uns centavos). O vídeo em si é gerado no app do Gemini, com esta imagem de primeiro quadro."
+    "A IA monta o prompt do vídeo (uma chamada, uns centavos). O vídeo em si é gerado fora, com esta imagem de primeiro quadro; depois, importe-o aqui."
 
 const val ROTULO_PROMPT_DE_VIDEO = "Prompt de vídeo"
+
+const val ROTULO_IMPORTAR_VIDEO = "Importar vídeo"
 
 /** Sem imagem, não há quadro inicial: o servidor faria o modo texto para vídeo, que é o de reserva (VD1) e o app não oferece. */
 const val AVISO_SEM_IMAGEM_PARA_VIDEO = "Gere ou importe uma imagem da cena para criar o prompt de vídeo a partir dela."
@@ -75,64 +91,196 @@ fun imagemDePartidaPadrao(imagens: List<ImagemDoPrompt>): Int? = imagens.firstOr
 /** Os prompts de vídeo do frame, do mais novo para o mais antigo (a leitura do servidor vem do mais antigo). */
 fun videosDoMaisNovoParaOMaisAntigo(lista: List<PromptDeFrame>): List<PromptDeFrame> = lista.sortedByDescending { it.id }
 
+/** Os prompts de vídeo que a lista mostra: os **não ocultos** (VD12), do mais novo ao mais antigo. */
+fun promptsDeVideoVisiveis(lista: List<PromptDeFrame>): List<PromptDeFrame> = videosDoMaisNovoParaOMaisAntigo(lista).filter { !it.oculto }
+
+/** Os que a pessoa escondeu (VD12): não foram apagados e voltam por **Mostrar**. */
+fun promptsDeVideoOcultos(lista: List<PromptDeFrame>): List<PromptDeFrame> = videosDoMaisNovoParaOMaisAntigo(lista).filter { it.oculto }
+
+/** O botão que recolhe e abre a lista de prompts de vídeo (VD12). */
+fun rotuloDeVerPromptsDeVideo(aberto: Boolean, total: Int): String = if (aberto) "Esconder prompts de vídeo" else "Ver prompts de vídeo ($total)"
+
+/** O botão que abre os prompts de vídeo ocultos (VD12). */
+fun rotuloDosPromptsOcultos(aberto: Boolean, total: Int): String = if (aberto) "Esconder os ocultos" else "Ocultos ($total)"
+
+/** A linha de baixo de um vídeo importado (VD18): o tamanho e, se veio de um prompt de vídeo, a origem. */
+fun descreverVideoImportado(video: VideoImportado): String =
+    listOfNotNull(tamanhoDoVideoParaLer(video.tamanho_em_bytes), if (video.prompt_id != null) "de um prompt de vídeo" else null).joinToString(" · ")
+
 /**
- * A seção **Vídeo** de um frame: o botão **Prompt de vídeo** (abre o diálogo de escolher a imagem) e os prompts de vídeo já gerados,
- * cada um com **Copiar** e **Abrir no Gemini**.
+ * A seção **Vídeo** de um frame: **Prompt de vídeo** (abre o diálogo de escolher a imagem), **Importar vídeo**, os prompts de vídeo
+ * **recolhidos** atrás de "Ver prompts de vídeo (N)" (VD12) e os vídeos importados, que se tocam, se escolhem para o texto e se apagam.
  */
 @Composable
 internal fun SecaoDeVideo(frameId: Int, rotulo: String, imagens: List<ImagemDoPrompt>, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
-    LaunchedEffect(frameId) { acoes.aoCarregarVideos(frameId) }
+    LaunchedEffect(frameId) {
+        acoes.aoCarregarVideos(frameId)
+        acoes.aoCarregarVideosImportados(frameId)
+    }
+    val contexto = LocalContext.current
+    val aplicacao = contexto.applicationContext as ImagineerApp
+    var promptDeOrigem by remember(frameId) { mutableStateOf<Int?>(null) }
+    var tocando by remember(frameId) { mutableStateOf<Int?>(null) }
+    var verPrompts by rememberSaveable(frameId) { mutableStateOf(false) }
+    var verOcultos by rememberSaveable(frameId) { mutableStateOf(false) }
+
+    val seletor = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) acoes.aoImportarVideo(frameId, promptDeOrigem, aplicacao.leitorDeArquivos.descrever(uri.toString()))
+    }
+    fun importar(deUmPrompt: Int?) {
+        promptDeOrigem = deUmPrompt
+        seletor.launch(arrayOf("video/*"))
+    }
+
     Text("Vídeo", style = MaterialTheme.typography.titleSmall)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (imagens.isNotEmpty()) {
+            OutlinedButton(onClick = { acoes.aoAbrirDialogoDeVideo(frameId, rotulo, imagens) }) { Text(ROTULO_PROMPT_DE_VIDEO, maxLines = 1, softWrap = false) }
+        }
+        OutlinedButton(onClick = { importar(null) }, enabled = frameId !in estado.importandoVideo) {
+            androidx.compose.material3.Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text("  $ROTULO_IMPORTAR_VIDEO", maxLines = 1, softWrap = false)
+        }
+    }
     if (imagens.isEmpty()) {
         Text(AVISO_SEM_IMAGEM_PARA_VIDEO, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    } else {
-        OutlinedButton(onClick = { acoes.aoAbrirDialogoDeVideo(frameId, rotulo, imagens) }) { Text(ROTULO_PROMPT_DE_VIDEO, maxLines = 1, softWrap = false) }
     }
+    if (frameId in estado.importandoVideo) {
+        val fracao = estado.importandoVideo[frameId]
+        Text("Enviando o vídeo…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (fracao != null) LinearProgressIndicator(progress = { fracao }, modifier = Modifier.fillMaxWidth())
+        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+    estado.mensagensDeVideo[frameId]?.let {
+        Text(it.texto, style = MaterialTheme.typography.bodySmall, color = if (it.ehErro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary)
+    }
+
+    // Os vídeos importados: o que a pessoa quer ver e tocar, sempre à mostra.
+    when (val importados = estado.videosImportados[frameId]) {
+        null, VideosImportadosDoFrame.Lendo -> Unit
+        is VideosImportadosDoFrame.Erro -> Text(importados.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        is VideosImportadosDoFrame.Pronto -> importados.lista.forEach { video ->
+            CartaoDeVideoImportado(video, aoTocar = { tocando = video.id }, frameId = frameId, acoes = acoes)
+        }
+    }
+    tocando?.let { PlayerDeVideo(it) { tocando = null } }
+
+    // Os prompts de vídeo: recolhidos (VD12); os ocultos têm a própria porta.
     when (val videos = estado.videos[frameId]) {
         null, VideosDoFrame.Lendo -> Unit
         is VideosDoFrame.Erro -> Text(videos.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-        is VideosDoFrame.Pronto -> videosDoMaisNovoParaOMaisAntigo(videos.lista).forEach { video -> CartaoDeVideo(video) }
+        is VideosDoFrame.Pronto -> {
+            val visiveis = promptsDeVideoVisiveis(videos.lista)
+            val ocultos = promptsDeVideoOcultos(videos.lista)
+            if (visiveis.isNotEmpty()) TextButton(onClick = { verPrompts = !verPrompts }) { Text(rotuloDeVerPromptsDeVideo(verPrompts, visiveis.size)) }
+            if (verPrompts) visiveis.forEach { prompt -> CartaoDeVideo(prompt, frameId, acoes, aoImportarDeste = { importar(prompt.id) }) }
+            if (ocultos.isNotEmpty()) {
+                TextButton(onClick = { verOcultos = !verOcultos }) { Text(rotuloDosPromptsOcultos(verOcultos, ocultos.size)) }
+                if (verOcultos) ocultos.forEach { prompt -> CartaoDeVideo(prompt, frameId, acoes, aoImportarDeste = { importar(prompt.id) }) }
+            }
+        }
     }
 }
 
+/** Um vídeo importado (VD18): **Tocar**, **No texto** (liga e desliga o que o capítulo mostra, VD17) e **Apagar** (com confirmação). */
 @Composable
-private fun CartaoDeVideo(video: PromptDeFrame) {
+private fun CartaoDeVideoImportado(video: VideoImportado, aoTocar: () -> Unit, frameId: Int, acoes: AcoesDoPainel) {
+    var confirmandoApagar by remember(video.id) { mutableStateOf(false) }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Vídeo importado", style = MaterialTheme.typography.titleSmall)
+            Text(descreverVideoImportado(video), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                BotaoDeIcone(Icons.Filled.PlayArrow, "Tocar o vídeo", aoTocar)
+                FilterChip(
+                    selected = video.no_texto,
+                    onClick = { acoes.aoDefinirVideoNoTexto(frameId, if (video.no_texto) null else video.id) },
+                    label = { Text(if (video.no_texto) "Aparece no texto" else "Mostrar no texto") },
+                )
+                BotaoDeIcone(Icons.Filled.Delete, "Apagar o vídeo", { confirmandoApagar = true }, cor = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+    if (confirmandoApagar) {
+        AlertDialog(
+            onDismissRequest = { confirmandoApagar = false },
+            title = { Text("Apagar este vídeo?") },
+            text = { Text("O arquivo sai do servidor, sem lixeira. Se o texto mostrava o vídeo, volta a mostrar a imagem.") },
+            confirmButton = { TextButton(onClick = { confirmandoApagar = false; acoes.aoApagarVideo(frameId, video.id) }) { Text("Apagar") } },
+            dismissButton = { TextButton(onClick = { confirmandoApagar = false }) { Text("Cancelar") } },
+        )
+    }
+}
+
+/**
+ * Um prompt de vídeo, com tudo à mão: **Copiar**, **Compartilhar** (VD15), **Editar** (VD13), **Traduzir** (VD14), **Ocultar** ou
+ * **Mostrar** (VD12) e **Importar vídeo** deste prompt (o vídeo importado diz de qual prompt veio, VD18).
+ */
+@Composable
+private fun CartaoDeVideo(video: PromptDeFrame, frameId: Int, acoes: AcoesDoPainel, aoImportarDeste: () -> Unit) {
     val contexto = LocalContext.current
     val aplicacao = contexto.applicationContext as ImagineerApp
     val escopo = rememberCoroutineScope()
     val area = LocalClipboardManager.current
     var abrindo by remember { mutableStateOf(false) }
+    // Editando; e se o diálogo abre já na aba Português (o ícone Traduzir).
+    var editando by remember(video.id) { mutableStateOf(false) }
+    var emPortugues by remember(video.id) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(ROTULO_PROMPT_DE_VIDEO, style = MaterialTheme.typography.titleSmall)
+            Text(if (video.oculto) "$ROTULO_PROMPT_DE_VIDEO (oculto)" else ROTULO_PROMPT_DE_VIDEO, style = MaterialTheme.typography.titleSmall)
             video.imagem_partida_id?.let { MiniaturaDoQuadroInicial(it) }
             SelectionContainer { Text(video.texto, style = MaterialTheme.typography.bodyMedium) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 BotaoDeIcone(Icons.Filled.ContentCopy, "Copiar o prompt de vídeo", {
                     area.setText(AnnotatedString(video.texto))
                     Toast.makeText(contexto, "Prompt de vídeo copiado.", Toast.LENGTH_SHORT).show()
                 })
-                OutlinedButton(
-                    enabled = !abrindo,
-                    onClick = {
+                BotaoDeIcone(Icons.Filled.Share, "Compartilhar o prompt de vídeo", {
+                    if (!abrindo) {
                         abrindo = true
                         escopo.launch {
                             try {
-                                // O prompt vai também para a área de transferência: se o Gemini não aproveitar o texto junto da imagem, é só colar.
+                                // O prompt vai também para a área de transferência: se o app escolhido não aproveitar o texto junto da imagem, é só colar.
                                 area.setText(AnnotatedString(video.texto))
-                                abrirNoGemini(contexto, aplicacao, video)
+                                compartilharPromptDeVideo(contexto, aplicacao, video)
                             } finally {
                                 abrindo = false
                             }
                         }
-                    },
-                ) {
-                    androidx.compose.material3.Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text("  Abrir no Gemini", maxLines = 1, softWrap = false)
-                }
+                    }
+                })
+                BotaoDeIcone(Icons.Filled.Edit, "Editar o prompt de vídeo", { emPortugues = false; editando = true })
+                BotaoDeIcone(Icons.Filled.Translate, "Ver em português", { emPortugues = true; editando = true })
+                BotaoDeIcone(Icons.Filled.Upload, "Importar o vídeo deste prompt", aoImportarDeste)
+                if (video.oculto) BotaoDeIcone(Icons.Filled.Visibility, "Mostrar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, false) })
+                else BotaoDeIcone(Icons.Filled.VisibilityOff, "Ocultar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, true) })
             }
             if (abrindo) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
+    }
+    if (editando) {
+        DialogoDoTextoDoPrompt(
+            chave = "video${video.id}",
+            titulo = "Editar o prompt de vídeo",
+            motivo = null,
+            explicacao = "O texto novo substitui o atual neste prompt. Vale o inglês: é ele que vai ao gerador de vídeo.",
+            textoInicial = video.texto,
+            rotuloDoBotao = "Salvar",
+            opcoesDeModelo = emptyList(),
+            opcoesSemFiltro = emptyList(),
+            padraoDoServidor = null,
+            modeloInicial = null,
+            promptId = video.id,
+            acoes = acoes,
+            aoConfirmar = { texto, _, textoPt ->
+                acoes.aoSalvarPromptDeVideo(frameId, video.id, texto, textoPt)
+                editando = false
+            },
+            aoFechar = { editando = false },
+            rotuloDoFechar = "Cancelar",
+            iniciarEmPortugues = emPortugues,
+        )
     }
 }
 
@@ -151,11 +299,12 @@ private fun MiniaturaDoQuadroInicial(imagemId: Int) {
 }
 
 /**
- * **Abrir no Gemini** (VD9): baixa a imagem de partida para o cache e abre o seletor de apps com o **texto e a imagem juntos**
- * (`ACTION_SEND` com `EXTRA_TEXT` e `EXTRA_STREAM`). Se o Gemini aproveita os dois ou só um é coisa que só se vê no aparelho: por isso o
- * prompt também foi para a área de transferência. Sem imagem de partida, compartilha só o texto. Nada aqui fecha o app.
+ * **Compartilhar** (VD15): baixa a imagem de partida para o cache e abre a folha de compartilhamento do Android com o **texto e a imagem
+ * juntos** (`ACTION_SEND` com `EXTRA_TEXT` e `EXTRA_STREAM`); o aplicativo é a pessoa que escolhe. Se ele aproveita os dois ou só um é coisa que
+ * só se vê no aparelho: por isso o prompt também foi para a área de transferência. Sem imagem de partida, compartilha só o texto. Nada aqui
+ * fecha o app.
  */
-private suspend fun abrirNoGemini(contexto: Context, aplicacao: ImagineerApp, video: PromptDeFrame) {
+private suspend fun compartilharPromptDeVideo(contexto: Context, aplicacao: ImagineerApp, video: PromptDeFrame) {
     val imagemId = video.imagem_partida_id
     try {
         var arquivo: File? = null
@@ -185,12 +334,12 @@ private suspend fun abrirNoGemini(contexto: Context, aplicacao: ImagineerApp, vi
                 type = "text/plain"
             }
         }
-        contexto.startActivity(Intent.createChooser(envio, "Abrir no Gemini").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        Toast.makeText(contexto, "Prompt copiado. Se o Gemini abrir só com a imagem, cole o prompt.", Toast.LENGTH_LONG).show()
+        contexto.startActivity(Intent.createChooser(envio, "Compartilhar o prompt de vídeo").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        Toast.makeText(contexto, "Prompt copiado. Se o app escolhido receber só a imagem, cole o prompt.", Toast.LENGTH_LONG).show()
     } catch (erro: kotlinx.coroutines.CancellationException) {
         throw erro
     } catch (erro: Exception) {
-        Log.e(ETIQUETA_DO_LOG, "Não consegui abrir o prompt de vídeo no Gemini", erro)
+        Log.e(ETIQUETA_DO_LOG, "Não consegui compartilhar o prompt de vídeo", erro)
         Toast.makeText(contexto, "Não consegui compartilhar (${erro.javaClass.simpleName}). O prompt está copiado.", Toast.LENGTH_LONG).show()
     }
 }

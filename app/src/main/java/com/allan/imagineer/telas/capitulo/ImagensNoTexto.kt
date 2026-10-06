@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo
 
+import androidx.compose.material.icons.filled.PlayArrow
 import com.allan.imagineer.rede.Destaque
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -58,14 +59,30 @@ internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier
             .aspectRatio(proporcao)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.Black)
-            .clickable(onClickLabel = "Ampliar a imagem", onClick = aoTocar),
+            .clickable(onClickLabel = if (artefato.video_id != null) "Tocar o vídeo" else "Ampliar a imagem", onClick = aoTocar),
     ) {
         AsyncImage(
             model = enderecoDaImagem(urlBase, imagemId, "leitura"),
             contentDescription = "Imagem de ${artefato.rotulo}",
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = "Imagem de ${artefato.rotulo}. Toque para ampliar." },
+            modifier = Modifier.fillMaxSize().semantics {
+                contentDescription = if (artefato.video_id != null) "Vídeo de ${artefato.rotulo}. Toque para tocar." else "Imagem de ${artefato.rotulo}. Toque para ampliar."
+            },
         )
+        // VD17: o texto mostra o vídeo; a imagem da cena é a capa dele, com o botão de tocar por cima.
+        if (artefato.video_id != null) {
+            Box(
+                modifier = Modifier.align(androidx.compose.ui.Alignment.Center).size(56.dp).background(Color.Black.copy(alpha = 0.55f), androidx.compose.foundation.shape.CircleShape),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                androidx.compose.material3.Icon(
+                    androidx.compose.material.icons.Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
+        }
     }
 }
 

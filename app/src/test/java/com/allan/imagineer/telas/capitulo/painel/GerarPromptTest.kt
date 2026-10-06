@@ -3,6 +3,7 @@ package com.allan.imagineer.telas.capitulo.painel
 import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.rede.ImagemDoPrompt
 import com.allan.imagineer.rede.PromptDeFrame
+import com.allan.imagineer.rede.VideoImportado
 import com.allan.imagineer.rede.ReferenciaVisual
 import com.allan.imagineer.rede.RepositorioDePrompts
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -63,6 +64,50 @@ internal class PromptsFalso : RepositorioDePrompts {
     override suspend fun gerarVideo(frameId: Int, imagemPartidaId: Int?, comentario: String?): ResultadoDaChamada<PromptDeFrame> {
         videosPedidos += Triple(frameId, imagemPartidaId, comentario)
         return geracaoDeVideo
+    }
+
+    /** Os vídeos importados (item 4.8, VD16 a VD18) e o que o app pediu a eles. */
+    var videosImportadosDoFrame: ResultadoDaChamada<List<VideoImportado>> = ResultadoDaChamada.Sucesso(emptyList())
+    var videosImportadosListados = 0
+    val videosEnviados = mutableListOf<Triple<Int, String, Int?>>() // frame, nome do arquivo e prompt de origem
+    var envioDeVideo: ResultadoDaChamada<VideoImportado> = ResultadoDaChamada.Sucesso(VideoImportado(id = 500, frame_id = 80, tamanho_em_bytes = 1000))
+    val videosApagados = mutableListOf<Int>()
+    var apagamentoDeVideo: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    val videosNoTexto = mutableListOf<Pair<Int, Int?>>()
+    var escolhaDoVideoNoTexto: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    val ajustesDePromptDeVideo = mutableListOf<Triple<Int, Boolean?, String?>>() // prompt, oculto e texto
+    var resultadoDoAjuste: ((Int, Boolean?, String?, String?) -> ResultadoDaChamada<PromptDeFrame>)? = null
+
+    override suspend fun listarVideosImportados(frameId: Int): ResultadoDaChamada<List<VideoImportado>> {
+        videosImportadosListados++
+        return videosImportadosDoFrame
+    }
+
+    override suspend fun importarVideo(
+        frameId: Int,
+        arquivo: ArquivoEscolhido,
+        promptId: Int?,
+        aoProgredir: (enviados: Long, total: Long?) -> Unit,
+    ): ResultadoDaChamada<VideoImportado> {
+        videosEnviados += Triple(frameId, arquivo.nome, promptId)
+        aoProgredir(arquivo.tamanho ?: 0L, arquivo.tamanho)
+        return envioDeVideo
+    }
+
+    override suspend fun apagarVideo(videoId: Int): ResultadoDaChamada<Unit> {
+        videosApagados += videoId
+        return apagamentoDeVideo
+    }
+
+    override suspend fun definirVideoNoTexto(frameId: Int, videoId: Int?): ResultadoDaChamada<Unit> {
+        videosNoTexto += frameId to videoId
+        return escolhaDoVideoNoTexto
+    }
+
+    override suspend fun ajustarPromptDeVideo(promptId: Int, oculto: Boolean?, texto: String?, textoPt: String?): ResultadoDaChamada<PromptDeFrame> {
+        ajustesDePromptDeVideo += Triple(promptId, oculto, texto)
+        return resultadoDoAjuste?.invoke(promptId, oculto, texto, textoPt)
+            ?: ResultadoDaChamada.Sucesso(PromptDeFrame(promptId, 80, texto ?: "texto", tipo = "VIDEO", oculto = oculto ?: false, texto_pt = textoPt))
     }
 
     /** O detalhe de cada prompt (com as imagens), por id; o que não foi combinado falha. */
