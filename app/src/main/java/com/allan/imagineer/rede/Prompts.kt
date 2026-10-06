@@ -544,8 +544,8 @@ object PromptsSemServidor : RepositorioDePrompts {
 // Regras puras da importação de imagem (J2, J7)
 // ---------------------------------------------------------------------------------------------------------------------
 
-/** O maior arquivo que o servidor aceita (item 6.6): 25 MB. */
-const val TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES = 25L * 1024 * 1024
+/** O maior arquivo que o servidor aceita (item 6.6): 15 MB. */
+const val TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES = 15L * 1024 * 1024
 
 private val TIPOS_DE_IMAGEM = mapOf(
     "png" to "image/png",
@@ -590,7 +590,7 @@ fun nomeParaEnviar(arquivo: ArquivoEscolhido): String {
  */
 fun motivoParaNaoImportar(arquivo: ArquivoEscolhido): String? = when {
     extensaoDaImagem(arquivo) == null -> "Escolha uma imagem PNG, JPG, WEBP ou GIF."
-    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES -> "A imagem passa de 25 MB, o limite do servidor."
+    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DA_IMAGEM_EM_BYTES -> "A imagem passa de 15 MB, o limite do servidor."
     else -> null
 }
 

@@ -4,7 +4,7 @@ package com.allan.imagineer.rede
 sealed interface ResultadoDoTeste {
 
     /** O servidor respondeu como o Imagineer. [servidorTemChave]: se ele tem chave de API própria. */
-    data class Conectado(val servidorTemChave: Boolean) : ResultadoDoTeste
+    data class Conectado(val servidorTemChave: Boolean, val quem: EuAtual? = null) : ResultadoDoTeste
 
     /** Não deu certo; [motivo] já está escrito para o usuário ler. */
     data class Falhou(val motivo: String) : ResultadoDoTeste
@@ -24,9 +24,13 @@ interface ServidorImagineer {
 class ServidorPeloRetrofit : ServidorImagineer {
 
     override suspend fun testarConexao(urlBase: String): ResultadoDoTeste {
-        return when (val resultado = chamarApi { criarApi(urlBase).configuracao() }) {
-            is ResultadoDaChamada.Sucesso ->
-                ResultadoDoTeste.Conectado(servidorTemChave = resultado.dado.tem_chave_api)
+        val api = criarApi(urlBase)
+        return when (val resultado = chamarApi { api.configuracao() }) {
+            is ResultadoDaChamada.Sucesso -> {
+                // AP5: quem o servidor diz que sou; um servidor antigo, sem a rota, só não mostra.
+                val quem = (chamarApi { api.eu() } as? ResultadoDaChamada.Sucesso)?.dado
+                ResultadoDoTeste.Conectado(servidorTemChave = resultado.dado.tem_chave_api, quem = quem)
+            }
             is ResultadoDaChamada.Falha -> ResultadoDoTeste.Falhou(resultado.motivo)
         }
     }

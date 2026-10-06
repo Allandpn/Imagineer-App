@@ -45,9 +45,9 @@ class RegrasDaImportacaoDeImagemTest {
     }
 
     @Test
-    fun `J2 recusa o que passa de 25 MB mas aceita exatamente 25 MB`() {
-        assertEquals("A imagem passa de 25 MB, o limite do servidor.", motivoParaNaoImportar(foto(tamanho = 25L * 1024 * 1024 + 1)))
-        assertNull(motivoParaNaoImportar(foto(tamanho = 25L * 1024 * 1024)))
+    fun `J2 recusa o que passa de 15 MB mas aceita exatamente 15 MB`() {
+        assertEquals("A imagem passa de 15 MB, o limite do servidor.", motivoParaNaoImportar(foto(tamanho = 15L * 1024 * 1024 + 1)))
+        assertNull(motivoParaNaoImportar(foto(tamanho = 15L * 1024 * 1024)))
         assertNull("tamanho desconhecido: o servidor confere", motivoParaNaoImportar(foto(tamanho = null)))
     }
 

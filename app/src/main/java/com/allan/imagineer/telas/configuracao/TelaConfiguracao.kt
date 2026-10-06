@@ -158,12 +158,7 @@ private fun ResultadoDoTesteNaTela(teste: EstadoDoTeste) {
             Text("Testando…")
         }
         is EstadoDoTeste.Conectado -> Text(
-            text = if (teste.servidorTemChave) {
-                "Conectado. O servidor tem chave de API própria."
-            } else {
-                "Conectado. O servidor não tem chave de API própria — as chamadas de IA " +
-                    "precisarão da sua (Bloco E)."
-            },
+            text = textoDaConexao(teste),
             color = MaterialTheme.colorScheme.primary,
         )
         is EstadoDoTeste.Falhou -> Text(
@@ -171,4 +166,15 @@ private fun ResultadoDoTesteNaTela(teste: EstadoDoTeste) {
             color = MaterialTheme.colorScheme.error,
         )
     }
+}
+
+/** O que a tela diz depois de conectar (AP5): quem o servidor reconhece e se as chamadas de IA usam a chave do servidor ou a da própria pessoa. */
+fun textoDaConexao(teste: EstadoDoTeste.Conectado): String {
+    val inicio = teste.quem?.let { "Conectado como ${it.rotulo}${if (it.dono) " (dono)" else ""}." } ?: "Conectado."
+    val chave = if (teste.servidorTemChave) {
+        "As chamadas de IA usam a chave do servidor."
+    } else {
+        "As chamadas de IA precisam da sua chave: cadastre em Configurações → Chaves de IA."
+    }
+    return "$inicio $chave"
 }

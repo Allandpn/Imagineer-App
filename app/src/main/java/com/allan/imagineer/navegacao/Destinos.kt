@@ -132,6 +132,14 @@ object ModelosDeImagem
 @Serializable
 object Dicionarios
 
+/** As chaves de IA da pessoa, uma por provedor (bloco K, AP4). */
+@Serializable
+object ChavesDeIa
+
+/** A administração do servidor: limites e contas, só para o dono (bloco K, AP7). */
+@Serializable
+object Administracao
+
 /** A configuração da narração (RL26). */
 @Serializable
 object Narracao

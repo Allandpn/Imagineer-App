@@ -23,6 +23,10 @@ sealed interface ResultadoDaChamada<out T> {
     data class Falha(val motivo: String, val codigoHttp: Int? = null) : ResultadoDaChamada<Nothing>
 }
 
+/** O que a pessoa lê quando o servidor responde 401 (modo `tailscale`: ele não a identificou) — AP6. */
+const val MOTIVO_DO_401 =
+    "O servidor não reconheceu você. Confira se o aparelho foi compartilhado com a sua conta do Tailscale."
+
 /**
  * Executa uma chamada de rede e traduz as falhas, sempre do mesmo jeito.
  *
@@ -45,7 +49,7 @@ suspend fun <T> chamarApi(chamada: suspend () -> T): ResultadoDaChamada<T> {
             null
         }
         ResultadoDaChamada.Falha(
-            motivo = extrairDetalhe(corpo) ?: "O servidor respondeu com erro ${erro.code()}.",
+            motivo = if (erro.code() == 401) MOTIVO_DO_401 else extrairDetalhe(corpo) ?: "O servidor respondeu com erro ${erro.code()}.",
             codigoHttp = erro.code(),
         )
     } catch (erro: SerializationException) {

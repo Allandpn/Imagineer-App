@@ -185,6 +185,30 @@ interface ApiImagineer {
     @POST("livros/{id}/leitura/tempo")
     suspend fun somarTempoDeLeitura(@Path("id") livroId: Int, @Body corpo: JsonObject): JsonObject
 
+    /** `GET /configuracao/provedores` — os provedores de IA e o header da chave de cada um (CT24). */
+    @GET("configuracao/provedores")
+    suspend fun provedoresDeIa(): List<ProvedorDeIa>
+
+    /** `GET /eu` — a pessoa que o servidor reconhece neste pedido (CT12). */
+    @GET("eu")
+    suspend fun eu(): EuAtual
+
+    /** `GET /admin/limites` — os limites e o espaço usado; só o dono (404 para os demais). */
+    @GET("admin/limites")
+    suspend fun limitesDoServidor(): LimitesDoServidor
+
+    /** `PUT /admin/limites` — muda só os campos enviados. */
+    @PUT("admin/limites")
+    suspend fun gravarLimitesDoServidor(@Body corpo: JsonObject): LimitesDoServidor
+
+    /** `GET /admin/usuarios` — as contas, com o espaço de cada uma; só o dono. */
+    @GET("admin/usuarios")
+    suspend fun contasDoServidor(): List<ContaDoServidor>
+
+    /** `PATCH /admin/usuarios/{id}` — `usa_chaves_do_servidor` e/ou `cota_em_gb` (`null` volta ao padrão). */
+    @PATCH("admin/usuarios/{id}")
+    suspend fun ajustarConta(@Path("id") contaId: Int, @Body corpo: JsonObject): ContaDoServidor
+
     /** `GET /livros/{id}/pins` — as posições marcadas à mão, na ordem do livro, com o começo do parágrafo (PN3). */
     @GET("livros/{id}/pins")
     suspend fun pins(@Path("id") livroId: Int): List<PinDoLivro>
@@ -662,6 +686,20 @@ data class ConfiguracaoAtual(
  */
 val jsonDoImagineer = Json { ignoreUnknownKeys = true }
 
+/**
+ * Põe em **cada chamada** o header de cada chave de IA cadastrada neste aparelho (AP3): `X-Chave-API-OpenRouter`, `X-Chave-API-Fal`, etc.
+ * O servidor usa a chave naquela chamada e não a grava (CT19). Sem chave cadastrada, nenhum header vai.
+ */
+internal fun interceptadorDasChavesDeIa(chaves: () -> Map<String, String>) = Interceptor { cadeia ->
+    val guardadas = chaves()
+    if (guardadas.isEmpty()) {
+        cadeia.proceed(cadeia.request())
+    } else {
+        val pedido = cadeia.request().newBuilder().apply { guardadas.forEach { (cabecalho, chave) -> header(cabecalho, chave) } }.build()
+        cadeia.proceed(pedido)
+    }
+}
+
 /** O cabeçalho que uma chamada usa para pedir um tempo de espera de leitura maior. */
 const val CABECALHO_TEMPO_DE_ESPERA = "X-Timeout-Leitura"
 
@@ -690,7 +728,7 @@ internal val interceptadorDeTempoDeEspera = Interceptor { cadeia ->
  * @param urlBase sem barra final, como o app guarda; o Retrofit exige a barra e
  * ela é acrescentada aqui.
  */
-fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30): ApiImagineer {
+fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30, chaves: () -> Map<String, String> = { emptyMap() }): ApiImagineer {
     val cliente = OkHttpClient.Builder()
         // O servidor (uvicorn) fecha a conexão ociosa depois de 5 s. Se o app a guardasse mais que isso, o primeiro pedido depois de uma
         // pausa sairia por uma conexão já morta, e um corpo de uso único (importar imagem ou EPUB) não pode ser reenviado pelo OkHttp:
@@ -701,6 +739,7 @@ fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30): ApiImagineer 
         // O padrão (10 s por escrita) é curto para subir um EPUB numa conexão lenta.
         .writeTimeout(60, TimeUnit.SECONDS)
         .addInterceptor(interceptadorDeTempoDeEspera)
+        .addInterceptor(interceptadorDasChavesDeIa(chaves))
         .build()
 
     return Retrofit.Builder()

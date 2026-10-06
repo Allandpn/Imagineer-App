@@ -57,9 +57,9 @@ class RegrasDoVideoImportadoTest {
     }
 
     @Test
-    fun acima_de_200_mb_o_app_recusa_antes_de_enviar() {
-        assertNull(motivoParaNaoImportarVideo(arquivo("a.mp4", tamanho = 200L * 1024 * 1024)))
-        assertEquals("O vídeo passa de 200 MB, o limite do servidor.", motivoParaNaoImportarVideo(arquivo("a.mp4", tamanho = 200L * 1024 * 1024 + 1)))
+    fun acima_de_50_mb_o_app_recusa_antes_de_enviar() {
+        assertNull(motivoParaNaoImportarVideo(arquivo("a.mp4", tamanho = 50L * 1024 * 1024)))
+        assertEquals("O vídeo passa de 50 MB, o limite do servidor.", motivoParaNaoImportarVideo(arquivo("a.mp4", tamanho = 50L * 1024 * 1024 + 1)))
         assertNull(motivoParaNaoImportarVideo(arquivo("a.mp4", tamanho = null)))  // tamanho desconhecido: o servidor decide
     }
 
@@ -184,7 +184,7 @@ class VideoImportadoNoPainelTest {
         assertEquals("Escolha um vídeo MP4, MOV ou WEBM.", vm.estado.value.mensagensDeVideo[80]?.texto)
         vm.importarVideo(80, null, null); advanceUntilIdle()
         assertEquals("Não consegui abrir o arquivo escolhido.", vm.estado.value.mensagensDeVideo[80]?.texto)
-        vm.importarVideo(80, null, arquivo("cena.mp4", tamanho = 300L * 1024 * 1024)); advanceUntilIdle()
+        vm.importarVideo(80, null, arquivo("cena.mp4", tamanho = 80L * 1024 * 1024)); advanceUntilIdle()
 
         assertTrue(prompts.videosEnviados.isEmpty())
         assertTrue(vm.estado.value.mensagensDeVideo[80]!!.ehErro)

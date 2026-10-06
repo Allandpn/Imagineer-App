@@ -17,7 +17,11 @@ class ServidorEmUso(val api: ApiImagineer, val chave: ChaveDoCache)
  * guarda o último par (URL, API) e só remonta se a URL salva mudou. Existe para os
  * vários repositórios (livros, capítulos...) não repetirem esta lógica.
  */
-class ProvedorDeApi(private val armazenamento: ArmazenamentoDeConfiguracao) {
+class ProvedorDeApi(
+    private val armazenamento: ArmazenamentoDeConfiguracao,
+    /** As chaves de IA da pessoa (AP2): vão em header a cada chamada. */
+    private val cofre: com.allan.imagineer.dados.CofreDeChaves = com.allan.imagineer.dados.CofreEmMemoria(),
+) {
 
     private var urlEmUso: String? = null
     private var apiEmUso: ApiImagineer? = null
@@ -32,7 +36,7 @@ class ProvedorDeApi(private val armazenamento: ArmazenamentoDeConfiguracao) {
     suspend fun emUso(): ServidorEmUso? {
         val url = armazenamento.urlDoServidor.first() ?: return null
         if (url != urlEmUso) {
-            apiEmUso = criarApi(url)
+            apiEmUso = criarApi(url, chaves = cofre::chaves)
             urlEmUso = url
         }
         return ServidorEmUso(apiEmUso!!, ChaveDoCache(servidor = url))

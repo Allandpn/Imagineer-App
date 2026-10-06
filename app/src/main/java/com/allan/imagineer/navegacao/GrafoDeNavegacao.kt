@@ -1,5 +1,7 @@
 package com.allan.imagineer.navegacao
 
+import com.allan.imagineer.telas.menu.TelaAdministracao
+import com.allan.imagineer.telas.menu.TelaChavesDeIa
 import com.allan.imagineer.telas.menu.TelaNarracao
 import com.allan.imagineer.telas.menu.TelaDicionarios
 import com.allan.imagineer.telas.menu.TelaPerfis
@@ -163,6 +165,8 @@ fun GrafoDeNavegacao() {
         composable<Armazenamento> { TelaArmazenamento(aoVoltar = { controle.popBackStack() }) }
         composable<Dicionarios> { TelaDicionarios(aoVoltar = { controle.popBackStack() }) }
         composable<Narracao> { TelaNarracao(aoVoltar = { controle.popBackStack() }) }
+        composable<ChavesDeIa> { TelaChavesDeIa(aoVoltar = { controle.popBackStack() }) }
+        composable<Administracao> { TelaAdministracao(aoVoltar = { controle.popBackStack() }) }
         composable<Configuracoes> { entrada ->
             TelaConfiguracoes(
                 aoVoltar = { controle.popBackStack() },
@@ -172,6 +176,8 @@ fun GrafoDeNavegacao() {
                 aoAbrirArmazenamento = { if (entrada.estaNaFrente()) controle.navigate(Armazenamento) },
                 aoAbrirDicionarios = { if (entrada.estaNaFrente()) controle.navigate(Dicionarios) },
                 aoAbrirNarracao = { if (entrada.estaNaFrente()) controle.navigate(Narracao) },
+                aoAbrirChavesDeIa = { if (entrada.estaNaFrente()) controle.navigate(ChavesDeIa) },
+                aoAbrirAdministracao = { if (entrada.estaNaFrente()) controle.navigate(Administracao) },
             )
         }
         composable<Lixeira> {

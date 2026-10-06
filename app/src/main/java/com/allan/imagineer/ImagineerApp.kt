@@ -51,7 +51,16 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
 
     val leitorDeArquivos: LeitorDeArquivos by lazy { LeitorDeArquivosDoAndroid(this) }
 
-    private val provedorDeApi: ProvedorDeApi by lazy { ProvedorDeApi(armazenamento) }
+    /** As chaves de IA da pessoa, cifradas pelo Keystore, na pasta sem backup (AP2). */
+    val cofreDeChaves: com.allan.imagineer.dados.CofreDeChaves by lazy {
+        com.allan.imagineer.dados.CofreDeChavesDoAndroid(File(noBackupFilesDir, "chaves_de_ia.properties"))
+    }
+
+    private val provedorDeApi: ProvedorDeApi by lazy { ProvedorDeApi(armazenamento, cofreDeChaves) }
+
+    val repositorioDeContas: com.allan.imagineer.rede.RepositorioDeContas by lazy {
+        com.allan.imagineer.rede.RepositorioDeContasPeloRetrofit(provedorDeApi)
+    }
 
     // O que fica guardado no aparelho (item 7.0a). Na pasta "sem backup": o Android não
     // envia estes arquivos para a nuvem do Google (regra A12).

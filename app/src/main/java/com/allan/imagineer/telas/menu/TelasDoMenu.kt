@@ -137,6 +137,8 @@ fun TelaConfiguracoes(
     aoAbrirArmazenamento: () -> Unit = {},
     aoAbrirDicionarios: () -> Unit = {},
     aoAbrirNarracao: () -> Unit = {},
+    aoAbrirChavesDeIa: () -> Unit = {},
+    aoAbrirAdministracao: () -> Unit = {},
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val escopo = rememberCoroutineScope()
@@ -144,6 +146,10 @@ fun TelaConfiguracoes(
     val modo by aplicacao.armazenamento.modoDaBiblioteca.collectAsState(initial = null)
     val destaqueGuardado by aplicacao.armazenamento.corDeDestaque.collectAsState(initial = null)
     val atual = ModoDaBiblioteca.deTexto(modo)
+    // AP7: a Administração só aparece para o dono; sem conexão ou com servidor antigo (sem /eu), não aparece.
+    val ehDono by androidx.compose.runtime.produceState(false) {
+        value = (aplicacao.repositorioDeContas.eu() as? com.allan.imagineer.rede.ResultadoDaChamada.Sucesso)?.dado?.dono == true
+    }
 
     TelaDoMenu("Configurações", aoVoltar) {
         LinhaDeConfiguracao("Servidor", url ?: "Não configurado", aoAbrirServidor)
@@ -152,6 +158,12 @@ fun TelaConfiguracoes(
         HorizontalDivider()
         LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos)
         HorizontalDivider()
+        LinhaDeConfiguracao("Chaves de IA", "A chave de cada provedor, guardada só neste aparelho", aoAbrirChavesDeIa)
+        HorizontalDivider()
+        if (ehDono) {
+            LinhaDeConfiguracao("Administração", "Limites do servidor e contas", aoAbrirAdministracao)
+            HorizontalDivider()
+        }
         LinhaDeConfiguracao("Dicionários", "Quais aparecem ao tocar numa palavra e em que ordem", aoAbrirDicionarios)
         HorizontalDivider()
         LinhaDeConfiguracao("Narração", "A voz do botão Ouvir", aoAbrirNarracao)

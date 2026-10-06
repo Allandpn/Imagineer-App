@@ -20,7 +20,7 @@ data class VideoImportado(
     val no_texto: Boolean = false,
 )
 
-const val TAMANHO_MAXIMO_DO_VIDEO_EM_BYTES = 200L * 1024 * 1024
+const val TAMANHO_MAXIMO_DO_VIDEO_EM_BYTES = 50L * 1024 * 1024
 
 /** As extensões que o servidor aceita e o tipo de cada uma (VD16). */
 val TIPOS_DE_VIDEO = mapOf(
@@ -56,7 +56,7 @@ fun nomeDoVideoParaEnviar(arquivo: ArquivoEscolhido): String {
 /** Confere, **antes de enviar**, o que o servidor recusaria: a extensão e o tamanho. Devolve o motivo, ou `null` se pode enviar. */
 fun motivoParaNaoImportarVideo(arquivo: ArquivoEscolhido): String? = when {
     extensaoDoVideo(arquivo) == null -> "Escolha um vídeo MP4, MOV ou WEBM."
-    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DO_VIDEO_EM_BYTES -> "O vídeo passa de 200 MB, o limite do servidor."
+    (arquivo.tamanho ?: 0L) > TAMANHO_MAXIMO_DO_VIDEO_EM_BYTES -> "O vídeo passa de 50 MB, o limite do servidor."
     else -> null
 }
 

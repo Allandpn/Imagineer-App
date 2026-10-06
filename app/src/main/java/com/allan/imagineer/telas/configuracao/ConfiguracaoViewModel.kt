@@ -22,7 +22,7 @@ sealed interface EstadoDoTeste {
 
     data object Testando : EstadoDoTeste
 
-    data class Conectado(val servidorTemChave: Boolean) : EstadoDoTeste
+    data class Conectado(val servidorTemChave: Boolean, val quem: com.allan.imagineer.rede.EuAtual? = null) : EstadoDoTeste
 
     data class Falhou(val motivo: String) : EstadoDoTeste
 }
@@ -95,7 +95,7 @@ class ConfiguracaoViewModel(
                 it.copy(
                     teste = when (resultado) {
                         is ResultadoDoTeste.Conectado ->
-                            EstadoDoTeste.Conectado(resultado.servidorTemChave)
+                            EstadoDoTeste.Conectado(resultado.servidorTemChave, resultado.quem)
                         is ResultadoDoTeste.Falhou -> EstadoDoTeste.Falhou(resultado.motivo)
                     },
                 )
