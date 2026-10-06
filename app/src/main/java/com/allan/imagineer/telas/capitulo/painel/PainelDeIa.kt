@@ -550,17 +550,18 @@ private fun ListaDeSugestoes(
         }
 
         if (sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty() || cenasDeTrechos.isNotEmpty()) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Elementos e cenas", style = MaterialTheme.typography.titleSmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item { Text("Elementos e cenas", style = MaterialTheme.typography.titleSmall) }
+            // As abas ficam fixas no alto enquanto a lista rola, e acompanham o deslize para os lados (um toque também vale).
+            stickyHeader {
+                androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surface) {
+                    androidx.compose.material3.PrimaryTabRow(selectedTabIndex = estado.filtro.ordinal) {
                         FiltroDoPainel.entries.forEach { filtro ->
                             // As cenas de trechos já nascem confirmadas: contam em "Confirmados".
                             val total = (contagem[filtro] ?: 0) + if (filtro == FiltroDoPainel.CONFIRMADOS) cenasDeTrechos.size else 0
-                            FilterChip(
+                            androidx.compose.material3.Tab(
                                 selected = estado.filtro == filtro,
                                 onClick = { acoes.aoEscolherFiltro(filtro) },
-                                label = { Text("${filtro.rotulo} ($total)") },
+                                text = { Text("${filtro.rotulo} ($total)", maxLines = 1) },
                             )
                         }
                     }

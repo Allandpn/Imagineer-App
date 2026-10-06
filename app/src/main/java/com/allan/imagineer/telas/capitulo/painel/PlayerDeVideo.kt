@@ -48,35 +48,36 @@ const val AVISO_DE_VIDEO_QUE_NAO_TOCOU = "Não consegui tocar o vídeo. Confira 
 fun PlayerDeVideo(videoId: Int, aoFechar: () -> Unit) {
     val contexto = LocalContext.current
     val urlBase = urlDoServidorEmUso()
-    var erro by remember(videoId) { mutableStateOf<String?>(if (urlBase == null) AVISO_DE_VIDEO_QUE_NAO_TOCOU else null) }
+    // O endereço do servidor chega **um instante depois** da primeira composição (vem do DataStore): o player só nasce quando ele chega.
+    // (Criá-lo antes deixava-o sem vídeo, e o toque no play dava erro.)
+    var erro by remember(videoId) { mutableStateOf<String?>(null) }
 
-    val player = remember(videoId) {
-        ExoPlayer.Builder(contexto).build().apply {
-            if (urlBase != null) {
-                setMediaItem(MediaItem.fromUri(enderecoDoVideo(urlBase, videoId)))
-                prepare()
-                playWhenReady = true
-            }
+    val player = remember(videoId, urlBase) {
+        if (urlBase == null) null
+        else ExoPlayer.Builder(contexto).build().apply {
+            setMediaItem(MediaItem.fromUri(enderecoDoVideo(urlBase, videoId)))
+            prepare()
+            playWhenReady = true
             addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
-                    erro = AVISO_DE_VIDEO_QUE_NAO_TOCOU
+                    erro = "$AVISO_DE_VIDEO_QUE_NAO_TOCOU (${error.errorCodeName})"
                 }
             })
         }
     }
-    DisposableEffect(player) { onDispose { player.release() } }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
+    DisposableEffect(player) { onDispose { player?.release() } }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player?.pause() }
 
     Dialog(onDismissRequest = aoFechar, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView(
                 factory = { contextoDaView ->
                     PlayerView(contextoDaView).apply {
-                        this.player = player
                         setShowNextButton(false)
                         setShowPreviousButton(false)
                     }
                 },
+                update = { it.player = player },  // o player pode nascer depois da view (o endereço do servidor chega depois)
                 modifier = Modifier.fillMaxSize(),
             )
             erro?.let {
