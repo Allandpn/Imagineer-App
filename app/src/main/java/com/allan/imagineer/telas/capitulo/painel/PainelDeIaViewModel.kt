@@ -118,6 +118,9 @@ sealed interface VideosImportadosDoFrame {
     data class Erro(val motivo: String) : VideosImportadosDoFrame
 }
 
+/** O frame (e o prompt de vídeo de origem, se foi dele que a pessoa tocou em importar) do vídeo que o seletor está escolhendo. */
+data class AlvoDaImportacaoDeVideo(val frameId: Int, val promptId: Int?)
+
 /** O diálogo "Prompt de vídeo" (VD9): as [imagens] do frame, qual é o primeiro quadro ([escolhida]), o comentário e o andamento. */
 data class DialogoDeVideo(
     val frameId: Int,
@@ -244,6 +247,8 @@ data class EstadoDoPainel(
     val videos: Map<Int, VideosDoFrame> = emptyMap(),
     /** O diálogo de gerar o prompt de vídeo; `null` = fechado. */
     val dialogoDeVideo: DialogoDeVideo? = null,
+    /** Para onde vai o vídeo que o seletor do Android está escolhendo (VD18); `null` = nenhum seletor aberto. */
+    val alvoDoVideo: AlvoDaImportacaoDeVideo? = null,
     /** Os vídeos importados de cada frame, por id do frame (VD16). Só existe a entrada de quem já foi aberto. */
     val videosImportados: Map<Int, VideosImportadosDoFrame> = emptyMap(),
     /** Frames com um vídeo sendo enviado (VD18): a fração enviada, ou `null` se ainda não se sabe. */
@@ -2097,6 +2102,19 @@ class PainelDeIaViewModel(
             val lista = (atual.videosImportados[frameId] as? VideosImportadosDoFrame.Pronto)?.lista ?: return@update atual
             atual.copy(videosImportados = atual.videosImportados + (frameId to VideosImportadosDoFrame.Pronto(mudar(lista))))
         }
+    }
+
+    /** O botão **Importar vídeo** foi tocado: guarda para onde o vídeo vai antes de abrir o seletor (o modal some enquanto ele está aberto). */
+    fun escolherVideoPara(frameId: Int, promptId: Int?) {
+        _estado.update { it.copy(alvoDoVideo = AlvoDaImportacaoDeVideo(frameId, promptId)) }
+    }
+
+    /** O seletor devolveu (ou não) um arquivo: [cancelou] é só desistir; senão segue para [importarVideo]. */
+    fun videoEscolhido(arquivo: ArquivoEscolhido?, cancelou: Boolean) {
+        val alvo = _estado.value.alvoDoVideo ?: return
+        _estado.update { it.copy(alvoDoVideo = null) }
+        if (cancelou) return
+        importarVideo(alvo.frameId, alvo.promptId, arquivo)
     }
 
     /**

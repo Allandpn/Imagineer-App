@@ -6,8 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -117,20 +115,12 @@ internal fun SecaoDeVideo(frameId: Int, rotulo: String, imagens: List<ImagemDoPr
         acoes.aoCarregarVideos(frameId)
         acoes.aoCarregarVideosImportados(frameId)
     }
-    val contexto = LocalContext.current
-    val aplicacao = contexto.applicationContext as ImagineerApp
-    var promptDeOrigem by remember(frameId) { mutableStateOf<Int?>(null) }
     var tocando by remember(frameId) { mutableStateOf<Int?>(null) }
     var verPrompts by rememberSaveable(frameId) { mutableStateOf(false) }
     var verOcultos by rememberSaveable(frameId) { mutableStateOf(false) }
 
-    val seletor = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) acoes.aoImportarVideo(frameId, promptDeOrigem, aplicacao.leitorDeArquivos.descrever(uri.toString()))
-    }
-    fun importar(deUmPrompt: Int?) {
-        promptDeOrigem = deUmPrompt
-        seletor.launch(arrayOf("video/*"))
-    }
+    // O seletor de vídeos mora na tela do capítulo (o modal some enquanto ele está aberto); aqui só se pede.
+    fun importar(deUmPrompt: Int?) = acoes.aoEscolherVideo(frameId, deUmPrompt)
 
     Text("Vídeo", style = MaterialTheme.typography.titleSmall)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

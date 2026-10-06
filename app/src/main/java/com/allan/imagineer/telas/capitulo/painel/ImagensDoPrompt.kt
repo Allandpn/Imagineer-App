@@ -312,6 +312,8 @@ internal fun ImagemEmTelaCheia(
     outraAcao: Pair<String, () -> Unit>? = null,
     /** Abre o perfil do elemento (ou da cena) da imagem; `null` quando não se sabe de quem ela é. */
     aoVerPerfil: (() -> Unit)? = null,
+    /** O frame, quando a imagem é de uma **cena**: a barra ganha o coração da cena, além do da imagem (RL36). */
+    cenaParaFavoritar: Int? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -420,8 +422,16 @@ internal fun ImagemEmTelaCheia(
                     val favorita = favoritos.de(alvo) != null
                     IconeDaBarra(
                         if (favorita) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        if (favorita) "Desfavoritar" else "Favoritar", "Favorita", marcado = favorita, onClick = { favoritos.alternar(alvo) },
+                        if (favorita) "Desfavoritar a imagem" else "Favoritar a imagem", "Imagem", marcado = favorita, onClick = { favoritos.alternar(alvo) },
                     )
+                    cenaParaFavoritar?.let { frameId ->
+                        val alvoDaCena = com.allan.imagineer.rede.AlvoDeFavorito.Cena(frameId)
+                        val cenaFavorita = favoritos.de(alvoDaCena) != null
+                        IconeDaBarra(
+                            if (cenaFavorita) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            if (cenaFavorita) "Desfavoritar a cena" else "Favoritar a cena", "Cena", marcado = cenaFavorita, onClick = { favoritos.alternar(alvoDaCena) },
+                        )
+                    }
                 }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
                 if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", "Lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)

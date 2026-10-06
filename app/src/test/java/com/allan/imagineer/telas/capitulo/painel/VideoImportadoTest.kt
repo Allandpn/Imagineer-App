@@ -298,6 +298,33 @@ class VideoImportadoNoPainelTest {
     }
 
     @Test
+    fun o_alvo_do_seletor_sobrevive_ate_o_arquivo_voltar_e_so_entao_envia() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+
+        vm.escolherVideoPara(80, promptId = 7)
+        assertEquals(AlvoDaImportacaoDeVideo(80, 7), vm.estado.value.alvoDoVideo)  // o modal pode sumir: o alvo fica no ViewModel
+        vm.videoEscolhido(arquivo("cena.mp4"), cancelou = false); advanceUntilIdle()
+
+        assertNull(vm.estado.value.alvoDoVideo)
+        assertEquals(listOf(Triple(80, "cena.mp4", 7)), prompts.videosEnviados)
+    }
+
+    @Test
+    fun desistir_do_seletor_nao_envia_nada_e_limpa_o_alvo() = runTest {
+        val prompts = PromptsFalso()
+        val vm = vm(prompts)
+
+        vm.escolherVideoPara(80, null)
+        vm.videoEscolhido(null, cancelou = true); advanceUntilIdle()
+        vm.videoEscolhido(arquivo("cena.mp4"), cancelou = false); advanceUntilIdle()  // sem alvo: ignorado
+
+        assertNull(vm.estado.value.alvoDoVideo)
+        assertTrue(prompts.videosEnviados.isEmpty())
+        assertNull(vm.estado.value.mensagensDeVideo[80])
+    }
+
+    @Test
     fun o_icone_traduzir_abre_a_edicao_ja_em_portugues() = runTest {
         val vm = vm(PromptsFalso())
 

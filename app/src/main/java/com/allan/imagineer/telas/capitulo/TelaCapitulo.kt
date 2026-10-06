@@ -471,6 +471,11 @@ private fun LeitorPaginado(
         painel.imagemEscolhida(uri?.let { aplicacaoDoSeletor.leitorDeArquivos.descrever(it.toString()) }, cancelou = uri == null)
     }
 
+    // VD18: o seletor de vídeos mora aqui pelo mesmo motivo: o modal da cena não está na tela enquanto o seletor do Android está aberto.
+    val seletorDeVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        painel.videoEscolhido(uri?.let { aplicacaoDoSeletor.leitorDeArquivos.descrever(it.toString()) }, cancelou = uri == null)
+    }
+
     // Posicionando com o painel em tela cheia: o painel fecha e, quando o modo termina (escolheu o parágrafo ou cancelou), volta.
     var reabrirPainelAoFim by remember { mutableStateOf(false) }
     LaunchedEffect(estadoDoPainel.posicionando) {
@@ -572,7 +577,10 @@ private fun LeitorPaginado(
         aoFecharDialogoDeVideo = painel::fecharDialogoDeVideo,
         aoGerarVideo = painel::gerarVideo,
         aoCarregarVideosImportados = painel::carregarVideosImportados,
-        aoImportarVideo = painel::importarVideo,
+        aoEscolherVideo = { frameId, promptId ->
+            painel.escolherVideoPara(frameId, promptId)
+            seletorDeVideo.launch(arrayOf("video/*"))
+        },
         aoApagarVideo = painel::apagarVideo,
         aoDefinirVideoNoTexto = painel::definirVideoNoTexto,
         aoOcultarPromptDeVideo = painel::ocultarPromptDeVideo,
@@ -1270,6 +1278,7 @@ private fun LeitorDeTexto(
                 acaoExtra = artefato.frame_id?.let { frame -> ROTULO_OCULTAR_DO_CAPITULO to { aoOcultarImagem(frame); ampliada = null } },
                 // O perfil de quem a imagem ilustra: o elemento (ficha) ou a cena (o modal dela).
                 aoVerPerfil = if (artefato.sugestao_id != null || artefato.frame_id != null) ({ aoVerPerfilDoArtefato(artefato); ampliada = null }) else null,
+                cenaParaFavoritar = artefato.frame_id.takeIf { artefato.tipo == "CENA" },
             )
         }
     }

@@ -204,7 +204,8 @@ class AcoesDoPainel(
     val aoFecharDialogoDeVideo: () -> Unit = {},
     val aoGerarVideo: () -> Unit = {},
     val aoCarregarVideosImportados: (frameId: Int) -> Unit = {},
-    val aoImportarVideo: (frameId: Int, promptId: Int?, arquivo: com.allan.imagineer.dados.ArquivoEscolhido?) -> Unit = { _, _, _ -> },
+    /** Abre o seletor de vídeos para o frame (e o prompt de vídeo de origem, se houver): o seletor mora na tela do capítulo, não no modal. */
+    val aoEscolherVideo: (frameId: Int, promptId: Int?) -> Unit = { _, _ -> },
     val aoApagarVideo: (frameId: Int, videoId: Int) -> Unit = { _, _ -> },
     val aoDefinirVideoNoTexto: (frameId: Int, videoId: Int?) -> Unit = { _, _ -> },
     val aoOcultarPromptDeVideo: (frameId: Int, promptId: Int, oculto: Boolean) -> Unit = { _, _, _ -> },
@@ -1032,6 +1033,8 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                     )
                 }
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
+                // RL36: favoritar a cena direto do cartão da lista (a confirmada, a que tem frame).
+                cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
                 IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
                     Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
                 }
