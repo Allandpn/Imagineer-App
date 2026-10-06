@@ -41,6 +41,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -179,6 +181,7 @@ private fun CartaoDeVideoImportado(video: VideoImportado, aoTocar: () -> Unit, f
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Vídeo importado", style = MaterialTheme.typography.titleSmall)
+            MiniaturaDoVideo(video.id, aoTocar)
             Text(descreverVideoImportado(video), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (video.no_texto) Text("No texto, no lugar da imagem canônica.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -274,6 +277,32 @@ private fun CartaoDeVideo(video: PromptDeFrame, frameId: Int, acoes: AcoesDoPain
             rotuloDoFechar = "Cancelar",
             iniciarEmPortugues = emPortugues,
         )
+    }
+}
+
+/** A miniatura do vídeo: o **primeiro quadro** (o aparelho o tira na primeira vez e guarda); tocar nela toca o vídeo. Preta enquanto não vem. */
+@Composable
+private fun MiniaturaDoVideo(videoId: Int, aoTocar: () -> Unit) {
+    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
+    val quadro by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, videoId) { value = aplicacao.postersDeVideo.obter(videoId) }
+    val proporcao = quadro?.let { com.allan.imagineer.rede.proporcaoDoQuadro(it.width, it.height) } ?: (16f / 9f)
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .size(width = (72 * proporcao).dp.coerceAtMost(128.dp), height = 72.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.Black)
+            .clickable(onClickLabel = "Tocar o vídeo", onClick = aoTocar),
+        contentAlignment = androidx.compose.ui.Alignment.Center,
+    ) {
+        quadro?.let {
+            androidx.compose.foundation.Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "Primeiro quadro do vídeo",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        androidx.compose.material3.Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
     }
 }
 
