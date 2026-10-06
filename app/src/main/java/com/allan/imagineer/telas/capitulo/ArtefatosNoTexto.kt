@@ -85,4 +85,11 @@ fun quadroDaImagem(orientacao: String?): QuadroDaImagem = if (orientacao == "RET
  * (dois artefatos do mesmo frame mostram a mesma).
  */
 fun imagensDoParagrafo(artefatos: List<Artefato>): List<Artefato> =
-    artefatos.filter { it.situacao == "ILUSTRADO" && it.imagem_id != null }.distinctBy { it.imagem_id }
+    artefatos.filter { it.situacao == "ILUSTRADO" && (it.imagem_id != null || it.video_id != null) }
+        .distinctBy { if (it.video_id != null) "v${it.video_id}" else "i${it.imagem_id}" }
+
+/**
+ * O formato do quadro de um artefato no texto (VD17): o do **vídeo**, se o texto mostra um (paisagem na largura da área de leitura, retrato na
+ * metade, as mesmas regras da imagem), senão o da imagem.
+ */
+fun orientacaoDoQuadro(artefato: Artefato): String? = if (artefato.video_id != null) artefato.video_orientacao else artefato.imagem_orientacao

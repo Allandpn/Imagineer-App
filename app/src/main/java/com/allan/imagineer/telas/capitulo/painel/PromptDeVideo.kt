@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Upload
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -180,12 +180,15 @@ private fun CartaoDeVideoImportado(video: VideoImportado, aoTocar: () -> Unit, f
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Vídeo importado", style = MaterialTheme.typography.titleSmall)
             Text(descreverVideoImportado(video), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (video.no_texto) Text("No texto, no lugar da imagem canônica.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 BotaoDeIcone(Icons.Filled.PlayArrow, "Tocar o vídeo", aoTocar)
-                FilterChip(
-                    selected = video.no_texto,
-                    onClick = { acoes.aoDefinirVideoNoTexto(frameId, if (video.no_texto) null else video.id) },
-                    label = { Text(if (video.no_texto) "Aparece no texto" else "Mostrar no texto") },
+                // VD17: posicionar o vídeo no texto (o ícone de localização, como o da cena): ele ocupa o lugar da imagem canônica, que fica oculta no capítulo.
+                BotaoDeIcone(
+                    Icons.Filled.Place,
+                    if (video.no_texto) "Tirar o vídeo do texto" else "Posicionar o vídeo no texto",
+                    { acoes.aoDefinirVideoNoTexto(frameId, if (video.no_texto) null else video.id) },
+                    cor = if (video.no_texto) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 BotaoDeIcone(Icons.Filled.Delete, "Apagar o vídeo", { confirmandoApagar = true }, cor = MaterialTheme.colorScheme.error)
             }

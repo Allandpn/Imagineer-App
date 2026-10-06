@@ -54,7 +54,8 @@ import com.allan.imagineer.rede.enderecoDaImagem
  */
 @Composable
 internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier: Modifier, aoTocar: () -> Unit) {
-    val imagemId = artefato.imagem_id ?: return
+    val imagemId = artefato.imagem_id
+    if (imagemId == null && artefato.video_id == null) return
     // VD17: com vídeo no texto, o quadro mostra o **primeiro quadro do vídeo** (e não a imagem da cena). Enquanto ele não vem (o aparelho o
     // tira do vídeo na primeira vez), fica preto; se não der para tirá-lo, cai na imagem da cena.
     val aplicacao = androidx.compose.ui.platform.LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp
@@ -64,7 +65,7 @@ internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier
     val (leu, poster) = primeiroQuadro
     val esperandoOQuadro = artefato.video_id != null && !leu
     val proporcao = poster?.let { com.allan.imagineer.rede.proporcaoDoQuadro(it.width, it.height) }
-        ?: if (quadroDaImagem(artefato.imagem_orientacao) == QuadroDaImagem.RETRATO) 2f / 3f else 16f / 9f
+        ?: if (quadroDaImagem(orientacaoDoQuadro(artefato)) == QuadroDaImagem.RETRATO) 2f / 3f else 16f / 9f
     Box(
         modifier = modifier
             .aspectRatio(proporcao)
@@ -80,7 +81,7 @@ internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().semantics { contentDescription = descricao },
             )
-        } else if (!esperandoOQuadro) {
+        } else if (!esperandoOQuadro && imagemId != null) {
             AsyncImage(
                 model = enderecoDaImagem(urlBase, imagemId, "leitura"),
                 contentDescription = "Imagem de ${artefato.rotulo}",

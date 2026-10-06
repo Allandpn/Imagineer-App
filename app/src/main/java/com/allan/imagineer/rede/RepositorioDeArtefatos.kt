@@ -35,6 +35,10 @@ data class Artefato(
     val imagem_altura: Int? = null,
     /** O vídeo que o texto mostra no lugar da imagem (VD17); tocar no artefato o toca. Nulo = mostra a imagem. */
     val video_id: Int? = null,
+    /** O formato do vídeo real (VD17): `RETRATO` ou `PAISAGEM`; nulo sem tamanho (WebM), e então vale paisagem. */
+    val video_orientacao: String? = null,
+    val video_largura: Int? = null,
+    val video_altura: Int? = null,
 )
 
 /**
