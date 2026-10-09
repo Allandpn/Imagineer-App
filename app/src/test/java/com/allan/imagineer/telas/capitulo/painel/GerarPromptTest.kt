@@ -36,6 +36,10 @@ internal class PromptsFalso : RepositorioDePrompts {
     var geracao: ResultadoDaChamada<PromptDeFrame> = ResultadoDaChamada.Sucesso(prompt(99))
     var travaDaGeracao: CompletableDeferred<Unit>? = null
 
+    /** Para os testes da fila (item 7.5e): resposta por frame (prompt) e por prompt (imagem); sem isso, valem [geracao] e [resultadoDaGeracaoDeImagem]. */
+    var aoGerarPrompt: ((frameId: Int) -> ResultadoDaChamada<PromptDeFrame>)? = null
+    var aoGerarImagem: ((promptId: Int) -> ResultadoDaChamada<ResultadoDaGeracao>)? = null
+
     /** Respostas de `listar` em sequência (a primeira chamada leva a primeira...); acabando, vale [lista]. Para simular o servidor mudando. */
     val sequenciaDeListagens = mutableListOf<ResultadoDaChamada<List<PromptDeFrame>>>()
 
@@ -47,7 +51,7 @@ internal class PromptsFalso : RepositorioDePrompts {
     override suspend fun gerar(frameId: Int, comentario: String?): ResultadoDaChamada<PromptDeFrame> {
         geracoes += frameId to comentario
         travaDaGeracao?.await()
-        return geracao
+        return aoGerarPrompt?.invoke(frameId) ?: geracao
     }
 
     /** Os prompts de vídeo (item 4.8): o que `listarVideos` devolve e o que cada `gerarVideo` pediu (frame, imagem de partida, comentário). */
@@ -213,7 +217,7 @@ internal class PromptsFalso : RepositorioDePrompts {
         geracoesDeImagem += promptId to textoEditado
         modelosPedidos += modelo
         travaDaGeracaoDeImagem?.await()
-        return resultadoDaGeracaoDeImagem
+        return aoGerarImagem?.invoke(promptId) ?: resultadoDaGeracaoDeImagem
     }
 
     override suspend fun detalhar(promptId: Int): ResultadoDaChamada<PromptDeFrame> {

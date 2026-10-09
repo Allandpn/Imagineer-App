@@ -60,6 +60,15 @@ internal fun CartaoDoQueVaiAparecer(frameId: Int, estado: EstadoDoPainel, acoes:
                 }
                 TextButton(onClick = { aberto = !aberto }) { Text(if (aberto) "Recolher" else "Ver e ajustar", maxLines = 1, softWrap = false) }
             }
+            // AP8: o aviso fica à vista mesmo com o cartão recolhido, porque é o que evita gerar a imagem com o prompt velho.
+            val promptsAgora = (estado.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size
+            if (listaMudouSemPromptNovo(estado.listaMudouComPrompts[frameId], promptsAgora)) {
+                Text(AVISO_LISTA_MUDOU, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                Button(
+                    onClick = { acoes.aoPedirGerarPrompt(frameId, estado.rotulosDeFrame[frameId] ?: "Cena") },
+                    enabled = frameId !in estado.gerandoPrompt,
+                ) { Text("Gerar prompt novo", maxLines = 1, softWrap = false) }
+            }
             if (!aberto) return@Column
             when (dossie) {
                 null, DossieDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())

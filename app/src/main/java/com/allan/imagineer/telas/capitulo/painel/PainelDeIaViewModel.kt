@@ -24,6 +24,7 @@ import com.allan.imagineer.rede.RepositorioDeElementos
 import com.allan.imagineer.rede.RepositorioDePrompts
 import com.allan.imagineer.rede.RepositorioDeSugestoes
 import com.allan.imagineer.rede.ResultadoDaChamada
+import com.allan.imagineer.rede.ResultadoDaGeracao
 import com.allan.imagineer.rede.SugestoesDeCapitulo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -330,6 +331,10 @@ data class EstadoDoPainel(
     val acrescentandoAoDossie: Int? = null,
     /** A conferência de uma imagem (AP7); `null` = nenhuma em curso. */
     val conferencia: ConferenciaEmCurso? = null,
+    /** A geração de vários artefatos em fila (item 7.5e, GF1 a GF8): o modo Selecionar, as caixas, a confirmação, o andamento e o resumo. */
+    val fila: EstadoDaFila = EstadoDaFila(),
+    /** Cenas cuja lista foi editada e confirmada com prompts já feitos (AP8): o frame e **quantos prompts tinha** na hora; some quando nasce um novo. */
+    val listaMudouComPrompts: Map<Int, Int> = emptyMap(),
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -638,30 +643,52 @@ class PainelDeIaViewModel(
      */
     private fun iniciarFluxoDeImagem(chave: String, rotulo: String, frameInicial: Int?, apenasPrompt: Boolean, criarFrame: (suspend () -> Int?)?) {
         if (chave in _estado.value.etapasDeImagem) return
+        viewModelScope.launch { executarFluxoDeImagem(chave, rotulo, frameInicial, apenasPrompt, criarFrame) }
+    }
+
+    /**
+     * O corpo do fluxo de um toque, que também é o de **cada item da fila** (GF1): devolve o que aconteceu, para a fila decidir se
+     * segue. As mensagens de erro continuam indo para o estado (o cartão mostra), como sempre. Quem chama já conferiu que a [chave]
+     * não está em andamento.
+     */
+    private suspend fun executarFluxoDeImagem(
+        chave: String,
+        rotulo: String,
+        frameInicial: Int?,
+        apenasPrompt: Boolean,
+        criarFrame: (suspend () -> Int?)?,
+    ): DesfechoDoItem {
         definirEtapa(chave, if (frameInicial == null) EtapaDaImagem.CRIANDO_O_RETRATO else EtapaDaImagem.GERANDO_A_IMAGEM)
-        viewModelScope.launch {
-            var frameId = frameInicial
-            try {
-                frameId = frameInicial ?: criarFrame?.invoke() ?: return@launch
-                val existentes = when (val leitura = prompts.listar(frameId)) {
-                    is ResultadoDaChamada.Sucesso -> leitura.dado
-                    is ResultadoDaChamada.Falha -> {
-                        _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(leitura.motivo, ehErro = true))) }
-                        return@launch
-                    }
+        var frameId = frameInicial
+        try {
+            frameId = frameInicial ?: criarFrame?.invoke() ?: return DesfechoDoItem.Falhou("Não foi possível criar o retrato.")
+            val existentes = when (val leitura = prompts.listar(frameId)) {
+                is ResultadoDaChamada.Sucesso -> leitura.dado
+                is ResultadoDaChamada.Falha -> {
+                    _estado.update { it.copy(mensagensDePrompt = it.mensagensDePrompt + (frameId to MensagemDoElemento(leitura.motivo, ehErro = true))) }
+                    return DesfechoDoItem.Falhou(leitura.motivo, ehFalhaGeral(leitura))
                 }
-                // O servidor entrega do mais antigo ao mais recente: o último é o que vale (Q2).
-                val prompt = promptsComTexto(existentes).lastOrNull() ?: run {  // PI4: o prompt só da imagem não vale
-                    definirEtapa(chave, EtapaDaImagem.MONTANDO_O_PROMPT)
-                    gerarPromptDoFluxo(frameId, rotulo) ?: return@launch
-                }
-                if (apenasPrompt) return@launch // GP2: o prompt já está gravado; a imagem fica para quando o usuário quiser
-                definirEtapa(chave, EtapaDaImagem.GERANDO_A_IMAGEM)
-                if (reservarGeracaoDeImagem(prompt.id)) concluirGeracaoDeImagem(frameId, prompt.id, null, _estado.value.modeloEscolhido)
-            } finally {
-                _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem - chave) }
-                frameId?.let { relerPromptsSemPiscar(it) } // K6: o frame pode ter prompt novo e imagem nova
             }
+            // O servidor entrega do mais antigo ao mais recente: o último é o que vale (Q2).
+            val prompt = promptsComTexto(existentes).lastOrNull() ?: run {  // PI4: o prompt só da imagem não vale
+                definirEtapa(chave, EtapaDaImagem.MONTANDO_O_PROMPT)
+                when (val feito = gerarPromptDoFluxo(frameId, rotulo)) {
+                    is ResultadoDaChamada.Sucesso -> feito.dado
+                    is ResultadoDaChamada.Falha -> return DesfechoDoItem.Falhou(feito.motivo, ehFalhaGeral(feito))
+                }
+            }
+            if (apenasPrompt) return DesfechoDoItem.Gerado // GP2: o prompt já está gravado; a imagem fica para quando o usuário quiser
+            definirEtapa(chave, EtapaDaImagem.GERANDO_A_IMAGEM)
+            if (!reservarGeracaoDeImagem(prompt.id)) return DesfechoDoItem.Pulado("a imagem já estava sendo gerada")
+            return when (val feita = concluirGeracaoDeImagem(frameId, prompt.id, null, _estado.value.modeloEscolhido)) {
+                is ResultadoDaChamada.Falha -> DesfechoDoItem.Falhou(feita.motivo, ehFalhaGeral(feita))
+                is ResultadoDaChamada.Sucesso ->
+                    if (feita.dado.gerada) DesfechoDoItem.Gerado
+                    else DesfechoDoItem.Falhou("O provedor recusou o prompt. Abra o item para editá-lo e tentar de novo.")
+            }
+        } finally {
+            _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem - chave) }
+            frameId?.let { relerPromptsSemPiscar(it) } // K6: o frame pode ter prompt novo e imagem nova
         }
     }
 
@@ -669,8 +696,144 @@ class PainelDeIaViewModel(
         _estado.update { it.copy(etapasDeImagem = it.etapasDeImagem + (chave to etapa)) }
     }
 
+    // ------------------------------------------------------------------ //
+    // A geração de vários artefatos em fila (item 7.5e, GF1 a GF8)
+    // ------------------------------------------------------------------ //
+
+    private fun mexerNaFila(mudar: (EstadoDaFila) -> EstadoDaFila) {
+        _estado.update { it.copy(fila = mudar(it.fila)) }
+    }
+
+    /** Liga ou desliga o modo **Selecionar** (GF2). Desligar limpa as caixas. Com a fila rodando, nada muda. */
+    fun alternarSelecaoDaFila() {
+        mexerNaFila { fila ->
+            when {
+                fila.rodando -> fila
+                fila.selecionando -> fila.copy(selecionando = false, marcados = emptySet(), confirmando = null)
+                else -> fila.copy(selecionando = true, resumo = null)
+            }
+        }
+    }
+
+    /** Marca ou desmarca a caixa do item de [chave] (GF2). */
+    fun alternarMarcaDaFila(chave: String) {
+        mexerNaFila { fila ->
+            if (!fila.selecionando || fila.rodando) fila
+            else fila.copy(marcados = if (chave in fila.marcados) fila.marcados - chave else fila.marcados + chave)
+        }
+    }
+
+    /** **Marcar todos os que faltam** (GF2): os que podem entrar e ainda não estão ilustrados. */
+    fun marcarOsQueFaltamNaFila(itens: List<ItemDaFila>) {
+        mexerNaFila { fila -> if (!fila.selecionando || fila.rodando) fila else fila.copy(marcados = chavesQueFaltam(itens)) }
+    }
+
+    /** **Limpar** (GF2): desmarca tudo e continua no modo Selecionar. */
+    fun limparMarcasDaFila() {
+        mexerNaFila { fila -> if (fila.rodando) fila else fila.copy(marcados = emptySet()) }
+    }
+
+    /** Os dois botões (GF3): monta o que vai acontecer e abre o diálogo de confirmação; **não gasta nada** ainda. */
+    fun pedirFila(acao: AcaoDaFila, itens: List<ItemDaFila>) {
+        mexerNaFila { fila ->
+            if (fila.rodando) return@mexerNaFila fila
+            val pedido = prepararPedido(acao, itens, fila.marcados)
+            if (pedido.aFazer.isEmpty() && pedido.pulados.isEmpty()) fila else fila.copy(confirmando = pedido)
+        }
+    }
+
+    fun cancelarPedidoDaFila() {
+        mexerNaFila { it.copy(confirmando = null) }
+    }
+
+    /** "Gerar" no diálogo (GF3): começa a fila. Um item por vez, em ordem do texto, cada um com o fluxo de um toque (GF1, GF4). */
+    fun confirmarFila() {
+        val pedido = _estado.value.fila.confirmando ?: return
+        if (_estado.value.fila.rodando || pedido.vazio) return
+        mexerNaFila {
+            it.copy(confirmando = null, andamento = AndamentoDaFila(pedido, 0), resumo = null, selecionando = false, marcados = emptySet())
+        }
+        viewModelScope.launch { rodarFila(pedido) }
+    }
+
+    /** **Parar** (GF4): termina o item em andamento e não começa os outros; o que já foi gerado fica gravado. */
+    fun pararFila() {
+        mexerNaFila { fila -> fila.copy(andamento = fila.andamento?.copy(parando = true)) }
+    }
+
+    /** **Tentar de novo os que falharam** (GF5): um pedido novo só com eles (e com os que nem começaram), que pede confirmação outra vez. */
+    fun tentarDeNovoNaFila() {
+        val resumo = _estado.value.fila.resumo ?: return
+        if (_estado.value.fila.rodando || resumo.paraRepetir.isEmpty()) return
+        val pedido = PedidoDaFila(resumo.acao, emOrdemDoTexto(resumo.paraRepetir), emptyList())
+        mexerNaFila { it.copy(confirmando = pedido, resumo = null) }
+    }
+
+    fun fecharResumoDaFila() {
+        mexerNaFila { it.copy(resumo = null) }
+    }
+
+    /**
+     * O laço da fila (GF4, GF5): item a item, até o fim, até a pessoa tocar em Parar, ou até uma falha que vale para todos. Uma falha
+     * comum só é anotada e a fila segue; [FALHAS_SEGUIDAS_PARA_PARAR] falhas seguidas (quase sempre chave, modelo ou crédito) a param.
+     * Sair do capítulo cancela o laço (GF6); o `finally` ainda grava o resumo do que foi feito.
+     */
+    private suspend fun rodarFila(pedido: PedidoDaFila) {
+        val desfechos = mutableMapOf<String, DesfechoDoItem>()
+        var seguidas = 0
+        var motivoDaParada: String? = null
+        var parouAPedido = false
+        try {
+            for ((indice, item) in pedido.aFazer.withIndex()) {
+                if (_estado.value.fila.andamento?.parando == true) {
+                    parouAPedido = true
+                    break
+                }
+                mexerNaFila { fila -> fila.copy(andamento = fila.andamento?.copy(indice = indice)) }
+                val desfecho = executarItemDaFila(item, pedido.acao)
+                desfechos[item.chave] = desfecho
+                if (desfecho is DesfechoDoItem.Falhou) {
+                    seguidas++
+                    if (desfecho.geral) {
+                        motivoDaParada = desfecho.motivo
+                        break
+                    }
+                    if (seguidas >= FALHAS_SEGUIDAS_PARA_PARAR) {
+                        motivoDaParada = "$seguidas falhas seguidas, então a fila parou. A última: ${desfecho.motivo}"
+                        break
+                    }
+                } else if (desfecho is DesfechoDoItem.Gerado) {
+                    seguidas = 0
+                }
+            }
+        } finally {
+            val resumo = resumirFila(pedido, desfechos, motivoDaParada, parouAPedido)
+            mexerNaFila { it.copy(andamento = null, resumo = resumo) }
+        }
+    }
+
+    /** Um item da fila: o mesmo fluxo do botão principal (GF1), criando o retrato que falta. Um item já em andamento por outro toque é pulado. */
+    private suspend fun executarItemDaFila(item: ItemDaFila, acao: AcaoDaFila): DesfechoDoItem {
+        if (item.chave in _estado.value.etapasDeImagem) return DesfechoDoItem.Pulado("já estava em andamento")
+        val elemento = item.elemento
+        val criarFrame: (suspend () -> Int?)? = if (item.frameId == null && elemento != null) {
+            { reservarRetrato(elemento)?.let { concluirCriacaoDoRetrato(elemento, it) } }
+        } else {
+            null
+        }
+        if (item.frameId == null && criarFrame == null) return DesfechoDoItem.Falhou("Este item ainda não tem frame.")
+        val desfecho = executarFluxoDeImagem(item.chave, item.rotulo, item.frameId, acao == AcaoDaFila.SO_PROMPTS, criarFrame)
+        // Um diálogo de recusa no meio da fila atrapalharia os outros itens: a recusa já virou "falhou" no resumo.
+        _estado.update { if (it.recusaDeImagem != null) it.copy(recusaDeImagem = null) else it }
+        return if (desfecho is DesfechoDoItem.Falhou && item.frameId == null && elemento != null) {
+            desfecho.copy(motivo = _estado.value.mensagensDeRetrato[elemento.id]?.texto ?: desfecho.motivo)
+        } else {
+            desfecho
+        }
+    }
+
     /** O passo "gerar o prompt" do fluxo, pelo serviço do app (como o botão Novo prompt, mas **sem confirmação**, Q3). */
-    private suspend fun gerarPromptDoFluxo(frameId: Int, rotulo: String): PromptDeFrame? {
+    private suspend fun gerarPromptDoFluxo(frameId: Int, rotulo: String): ResultadoDaChamada<PromptDeFrame> {
         _estado.update {
             it.copy(
                 gerandoPrompt = it.gerandoPrompt + frameId,
@@ -680,7 +843,7 @@ class PainelDeIaViewModel(
         }
         val resultado = servico.iniciarPrompt(frameId, capituloId, livroId, rotuloDoCapitulo, rotulo, null).await()
         aplicarResultadoDoPrompt(frameId, resultado)
-        return (resultado as? ResultadoDaChamada.Sucesso)?.dado
+        return resultado
     }
 
     // ------------------------------------------------------------------ //
@@ -1107,7 +1270,13 @@ class PainelDeIaViewModel(
     }
 
     /** Faz o pedido e aplica o desfecho (K3, K4, K6, K7). Quem chama já reservou o prompt. */
-    private suspend fun concluirGeracaoDeImagem(frameId: Int, promptId: Int, textoEditado: String?, modelo: String?, textoPt: String? = null) {
+    private suspend fun concluirGeracaoDeImagem(
+        frameId: Int,
+        promptId: Int,
+        textoEditado: String?,
+        modelo: String?,
+        textoPt: String? = null,
+    ): ResultadoDaChamada<ResultadoDaGeracao> {
         // F19: escolher um modelo da lista **sem filtro** é pedir a geração sem o filtro; com qualquer outro, o pedido é o de sempre.
         val modelos = _estado.value.modelosDeImagem
         // W10: as referências do frame só vão se o modelo em uso as aceita (senão ficam guardadas, desativadas).
@@ -1166,6 +1335,7 @@ class PainelDeIaViewModel(
         }
         // K6: o original mudou de situação e pode haver um prompt novo (suavizado ou editado).
         if (resultado is ResultadoDaChamada.Sucesso) relerPromptsSemPiscar(frameId)
+        return resultado
     }
 
     /** **Excluir** na tela cheia da imagem (U3): pede confirmação, porque apaga para sempre. */
@@ -1401,8 +1571,15 @@ class PainelDeIaViewModel(
         mudarDossie(frameId) { it.copy(gravando = true, recado = null) }
         viewModelScope.launch {
             when (val resultado = prompts.confirmarDossie(frameId, rascunho.paraGravar(atual.guardado))) {
-                is ResultadoDaChamada.Sucesso -> mudarDossie(frameId) {
-                    DossieDoFrame.Pronto(resultado.dado, recado = MensagemDoElemento(AVISO_LISTA_CONFIRMADA, ehErro = false))
+                is ResultadoDaChamada.Sucesso -> {
+                    mudarDossie(frameId) {
+                        DossieDoFrame.Pronto(resultado.dado, recado = MensagemDoElemento(AVISO_LISTA_CONFIRMADA, ehErro = false))
+                    }
+                    // AP8: a lista foi editada e a cena já tem prompts; eles não a levam em conta. Anota quantos eram, para o aviso sumir ao nascer um novo.
+                    val tinha = (_estado.value.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size ?: 0
+                    if (atual.rascunho != null && tinha > 0) {
+                        _estado.update { it.copy(listaMudouComPrompts = it.listaMudouComPrompts + (frameId to tinha)) }
+                    }
                 }
                 is ResultadoDaChamada.Falha -> mudarDossie(frameId) { it.copy(gravando = false, recado = MensagemDoElemento(resultado.motivo, ehErro = true)) }
             }

@@ -551,6 +551,16 @@ private fun LeitorPaginado(
         aoPedirConferirImagem = painel::pedirConferirImagem,
         aoConferirImagem = painel::conferirImagem,
         aoFecharConferencia = painel::fecharConferencia,
+        aoAlternarSelecaoDaFila = painel::alternarSelecaoDaFila,
+        aoAlternarMarcaDaFila = painel::alternarMarcaDaFila,
+        aoMarcarOsQueFaltamNaFila = painel::marcarOsQueFaltamNaFila,
+        aoLimparMarcasDaFila = painel::limparMarcasDaFila,
+        aoPedirFila = painel::pedirFila,
+        aoCancelarPedidoDaFila = painel::cancelarPedidoDaFila,
+        aoConfirmarFila = painel::confirmarFila,
+        aoPararFila = painel::pararFila,
+        aoTentarDeNovoNaFila = painel::tentarDeNovoNaFila,
+        aoFecharResumoDaFila = painel::fecharResumoDaFila,
         aoEditarPrompt = painel::editarPrompt,
         aoFecharEdicaoDePrompt = painel::fecharEdicaoDePrompt,
         aoPedirExcluirImagem = painel::pedirExcluirImagem,
@@ -758,6 +768,7 @@ private fun LeitorPaginado(
                         modifier = Modifier.width(380.dp).fillMaxHeight(),
                         retratos = retratosPorSugestao(artefatosDaTela),
                         cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
+                        artefatos = artefatosDaTela,
                     )
                     }
                 }
@@ -773,6 +784,7 @@ private fun LeitorPaginado(
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {},
                     retratos = retratosPorSugestao(artefatosDaTela),
                     cenasDeTrechos = cenasDeTrechos(artefatosDaTela),
+                    artefatos = artefatosDaTela,
                 )
                 }
             }
@@ -1067,7 +1079,7 @@ private fun LeitorDeTexto(
                 alturaDoRetrato = alturaDoRetrato,
                 espaco = espaco,
                 linhas = { indice ->
-                    val montado = textoComIcones(trechos[indice].texto, artefatosDo(indice).size)
+                    val montado = textoComIcones(trechos[indice].texto, artefatosDo(indice).size, tamanhoDoSelo(estiloDoParagrafo.fontSize))
                     val medido = medidor.measure(
                         text = montado.anotado,
                         style = estiloDoParagrafo,

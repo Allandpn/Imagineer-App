@@ -16,6 +16,15 @@ const val AVISO_SEM_DOSSIE =
 const val AVISO_ALTERACOES_NAO_CONFIRMADAS = "Alterações ainda não confirmadas."
 const val AVISO_LISTA_CONFIRMADA = "Lista confirmada."
 
+/** AP8: depois de editar e confirmar a lista, os prompts que a cena já tinha não a levam em conta. */
+const val AVISO_LISTA_MUDOU = "A lista mudou. Os prompts antigos não a levam em conta. Gerar um prompt novo?"
+
+/**
+ * O aviso da lista mudada deve aparecer? (AP8) Sim enquanto a cena tem **o mesmo número de prompts** que tinha quando a lista foi confirmada
+ * ([avisadoCom]) e esse número não é zero: nasceu um prompt novo (a quantidade mudou) e o aviso some. Sem prompt, o próximo já nasce com a lista.
+ */
+fun listaMudouSemPromptNovo(avisadoCom: Int?, promptsAgora: Int?): Boolean = avisadoCom != null && avisadoCom > 0 && avisadoCom == promptsAgora
+
 /** O que a pessoa está editando: a cópia da lista do servidor, que só volta a ele ao confirmar (AP3). */
 data class RascunhoDoDossie(
     val presentes: List<PresenteDaCena> = emptyList(),

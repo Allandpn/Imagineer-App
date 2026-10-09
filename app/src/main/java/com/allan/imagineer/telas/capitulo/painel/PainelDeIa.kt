@@ -4,6 +4,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.snapshotFlow
 import com.allan.imagineer.rede.Artefato
+import com.allan.imagineer.telas.capitulo.LegendaDosSelos
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -230,6 +231,17 @@ class AcoesDoPainel(
     val aoPedirConferirImagem: (imagemId: Int) -> Unit = {},
     val aoConferirImagem: () -> Unit = {},
     val aoFecharConferencia: () -> Unit = {},
+    // A geração em fila (item 7.5e, GF2 a GF5).
+    val aoAlternarSelecaoDaFila: () -> Unit = {},
+    val aoAlternarMarcaDaFila: (chave: String) -> Unit = {},
+    val aoMarcarOsQueFaltamNaFila: (itens: List<ItemDaFila>) -> Unit = {},
+    val aoLimparMarcasDaFila: () -> Unit = {},
+    val aoPedirFila: (acao: AcaoDaFila, itens: List<ItemDaFila>) -> Unit = { _, _ -> },
+    val aoCancelarPedidoDaFila: () -> Unit = {},
+    val aoConfirmarFila: () -> Unit = {},
+    val aoPararFila: () -> Unit = {},
+    val aoTentarDeNovoNaFila: () -> Unit = {},
+    val aoFecharResumoDaFila: () -> Unit = {},
     /** O ícone Traduzir do cartão do prompt de imagem (VD14): abre a edição já na aba Português. */
     val aoTraduzirPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit = { _, _, _ -> },
     val aoConfirmarExclusaoDeImagem: () -> Unit,
@@ -253,12 +265,15 @@ fun PainelDeIa(
     retratos: Map<Int, Int> = emptyMap(),
     /** As cenas criadas de um texto selecionado (sem sugestão da IA): listadas junto das confirmadas. */
     cenasDeTrechos: List<Artefato> = emptyList(),
+    /** Todos os artefatos do capítulo: a fila (item 7.5e) tira deles a posição e a situação de cada item. */
+    artefatos: List<Artefato> = emptyList(),
 ) {
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(modifier = Modifier.fillMaxSize()) {
             CabecalhoDoPainel(aoFechar, acoes.aoAbrirModelosDeIa)
+            LegendaDosSelos(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) // SE5
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                CorpoDoPainel(estado, acoes, retratos, cenasDeTrechos)
+                CorpoDoPainel(estado, acoes, retratos, cenasDeTrechos, artefatos)
             }
         }
     }
@@ -276,6 +291,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     }
     estado.confirmandoTodos?.let { DialogoConfirmarTodos(it, acoes) }
     estado.confirmandoPrompt?.let { DialogoGerarPrompt(it, acoes) }
+    estado.fila.confirmando?.let { DialogoDaFila(it, acoes) }
     estado.recusaDeImagem?.let { DialogoDeRecusaDeImagem(it, estado, acoes) }
     estado.edicaoDePrompt?.let { DialogoDeEdicaoDePrompt(it, estado, acoes) }
     estado.escolhaDeElementos?.let { DialogoDoSeletorDeElementos(it, acoes) }
@@ -432,7 +448,7 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Un
 }
 
 @Composable
-private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>, cenasDeTrechos: List<Artefato>) {
+private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos: Map<Int, Int>, cenasDeTrechos: List<Artefato>, artefatos: List<Artefato>) {
     when (val conteudo = estado.conteudo) {
         // P1: o painel só pede algo ao servidor depois de aberto; até lá não há o que mostrar.
         ConteudoDoPainel.NaoCarregado, ConteudoDoPainel.Lendo -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -455,7 +471,7 @@ private fun CorpoDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel, retratos
 
         is ConteudoDoPainel.NuncaAnalisado -> NuncaAnalisado(conteudo, estado, acoes)
 
-        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes, retratos, cenasDeTrechos)
+        is ConteudoDoPainel.Pronto -> ListaDeSugestoes(conteudo.sugestoes, estado, acoes, retratos, cenasDeTrechos, artefatos)
     }
 }
 
@@ -503,7 +519,12 @@ private fun ListaDeSugestoes(
     acoes: AcoesDoPainel,
     retratos: Map<Int, Int>,
     cenasDeTrechos: List<Artefato>,
+    artefatos: List<Artefato>,
 ) {
+    // Item 7.5e: os artefatos que a fila pode marcar, com a posição e a situação de cada um.
+    val itensDaFila = remember(sugestoes, artefatos, estado.retratosCriados) { itensDaFila(sugestoes, artefatos, estado.retratosCriados) }
+    val itemPorChave = remember(itensDaFila) { itensDaFila.associateBy { it.chave } }
+    val fila = estado.fila
     val abertos = rememberSaveable { mutableStateListOf<String>() }
     fun alternar(chave: String) {
         if (chave in abertos) abertos.remove(chave) else abertos.add(chave)
@@ -537,10 +558,18 @@ private fun ListaDeSugestoes(
                 OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
                     Text("Reanalisar", maxLines = 1, softWrap = false)
                 }
+                // GF2: marcar vários e gerar em fila. Some enquanto a fila roda (um assunto de cada vez).
+                if (!fila.rodando) {
+                    OutlinedButton(onClick = acoes.aoAlternarSelecaoDaFila, enabled = !estado.analisando && itensDaFila.any { it.podeEntrar }) {
+                        Text(if (fila.selecionando) "Sair da seleção" else "Selecionar", maxLines = 1, softWrap = false)
+                    }
+                }
             }
             ErroDaAnalise(estado)
             AnaliseEmAndamento(estado)
             ResultadoDoLote(estado, acoes)
+            AndamentoDaFilaNaTela(fila, estado.etapasDeImagem, acoes)
+            fila.resumo?.let { ResumoDaFilaNaTela(it, acoes) }
         }
 
         // P14: uma análise que não achou nada é um resultado, não um erro.
@@ -567,7 +596,8 @@ private fun ListaDeSugestoes(
             }
         }
 
-        HorizontalPager(state = paginas, modifier = Modifier.fillMaxSize(), key = { it }) { indice ->
+        // weight(1f): o pager ocupa o que sobra, e a barra do modo Selecionar (GF2) fica embaixo, sem empurrá-lo para fora.
+        HorizontalPager(state = paginas, modifier = Modifier.weight(1f).fillMaxWidth(), key = { it }) { indice ->
             val filtro = FiltroDoPainel.entries[indice]
             val doFiltro = elementosDoFiltro(sugestoes.elementos, filtro)
             val cenas = cenasDoFiltro(sugestoes.cenas, filtro) // D2: as cenas também obedecem ao filtro
@@ -595,15 +625,17 @@ private fun ListaDeSugestoes(
                         CartaoDeElementoDescartado(elemento, estado, acoes)
                     } else {
                         val chave = chaveDoCartao(elemento)
-                        CartaoDeElemento(
-                            elemento = elemento,
-                            cenas = cenasDosElementos[elemento.id].orEmpty(),
-                            aberto = chave in abertos,
-                            aoAlternar = { alternar(chave) },
-                            estado = estado,
-                            acoes = acoes,
-                            frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
-                        )
+                        LinhaSelecionavel(itemPorChave[chaveDaFilaDoElemento(elemento)], fila, acoes) {
+                            CartaoDeElemento(
+                                elemento = elemento,
+                                cenas = cenasDosElementos[elemento.id].orEmpty(),
+                                aberto = chave in abertos,
+                                aoAlternar = { alternar(chave) },
+                                estado = estado,
+                                acoes = acoes,
+                                frameDoRetrato = retratos[elemento.id] ?: estado.retratosCriados[elemento.id],
+                            )
+                        }
                     }
                 }
 
@@ -611,7 +643,9 @@ private fun ListaDeSugestoes(
                     item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
                     items(cenas, key = { "c${it.id}" }) { cena ->
                         val chaveDaCena = "cena:${cena.id}"
-                        CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+                        LinhaSelecionavel(itemPorChave[chaveDaFilaDaCena(cena)], fila, acoes) {
+                            CartaoDeCena(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+                        }
                     }
                 }
 
@@ -620,11 +654,14 @@ private fun ListaDeSugestoes(
                     item { Text("Cenas adicionais (${adicionais.size})", style = MaterialTheme.typography.titleSmall) }
                     items(adicionais, key = { "t${it.frame_id}" }) { cena ->
                         val chaveDaCena = "adicional:${cena.frame_id}"
-                        CartaoDeCenaAdicional(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+                        LinhaSelecionavel(cena.frame_id?.let { itemPorChave[chaveDoFluxoDoFrame(it)] }, fila, acoes) {
+                            CartaoDeCenaAdicional(cena, aberto = chaveDaCena in abertos, aoAlternar = { alternar(chaveDaCena) }, estado = estado, acoes = acoes)
+                        }
                     }
                 }
             }
         }
+        if (fila.selecionando) BarraDeSelecaoDaFila(itensDaFila, fila, acoes)
     }
 }
 
