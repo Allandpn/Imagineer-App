@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -118,7 +119,13 @@ internal fun SecaoDaImagemDoFrame(
     // Z6: a lista de modelos vem do servidor, uma vez.
     LaunchedEffect(Unit) { acoes.aoCarregarModelosDeImagem() }
     Text("Imagens", style = MaterialTheme.typography.titleSmall)
-    Miniaturas(frameId, imagensDoFrameComACanonica(lista.flatMap { it.imagens }, estado.canonicasDosFrames[frameId]), "Imagem", acoes)
+    Miniaturas(
+        frameId,
+        imagensDoFrameComACanonica(lista.flatMap { it.imagens }, estado.canonicasDosFrames[frameId]),
+        "Imagem",
+        acoes,
+        promptsConferiveis = if (ehCena) promptsConferiveis(lista) else emptySet(),
+    )
     if (etapa != null || gerandoAlgum || gerandoPrompt) {
         // O servidor não informa o andamento, então a barra é indeterminada (K2).
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -236,7 +243,7 @@ private fun LinhaDeModelo(modelo: String, texto: String, selecionado: String?, a
 /** As imagens de **um prompt**, no cartão dele: a relação prompt-imagem (02/10/2026). Tocar numa abre a tela cheia. */
 @Composable
 internal fun ImagensDoPrompt(prompt: PromptDeFrame, acoes: AcoesDoPainel) {
-    Miniaturas(prompt.frame_id, prompt.imagens, "Imagem deste prompt", acoes)
+    Miniaturas(prompt.frame_id, prompt.imagens, "Imagem deste prompt", acoes, promptsConferiveis = promptsConferiveis(listOf(prompt)))
 }
 
 @Composable
@@ -254,7 +261,14 @@ private fun RecadoDeImagem(mensagem: MensagemDoElemento) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: String, acoes: AcoesDoPainel) {
+private fun Miniaturas(
+    frameId: Int,
+    imagens: List<ImagemDoPrompt>,
+    descricao: String,
+    acoes: AcoesDoPainel,
+    /** Os prompts de cena com a lista do que deveria aparecer (AP5): só as imagens deles podem ser conferidas (AP7). */
+    promptsConferiveis: Set<Int> = emptySet(),
+) {
     val urlBase = urlDoServidorEmUso()
     var abertaId by remember { mutableStateOf<Int?>(null) }
     if (urlBase != null && imagens.isNotEmpty()) {
@@ -290,6 +304,7 @@ private fun Miniaturas(frameId: Int, imagens: List<ImagemDoPrompt>, descricao: S
                 acaoExtra = rotuloDaAcaoCanonica(imagem.canonica) to { acoes.aoDefinirImagemCanonica(frameId, if (imagem.canonica) null else imagem.id); abertaId = null },
                 // OC1, OC3: do frame todo (vale só no capítulo); a imagem fica no catálogo.
                 outraAcao = rotuloDaOcultacao(imagem.oculta_no_capitulo) to { acoes.aoDefinirImagemOculta(frameId, !imagem.oculta_no_capitulo); abertaId = null },
+                aoConferir = if (imagem.prompt_id in promptsConferiveis) ({ acoes.aoPedirConferirImagem(imagem.id) }) else null,
             )
         }
     }
@@ -314,6 +329,8 @@ internal fun ImagemEmTelaCheia(
     aoVerPerfil: (() -> Unit)? = null,
     /** O frame, quando a imagem é de uma **cena**: a barra ganha o coração da cena, além do da imagem (RL36). */
     cenaParaFavoritar: Int? = null,
+    /** "Conferir com a lista" (item 4.9, AP7): só numa imagem de cena cujo prompt tem a lista do que deveria aparecer; `null` = sem o botão. */
+    aoConferir: (() -> Unit)? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -414,6 +431,7 @@ internal fun ImagemEmTelaCheia(
                 }
                 acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
                 outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
+                aoConferir?.let { IconeDaBarra(Icons.Filled.FactCheck, ROTULO_CONFERIR_COM_A_LISTA, "Conferir", onClick = it) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
                 aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
                 // RL36: favoritar a imagem (só onde há favoritos do livro). Coração, porque a estrela daqui é a da canônica.

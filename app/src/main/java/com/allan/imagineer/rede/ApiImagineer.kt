@@ -400,6 +400,24 @@ interface ApiImagineer {
     @GET("frames/{id}/referencias-candidatas")
     suspend fun referenciasCandidatas(@Path("id") frameId: Int): ReferenciasCandidatas
 
+    /** `GET /frames/{id}/dossie` — o dossiê guardado da cena (JSON `null` se ainda não foi lido). Nunca gasta IA (item 4.9, FL9). */
+    @GET("frames/{id}/dossie")
+    suspend fun dossie(@Path("id") frameId: Int): kotlinx.serialization.json.JsonElement
+
+    /** `POST /frames/{id}/dossie` — lê o capítulo inteiro e refaz o dossiê. **Gasta IA**; espera até 180 s (item 4.9, FL9). */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("frames/{id}/dossie")
+    suspend fun lerDossie(@Path("id") frameId: Int): DossieLido
+
+    /** `PUT /frames/{id}/dossie` — grava a lista confirmada pela pessoa. Não gasta IA (item 4.9, FL9). */
+    @PUT("frames/{id}/dossie")
+    suspend fun confirmarDossie(@Path("id") frameId: Int, @Body corpo: DossieParaGravar): DossieDaCena
+
+    /** `POST /imagens/{id}/conferir` — um modelo com visão compara a imagem com a lista do prompt. **Gasta IA**; espera até 180 s (FL13.1). */
+    @Headers("X-Timeout-Leitura: 180")
+    @POST("imagens/{id}/conferir")
+    suspend fun conferirImagem(@Path("id") imagemId: Int): ConferenciaDaImagem
+
     /** `GET /frames/{id}/prompts` — o que já foi gerado para o frame; só leitura, nunca gasta IA (item 6.6). */
     @GET("frames/{id}/prompts")
     suspend fun prompts(@Path("id") frameId: Int, @Query("tipo") tipo: String? = null): List<PromptDeFrame>
@@ -680,6 +698,8 @@ data class ConfiguracaoAtual(
     val modelo_traducao: String? = null,
     /** O modelo que monta o prompt de vídeo; vazio = o do prompt de imagem (item 4.8, VD11). */
     val modelo_video: String? = null,
+    /** O modelo com visão que confere a imagem gerada com a lista da cena; vazio = nenhum (item 4.9, FL13.1). */
+    val modelo_conferencia: String? = null,
     /** O modelo de imagem padrão do servidor (item 7.5b, Z2). */
     val modelo_imagem: String? = null,
     /** Os modelos de imagem que o usuário pode escolher (Z2). */

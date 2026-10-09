@@ -349,7 +349,7 @@ class SeletorNoPainelTest {
     }
 
     @Test
-    fun `EV4 limpar deixa so os participantes da sugestao e usar sem imagens tira a escolha do frame`() = runTest {
+    fun `EV4 limpar deixa so os participantes da sugestao e usar sem imagens guarda a escolha vazia, que vale como nenhuma (AP6)`() = runTest {
         val (vm, _, _) = montar()
         vm.abrirSeletorDaCena(70); advanceUntilIdle()
         vm.alternarImagemDoSeletor(11)
@@ -362,7 +362,8 @@ class SeletorNoPainelTest {
         assertEquals(setOf(1), vm.estado.value.escolhaDeElementos?.selecao?.elementos)
         vm.usarSeletor(); advanceUntilIdle()
 
-        assertTrue(vm.estado.value.referenciasEscolhidas.isEmpty())
+        // AP6: a escolha vazia é explícita ("nenhuma"), e não a ausência de escolha (que deixaria valer o padrão do servidor).
+        assertEquals(mapOf(70 to emptyList<Int>()), vm.estado.value.referenciasEscolhidas)
     }
 
     @Test
@@ -465,7 +466,7 @@ class SeletorNoPainelTest {
 
         vm.gerarImagem(99, 5); advanceUntilIdle()
 
-        assertEquals(listOf(emptyList<Int>()), prompts.referenciasPedidas)
+        assertEquals("sem escolha, o campo nem vai (FL10)", listOf<List<Int>?>(null), prompts.referenciasPedidas)
     }
 }
 

@@ -12,6 +12,8 @@ import com.allan.imagineer.rede.ElementosParaVincular
 import com.allan.imagineer.rede.CenaSugerida
 import com.allan.imagineer.rede.ElementoDoLivro
 import com.allan.imagineer.rede.ElementoSugerido
+import com.allan.imagineer.rede.ConferenciaDaImagem
+import com.allan.imagineer.rede.DossieDaCena
 import com.allan.imagineer.rede.ModelosDeImagem
 import com.allan.imagineer.rede.PromptDeFrame
 import com.allan.imagineer.rede.VideoImportado
@@ -320,6 +322,14 @@ data class EstadoDoPainel(
     val recusaDeImagem: RecusaDeImagem? = null,
     /** Como cada frame se chama nos avisos ("A partida", "Retrato de Jon"); guardado ao pedir o prompt (N6). */
     val rotulosDeFrame: Map<Int, String> = emptyMap(),
+    /** A lista "O que vai aparecer" de cada cena, por id do frame (item 4.9, FL9). Só existe a entrada de quem já foi aberto. */
+    val dossies: Map<Int, DossieDoFrame> = emptyMap(),
+    /** O diálogo "Ler a cena gasta IA" está aberto para este frame (AP2); `null` = fechado. */
+    val confirmandoLeituraDoDossie: Int? = null,
+    /** O diálogo "Acrescentar item" está aberto para este frame (AP3); `null` = fechado. */
+    val acrescentandoAoDossie: Int? = null,
+    /** A conferência de uma imagem (AP7); `null` = nenhuma em curso. */
+    val conferencia: ConferenciaEmCurso? = null,
 ) {
     /** A sugestão de elemento que está num modal aberto (o de cima, se houver mais de um), ou `null`. */
     val emModal: Int? get() = modais.filterIsInstance<ModalAberto.DeElemento>().lastOrNull()?.sugestaoId
@@ -379,6 +389,39 @@ sealed interface CandidatosDoSeletor {
     data object Carregando : CandidatosDoSeletor
     data class Prontos(val dados: ElementosParaVincular) : CandidatosDoSeletor
     data class Erro(val motivo: String) : CandidatosDoSeletor
+}
+
+/** A lista "O que vai aparecer" de uma cena (item 4.9, FL9; especificação 7.5d). */
+sealed interface DossieDoFrame {
+    /** O `GET` está em andamento. */
+    data object Lendo : DossieDoFrame
+
+    data class Erro(val motivo: String) : DossieDoFrame
+
+    /**
+     * [guardado] = o que o servidor tem (`null` = a cena ainda não foi lida); [rascunho] = o que a pessoa está editando (`null` = sem
+     * edição); [lendoDeNovo] = o `POST` (gasta IA); [gravando] = o `PUT`; [recado] = o erro ou o aviso do que acabou de acontecer.
+     */
+    data class Pronto(
+        val guardado: DossieDaCena?,
+        val rascunho: RascunhoDoDossie? = null,
+        val lendoDeNovo: Boolean = false,
+        val gravando: Boolean = false,
+        val recado: MensagemDoElemento? = null,
+    ) : DossieDoFrame
+}
+
+/** Qual dos três textos soltos do dossiê a pessoa está editando. */
+enum class CampoDoDossie { ONDE, LUZ_E_CLIMA, ACAO }
+
+/** A conferência de uma imagem de cena (item 4.9, FL13.1; AP7): pede confirmação, roda, mostra o resultado ou o motivo da falha. */
+sealed interface ConferenciaEmCurso {
+    val imagemId: Int
+
+    data class Confirmando(override val imagemId: Int) : ConferenciaEmCurso
+    data class Rodando(override val imagemId: Int) : ConferenciaEmCurso
+    data class Pronta(override val imagemId: Int, val resultado: ConferenciaDaImagem) : ConferenciaEmCurso
+    data class Falhou(override val imagemId: Int, val motivo: String) : ConferenciaEmCurso
 }
 
 /** O que o diálogo de editar o prompt precisa (R1): o frame, o prompt e o texto de partida. */
@@ -893,12 +936,20 @@ class PainelDeIaViewModel(
         _estado.update { it.copy(escolhaDeElementos = EscolhaDeElementos(frameId, ehCena, CandidatosDoSeletor.Carregando, SelecaoNoSeletor())) }
         viewModelScope.launch {
             when (val resultado = prompts.elementosParaVincular(frameId)) {
-                is ResultadoDaChamada.Sucesso -> _estado.update { agora ->
-                    val atual = agora.escolhaDeElementos?.takeIf { it.frameId == frameId } ?: return@update agora
-                    atual.copy(
-                        candidatos = CandidatosDoSeletor.Prontos(resultado.dado),
-                        selecao = selecaoInicial(resultado.dado, agora.referenciasEscolhidas[frameId].orEmpty()),
-                    ).let { agora.copy(escolhaDeElementos = it) }
+                is ResultadoDaChamada.Sucesso -> {
+                    // AP6: numa cena em que a pessoa ainda não escolheu nada, o seletor abre com o que o servidor mandaria sozinho (FL10).
+                    val marcadas = if (ehCena && frameId !in _estado.value.referenciasEscolhidas) {
+                        (prompts.referenciasCandidatas(frameId) as? ResultadoDaChamada.Sucesso)?.dado?.marcadas.orEmpty()
+                    } else {
+                        emptyList()
+                    }
+                    _estado.update { agora ->
+                        val atual = agora.escolhaDeElementos?.takeIf { it.frameId == frameId } ?: return@update agora
+                        atual.copy(
+                            candidatos = CandidatosDoSeletor.Prontos(resultado.dado),
+                            selecao = selecaoInicial(resultado.dado, agora.referenciasEscolhidas[frameId] ?: marcadas),
+                        ).let { agora.copy(escolhaDeElementos = it) }
+                    }
                 }
                 is ResultadoDaChamada.Falha -> _estado.update { agora ->
                     val atual = agora.escolhaDeElementos?.takeIf { it.frameId == frameId } ?: return@update agora
@@ -943,7 +994,8 @@ class PainelDeIaViewModel(
         val escolhidos = todosOsElementos(dados).filter { it.estado_id in escolha.selecao.elementos }
 
         fun aplicarConclusao(nomes: List<String>?, mudou: Boolean) = _estado.update { agora ->
-            val referencias = if (imagens.isEmpty()) agora.referenciasEscolhidas - frameId else agora.referenciasEscolhidas + (frameId to imagens)
+            // AP6: a escolha passa a ser explícita, mesmo vazia: lista vazia = "nenhuma" (a pessoa tirou todas), e vai assim ao servidor.
+            val referencias = agora.referenciasEscolhidas + (frameId to imagens)
             val tinha = (agora.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size ?: 0
             agora.copy(
                 escolhaDeElementos = null,
@@ -1059,8 +1111,9 @@ class PainelDeIaViewModel(
         // F19: escolher um modelo da lista **sem filtro** é pedir a geração sem o filtro; com qualquer outro, o pedido é o de sempre.
         val modelos = _estado.value.modelosDeImagem
         // W10: as referências do frame só vão se o modelo em uso as aceita (senão ficam guardadas, desativadas).
-        val referencias = if (modeloAceitaReferencia(modelo ?: modeloEmUso(_estado.value.modeloEscolhido, modelos), modelos)) {
-            _estado.value.referenciasEscolhidas[frameId].orEmpty()
+        // FL10/AP6: sem escolha da pessoa, `null` (o campo nem vai e vale o padrão do servidor); com escolha, a lista como está, mesmo vazia.
+        val referencias: List<Int>? = if (modeloAceitaReferencia(modelo ?: modeloEmUso(_estado.value.modeloEscolhido, modelos), modelos)) {
+            _estado.value.referenciasEscolhidas[frameId]
         } else {
             emptyList()
         }
@@ -1228,8 +1281,164 @@ class PainelDeIaViewModel(
         viewModelScope.launch { aplicarResultadoDoPrompt(frameId, trabalho.await()) }
     }
 
+    // ------------------------------------------------------------------ //
+    // "O que vai aparecer": o dossiê da cena (item 4.9, FL9; especificação 7.5d, AP1 a AP4)
+    // ------------------------------------------------------------------ //
+
+    private fun mudarDossie(frameId: Int, mudar: (DossieDoFrame.Pronto) -> DossieDoFrame.Pronto) {
+        _estado.update { agora ->
+            val atual = agora.dossies[frameId] as? DossieDoFrame.Pronto ?: return@update agora
+            agora.copy(dossies = agora.dossies + (frameId to mudar(atual)))
+        }
+    }
+
+    /** Lê o dossiê guardado da cena **uma vez** (AP2): é só o `GET`, nunca gasta IA. Um erro se refaz por [recarregarDossie]. */
+    fun carregarDossie(frameId: Int) {
+        if (_estado.value.dossies[frameId] != null) return
+        recarregarDossie(frameId)
+    }
+
+    fun recarregarDossie(frameId: Int) {
+        _estado.update { it.copy(dossies = it.dossies + (frameId to DossieDoFrame.Lendo)) }
+        viewModelScope.launch {
+            val novo = when (val resultado = prompts.dossie(frameId)) {
+                is ResultadoDaChamada.Sucesso -> DossieDoFrame.Pronto(resultado.dado)
+                is ResultadoDaChamada.Falha -> DossieDoFrame.Erro(resultado.motivo)
+            }
+            _estado.update { it.copy(dossies = it.dossies + (frameId to novo)) }
+        }
+    }
+
+    /**
+     * Relê o dossiê depois de um prompt novo (AP4): o servidor pode tê-lo criado nesse momento. Só se a lista já foi aberta; uma falha de
+     * leitura é silenciosa (o que a tela mostra continua valendo).
+     */
+    private fun relerDossieDepoisDoPrompt(frameId: Int) {
+        if (_estado.value.dossies[frameId] !is DossieDoFrame.Pronto) return
+        viewModelScope.launch {
+            val resultado = prompts.dossie(frameId)
+            // O prompt usou a lista do servidor, não o rascunho: se ela mudou, a tela passa a mostrá-la (e larga o rascunho velho).
+            if (resultado is ResultadoDaChamada.Sucesso) mudarDossie(frameId) {
+                if (it.guardado == resultado.dado) it else it.copy(guardado = resultado.dado, rascunho = null)
+            }
+        }
+    }
+
+    private fun baseDoRascunho(frameId: Int): RascunhoDoDossie? {
+        val atual = _estado.value.dossies[frameId] as? DossieDoFrame.Pronto ?: return null
+        return atual.rascunho ?: rascunhoDe(atual.guardado)
+    }
+
+    private fun editarRascunho(frameId: Int, mudar: (RascunhoDoDossie) -> RascunhoDoDossie) {
+        val base = baseDoRascunho(frameId) ?: return
+        mudarDossie(frameId) { if (it.lendoDeNovo || it.gravando) it else it.copy(rascunho = mudar(base), recado = null) }
+    }
+
+    /** A caixa de um item (AP3): tirar da cena é desmarcar; o item continua na tela. */
+    fun alternarPresenteDoDossie(frameId: Int, indice: Int) = editarRascunho(frameId) { it.comPresenteAlternado(indice) }
+
+    fun mudarCaracteristicasDoDossie(frameId: Int, indice: Int, texto: String) = editarRascunho(frameId) { it.comCaracteristicas(indice, texto) }
+
+    fun mudarCampoDoDossie(frameId: Int, campo: CampoDoDossie, texto: String) = editarRascunho(frameId) {
+        when (campo) {
+            CampoDoDossie.ONDE -> it.copy(onde = texto)
+            CampoDoDossie.LUZ_E_CLIMA -> it.copy(luzEClima = texto)
+            CampoDoDossie.ACAO -> it.copy(acao = texto)
+        }
+    }
+
+    fun pedirAcrescentarAoDossie(frameId: Int) {
+        _estado.update { it.copy(acrescentandoAoDossie = frameId) }
+    }
+
+    fun cancelarAcrescentarAoDossie() {
+        _estado.update { it.copy(acrescentandoAoDossie = null) }
+    }
+
+    /** Põe um item livre ao fim da lista (AP3). Sem nome, o diálogo continua aberto. */
+    fun acrescentarAoDossie(frameId: Int, nome: String, tipo: String, caracteristicas: String) {
+        if (nome.isBlank()) return
+        editarRascunho(frameId) { it.comPresenteNovo(nome, tipo, caracteristicas) }
+        _estado.update { it.copy(acrescentandoAoDossie = null) }
+    }
+
+    /** Larga as alterações não confirmadas: volta ao que o servidor guardou. */
+    fun descartarRascunhoDoDossie(frameId: Int) = mudarDossie(frameId) { it.copy(rascunho = null, recado = null) }
+
+    /** "Ler a cena" / "Ler de novo" **pede confirmação** antes de gastar IA e de refazer a lista (AP2). */
+    fun pedirLerDossie(frameId: Int) {
+        val atual = _estado.value.dossies[frameId] as? DossieDoFrame.Pronto ?: return
+        if (atual.lendoDeNovo || atual.gravando) return
+        _estado.update { it.copy(confirmandoLeituraDoDossie = frameId) }
+    }
+
+    fun cancelarLerDossie() {
+        _estado.update { it.copy(confirmandoLeituraDoDossie = null) }
+    }
+
+    /** O "sim" do diálogo: `POST /frames/{id}/dossie` (**gasta IA**). Refaz a lista e descarta o rascunho e a confirmação. */
+    fun lerDossie(frameId: Int) {
+        if (_estado.value.confirmandoLeituraDoDossie != frameId) return
+        _estado.update { it.copy(confirmandoLeituraDoDossie = null) }
+        mudarDossie(frameId) { it.copy(lendoDeNovo = true, recado = null) }
+        viewModelScope.launch {
+            when (val resultado = prompts.lerDossie(frameId)) {
+                is ResultadoDaChamada.Sucesso -> {
+                    val custo = custoDaChamada(resultado.dado.custo)
+                    val aviso = "Cena lida" + (if (resultado.dado.modelo.isNotBlank()) " por ${resultado.dado.modelo}" else "") + (custo?.let { " ($it)" } ?: "") + "."
+                    mudarDossie(frameId) { DossieDoFrame.Pronto(resultado.dado.comoDossie(), recado = MensagemDoElemento(aviso, ehErro = false)) }
+                }
+                is ResultadoDaChamada.Falha -> mudarDossie(frameId) { it.copy(lendoDeNovo = false, recado = MensagemDoElemento(resultado.motivo, ehErro = true)) }
+            }
+        }
+    }
+
+    /** "Confirmar a lista" (AP3): grava a lista inteira como está na tela (`PUT`, não gasta IA) e a marca como confirmada. */
+    fun confirmarDossie(frameId: Int) {
+        val atual = _estado.value.dossies[frameId] as? DossieDoFrame.Pronto ?: return
+        if (atual.lendoDeNovo || atual.gravando) return
+        val rascunho = atual.rascunho ?: rascunhoDe(atual.guardado)
+        mudarDossie(frameId) { it.copy(gravando = true, recado = null) }
+        viewModelScope.launch {
+            when (val resultado = prompts.confirmarDossie(frameId, rascunho.paraGravar(atual.guardado))) {
+                is ResultadoDaChamada.Sucesso -> mudarDossie(frameId) {
+                    DossieDoFrame.Pronto(resultado.dado, recado = MensagemDoElemento(AVISO_LISTA_CONFIRMADA, ehErro = false))
+                }
+                is ResultadoDaChamada.Falha -> mudarDossie(frameId) { it.copy(gravando = false, recado = MensagemDoElemento(resultado.motivo, ehErro = true)) }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    // Conferir a imagem com a lista (item 4.9, FL13.1; AP7)
+    // ------------------------------------------------------------------ //
+
+    /** "Conferir com a lista": **pede confirmação** (gasta IA: um modelo com visão olha a imagem). */
+    fun pedirConferirImagem(imagemId: Int) {
+        if (_estado.value.conferencia is ConferenciaEmCurso.Rodando) return
+        _estado.update { it.copy(conferencia = ConferenciaEmCurso.Confirmando(imagemId)) }
+    }
+
+    fun fecharConferencia() {
+        _estado.update { if (it.conferencia is ConferenciaEmCurso.Rodando) it else it.copy(conferencia = null) }
+    }
+
+    /** O "sim" do diálogo: `POST /imagens/{id}/conferir`. É só uma opinião; nada é alterado. */
+    fun conferirImagem() {
+        val pedido = _estado.value.conferencia as? ConferenciaEmCurso.Confirmando ?: return
+        _estado.update { it.copy(conferencia = ConferenciaEmCurso.Rodando(pedido.imagemId)) }
+        viewModelScope.launch {
+            val desfecho = when (val resultado = prompts.conferirImagem(pedido.imagemId)) {
+                is ResultadoDaChamada.Sucesso -> ConferenciaEmCurso.Pronta(pedido.imagemId, resultado.dado)
+                is ResultadoDaChamada.Falha -> ConferenciaEmCurso.Falhou(pedido.imagemId, resultado.motivo)
+            }
+            _estado.update { it.copy(conferencia = desfecho) }
+        }
+    }
+
     /** Aplica o resultado de uma geração de prompt à lista do frame (G5, G7). */
     private fun aplicarResultadoDoPrompt(frameId: Int, resultado: ResultadoDaChamada<PromptDeFrame>) {
+        if (resultado is ResultadoDaChamada.Sucesso) relerDossieDepoisDoPrompt(frameId) // AP4: o servidor pode ter criado o dossiê agora
         _estado.update { atual ->
             val daLista = (atual.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista.orEmpty()
             when (resultado) {

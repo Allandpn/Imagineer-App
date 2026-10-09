@@ -213,6 +213,23 @@ class AcoesDoPainel(
     val aoDefinirVideoNoTexto: (frameId: Int, videoId: Int?) -> Unit = { _, _ -> },
     val aoOcultarPromptDeVideo: (frameId: Int, promptId: Int, oculto: Boolean) -> Unit = { _, _, _ -> },
     val aoSalvarPromptDeVideo: (frameId: Int, promptId: Int, texto: String, textoPt: String?) -> Unit = { _, _, _, _ -> },
+    // "O que vai aparecer" (item 4.9, FL9) e a conferência da imagem (FL13.1).
+    val aoCarregarDossie: (frameId: Int) -> Unit = {},
+    val aoRecarregarDossie: (frameId: Int) -> Unit = {},
+    val aoAlternarPresente: (frameId: Int, indice: Int) -> Unit = { _, _ -> },
+    val aoMudarCaracteristicas: (frameId: Int, indice: Int, texto: String) -> Unit = { _, _, _ -> },
+    val aoMudarCampoDoDossie: (frameId: Int, campo: CampoDoDossie, texto: String) -> Unit = { _, _, _ -> },
+    val aoPedirAcrescentarAoDossie: (frameId: Int) -> Unit = {},
+    val aoCancelarAcrescentarAoDossie: () -> Unit = {},
+    val aoAcrescentarAoDossie: (frameId: Int, nome: String, tipo: String, caracteristicas: String) -> Unit = { _, _, _, _ -> },
+    val aoDescartarRascunhoDoDossie: (frameId: Int) -> Unit = {},
+    val aoPedirLerDossie: (frameId: Int) -> Unit = {},
+    val aoCancelarLerDossie: () -> Unit = {},
+    val aoLerDossie: (frameId: Int) -> Unit = {},
+    val aoConfirmarDossie: (frameId: Int) -> Unit = {},
+    val aoPedirConferirImagem: (imagemId: Int) -> Unit = {},
+    val aoConferirImagem: () -> Unit = {},
+    val aoFecharConferencia: () -> Unit = {},
     /** O ícone Traduzir do cartão do prompt de imagem (VD14): abre a edição já na aba Português. */
     val aoTraduzirPrompt: (frameId: Int, promptId: Int, texto: String) -> Unit = { _, _, _ -> },
     val aoConfirmarExclusaoDeImagem: () -> Unit,
@@ -268,6 +285,7 @@ fun DialogosDoPainel(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
     estado.apagandoFrame?.let { DialogoApagarFrame(it, acoes) }
     estado.editandoCena?.let { DialogoDeEdicaoDaCena(it, acoes) }
     estado.excluindoImagem?.let { DialogoExcluirImagem(acoes) }
+    DialogosDoDossie(estado, acoes)
     if (estado.escolhendoModelo) estado.modelosDeImagem?.let { DialogoEscolherModelo(it, estado.modeloEscolhido, acoes) }
     when (val dialogo = estado.dialogo) {
         is DialogoDeElemento.Criando -> DialogoCriarElemento(dialogo, acoes)
@@ -1116,6 +1134,9 @@ internal fun BlocoDePrompts(
     // Q1: a imagem em destaque, com o botão que faz o que falta.
     SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena)
 
+    // Item 4.9 (FL9): a lista do que vai aparecer na cena, recolhida por padrão; o retrato não tem (a imagem dele é neutra).
+    if (ehCena) CartaoDoQueVaiAparecer(frameId, estado, acoes)
+
     // Item 4.8: o prompt de vídeo, a partir de uma das imagens do frame.
     SecaoDeVideo(frameId, rotulo, imagensDoFrameComACanonica(lista.flatMap { it.imagens }, estado.canonicasDosFrames[frameId]), estado, acoes)
 
@@ -1222,6 +1243,8 @@ private fun CartaoDePrompt(
             Text("Prompt $numero", style = MaterialTheme.typography.titleSmall)
             EtiquetasDoPrompt(prompt)
             SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
+            // AP5 (item 4.9): de onde veio; só o que valeu para este prompt, mesmo que a lista tenha mudado depois.
+            linhaDaFicha(prompt.ficha)?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // EV14: as imagens que foram de referência na geração deste prompt.
             if (prompt.imagens_de_referencia.isNotEmpty()) MiniaturasDeReferencia(prompt.imagens_de_referencia, legenda = "Referências enviadas")
             descreverReferenciasVisuais(prompt.referencias_visuais.size)?.let {
@@ -1506,7 +1529,7 @@ private fun EtiquetaDaCena(texto: String, filtro: FiltroDoPainel) {
 }
 
 @Composable
-private fun RecadoDaCena(mensagem: MensagemDoElemento) {
+internal fun RecadoDaCena(mensagem: MensagemDoElemento) {
     Text(
         mensagem.texto,
         style = MaterialTheme.typography.bodySmall,

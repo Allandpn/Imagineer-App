@@ -148,8 +148,39 @@ internal class PromptsFalso : RepositorioDePrompts {
         return resultadoDosModelos
     }
 
+    /** O dossiê da cena (item 4.9, FL9) e a conferência da imagem (FL13.1): o que o servidor responde e o que o app pediu a ele. */
+    var dossieGuardado: ResultadoDaChamada<com.allan.imagineer.rede.DossieDaCena?> = ResultadoDaChamada.Sucesso(null)
+    val leiturasDoDossie = mutableListOf<Int>()
+    var dossieLidoDeNovo: ResultadoDaChamada<com.allan.imagineer.rede.DossieLido> = ResultadoDaChamada.Falha("não combinado")
+    val dossiesLidosDeNovo = mutableListOf<Int>() // gasta IA
+    var dossieConfirmado: ((com.allan.imagineer.rede.DossieParaGravar) -> ResultadoDaChamada<com.allan.imagineer.rede.DossieDaCena>)? = null
+    val dossiesConfirmados = mutableListOf<Pair<Int, com.allan.imagineer.rede.DossieParaGravar>>()
+    var conferencia: ResultadoDaChamada<com.allan.imagineer.rede.ConferenciaDaImagem> = ResultadoDaChamada.Falha("não combinado")
+    val conferencias = mutableListOf<Int>() // gasta IA
+
+    override suspend fun dossie(frameId: Int): ResultadoDaChamada<com.allan.imagineer.rede.DossieDaCena?> {
+        leiturasDoDossie += frameId
+        return dossieGuardado
+    }
+
+    override suspend fun lerDossie(frameId: Int): ResultadoDaChamada<com.allan.imagineer.rede.DossieLido> {
+        dossiesLidosDeNovo += frameId
+        return dossieLidoDeNovo
+    }
+
+    override suspend fun confirmarDossie(frameId: Int, dossie: com.allan.imagineer.rede.DossieParaGravar): ResultadoDaChamada<com.allan.imagineer.rede.DossieDaCena> {
+        dossiesConfirmados += frameId to dossie
+        return dossieConfirmado?.invoke(dossie)
+            ?: ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.DossieDaCena(presentes = dossie.presentes, onde = dossie.onde, luz_e_clima = dossie.luz_e_clima, acao = dossie.acao, confirmado = true))
+    }
+
+    override suspend fun conferirImagem(imagemId: Int): ResultadoDaChamada<com.allan.imagineer.rede.ConferenciaDaImagem> {
+        conferencias += imagemId
+        return conferencia
+    }
+
     val pedidosSemFiltro = mutableListOf<Int>() // os prompts pedidos com o filtro desligado (F12)
-    val referenciasPedidas = mutableListOf<List<Int>>() // as referências de cada geração de imagem (W3)
+    val referenciasPedidas = mutableListOf<List<Int>?>() // as referências de cada geração de imagem (W3); null = a pessoa não escolheu (FL10)
     var candidatas: ResultadoDaChamada<com.allan.imagineer.rede.ReferenciasCandidatas> =
         ResultadoDaChamada.Sucesso(com.allan.imagineer.rede.ReferenciasCandidatas())
     val frameDasCandidatas = mutableListOf<Int>()
@@ -173,7 +204,7 @@ internal class PromptsFalso : RepositorioDePrompts {
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
-        referencias: List<Int>,
+        referencias: List<Int>?,
         textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
         portuguesesPedidos += textoPt

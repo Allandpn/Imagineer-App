@@ -54,6 +54,8 @@ data class PromptDeFrame(
     val imagem_partida_id: Int? = null,
     /** Só no `VIDEO`: a pessoa o escondeu da lista (VD12); não foi apagado. */
     val oculto: Boolean = false,
+    /** Só no prompt de **cena**: o que valeu para ele ("de onde veio", item 4.9, FL13.2); nulo = prompt antigo ou retrato. */
+    val ficha: FichaDoPrompt? = null,
 )
 
 /**
@@ -176,7 +178,11 @@ data class CenaComImagens(
 
 /** O que o modal de referências mostra (W2, W9). */
 @Serializable
-data class ReferenciasCandidatas(val elementos: List<ElementoComImagens> = emptyList())
+data class ReferenciasCandidatas(
+    val elementos: List<ElementoComImagens> = emptyList(),
+    /** Os ids das imagens que o servidor mandaria **sozinho** numa cena (a âncora de cada elemento da lista, FL10); vazia num retrato. */
+    val marcadas: List<Int> = emptyList(),
+)
 
 /**
  * O que o modal da cena precisa dos prompts de um frame (item 6.6). Interface, para o ViewModel ser testado com uma
@@ -211,10 +217,25 @@ interface RepositorioDePrompts {
         textoEditado: String? = null,
         modelo: String? = null,
         semFiltro: Boolean = false,
-        referencias: List<Int> = emptyList(),
+        /** `null` = a pessoa não escolheu: o campo nem vai e vale o padrão do servidor (FL10); lista, **mesmo vazia**, vai como está (`[]` = nenhuma). */
+        referencias: List<Int>? = null,
         /** O português que a pessoa escreveu e que deu origem ao [textoEditado] (PT4): o prompt novo o guarda. */
         textoPt: String? = null,
     ): ResultadoDaChamada<ResultadoDaGeracao>
+
+    /** `GET /frames/{id}/dossie`: o dossiê guardado da cena; `null` se ela ainda não foi lida (FL9). Nunca gasta IA. */
+    suspend fun dossie(frameId: Int): ResultadoDaChamada<DossieDaCena?> = ResultadoDaChamada.Falha("O dossiê não está disponível.")
+
+    /** `POST /frames/{id}/dossie`: lê o capítulo inteiro e **refaz** o dossiê, inclusive o confirmado. **Gasta IA** (FL9). */
+    suspend fun lerDossie(frameId: Int): ResultadoDaChamada<DossieLido> = ResultadoDaChamada.Falha("O dossiê não está disponível.")
+
+    /** `PUT /frames/{id}/dossie`: grava a lista como a pessoa a deixou e a marca como confirmada. Não gasta IA (FL9). */
+    suspend fun confirmarDossie(frameId: Int, dossie: DossieParaGravar): ResultadoDaChamada<DossieDaCena> =
+        ResultadoDaChamada.Falha("O dossiê não está disponível.")
+
+    /** `POST /imagens/{id}/conferir`: um modelo com visão compara a imagem com a lista do prompt. **Gasta IA**; não muda nada (FL13.1). */
+    suspend fun conferirImagem(imagemId: Int): ResultadoDaChamada<ConferenciaDaImagem> =
+        ResultadoDaChamada.Falha("A conferência não está disponível.")
 
     /** `POST /prompts/{id}/traducao-pt`: o prompt em português (PT2); traduz uma vez e guarda, e a segunda vez não chama a IA. */
     suspend fun traduzirParaPortugues(promptId: Int): ResultadoDaChamada<Traducao> =
@@ -416,22 +437,37 @@ class RepositorioDePromptsPeloRetrofit(
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
-        referencias: List<Int>,
+        referencias: List<Int>?,
         textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> {
         val api = provedor.obter() ?: return provedor.semServidor()
         // Só o que a pessoa decidiu: sem texto o servidor segue o fluxo normal (original e, se recusar, suaviza); sem
         // modelo vale o padrão do servidor (Z3).
-        val corpo: JsonObject = buildJsonObject {
-            if (textoEditado != null) put("texto", textoEditado)
-            if (textoEditado != null && !textoPt.isNullOrBlank()) put("texto_pt", textoPt)
-            if (modelo != null) put("modelo", modelo)
-            // F12: só por pedido explícito da pessoa, no diálogo próprio; nunca vai por padrão.
-            if (semFiltro) put("sem_filtro_de_seguranca", true)
-            // W3: só as imagens que a pessoa escolheu no modal; sem escolha o campo nem vai.
-            if (referencias.isNotEmpty()) put("imagens_de_referencia", kotlinx.serialization.json.JsonArray(referencias.map { kotlinx.serialization.json.JsonPrimitive(it) }))
-        }
+        val corpo = corpoDaGeracaoDeImagem(textoEditado, modelo, semFiltro, referencias, textoPt)
         return chamarApi { api.gerarImagem(promptId, corpo) }
+    }
+
+    override suspend fun dossie(frameId: Int): ResultadoDaChamada<DossieDaCena?> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return when (val resposta = chamarApi { api.dossie(frameId) }) {
+            is ResultadoDaChamada.Sucesso -> ResultadoDaChamada.Sucesso(dossieDoJson(resposta.dado))
+            is ResultadoDaChamada.Falha -> resposta
+        }
+    }
+
+    override suspend fun lerDossie(frameId: Int): ResultadoDaChamada<DossieLido> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.lerDossie(frameId) }
+    }
+
+    override suspend fun confirmarDossie(frameId: Int, dossie: DossieParaGravar): ResultadoDaChamada<DossieDaCena> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.confirmarDossie(frameId, dossie) }
+    }
+
+    override suspend fun conferirImagem(imagemId: Int): ResultadoDaChamada<ConferenciaDaImagem> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.conferirImagem(imagemId) }
     }
 
     override suspend fun referenciasCandidatas(frameId: Int): ResultadoDaChamada<ReferenciasCandidatas> {
@@ -514,7 +550,7 @@ object PromptsSemServidor : RepositorioDePrompts {
         textoEditado: String?,
         modelo: String?,
         semFiltro: Boolean,
-        referencias: List<Int>,
+        referencias: List<Int>?,
         textoPt: String?,
     ): ResultadoDaChamada<ResultadoDaGeracao> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
 
@@ -538,6 +574,26 @@ object PromptsSemServidor : RepositorioDePrompts {
         arquivo: ArquivoEscolhido,
         aoProgredir: (enviados: Long, total: Long?) -> Unit,
     ): ResultadoDaChamada<ImagemDoPrompt> = ResultadoDaChamada.Falha("Os prompts não estão disponíveis.")
+}
+
+/**
+ * O corpo de `POST /prompts/{id}/gerar-imagem`. Só vai o que a pessoa decidiu: sem texto o servidor segue o fluxo normal; sem modelo
+ * vale o padrão (Z3). **As referências (item 4.9, FL10):** `null` = a pessoa não escolheu, o campo nem vai e o servidor manda a âncora
+ * de cada elemento da cena; uma lista vai como está, **inclusive vazia** (`[]` = "nenhuma", ela tirou todas).
+ */
+fun corpoDaGeracaoDeImagem(
+    textoEditado: String?,
+    modelo: String?,
+    semFiltro: Boolean,
+    referencias: List<Int>?,
+    textoPt: String?,
+): JsonObject = buildJsonObject {
+    if (textoEditado != null) put("texto", textoEditado)
+    if (textoEditado != null && !textoPt.isNullOrBlank()) put("texto_pt", textoPt)
+    if (modelo != null) put("modelo", modelo)
+    // F12: só por pedido explícito da pessoa, no diálogo próprio; nunca vai por padrão.
+    if (semFiltro) put("sem_filtro_de_seguranca", true)
+    if (referencias != null) put("imagens_de_referencia", kotlinx.serialization.json.JsonArray(referencias.map { kotlinx.serialization.json.JsonPrimitive(it) }))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

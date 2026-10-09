@@ -20,6 +20,7 @@ enum class TarefaDeTexto(val campo: String, val titulo: String, val descricao: S
     SUAVIZACAO("modelo_suavizacao", "Suavização", "Reescreve um prompt que o provedor de imagem recusou.", true),
     TRADUCAO("modelo_traducao", "Tradução", "Traduz os prompts entre português e inglês. Curta e barata.", true),
     VIDEO("modelo_video", "Prompt de vídeo", "Monta o prompt de vídeo de uma cena. É raro e tem muitas regras, então vale um modelo mais forte.", true),
+    CONFERENCIA("modelo_conferencia", "Conferência da imagem", "Olha a imagem gerada e confere com a lista do que deveria aparecer. Precisa de um modelo que ENXERGUE imagens.", false),
 }
 
 /** O modelo escolhido para a [tarefa], ou `null` se ainda não há. */
@@ -30,6 +31,7 @@ fun modeloEscolhido(config: ConfiguracaoAtual, tarefa: TarefaDeTexto): String? =
     TarefaDeTexto.SUAVIZACAO -> config.modelo_suavizacao
     TarefaDeTexto.TRADUCAO -> config.modelo_traducao
     TarefaDeTexto.VIDEO -> config.modelo_video
+    TarefaDeTexto.CONFERENCIA -> config.modelo_conferencia
 }?.takeIf { it.isNotBlank() }
 
 /** O modelo que **vale** para a tarefa quando nada foi escolhido (a mesma regra do servidor); `null` se nem isso há. */

@@ -73,7 +73,7 @@ internal fun LinhaDoSeletorDeElementos(
     val nomes = if (ehCena) emptyList() else frameId?.let { estado.vinculadosPorFrame[it] }.orEmpty()
     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            descreverSelecao(ehCena, nomes, imagens, aceita),
+            descreverSelecao(ehCena, nomes, imagens, aceita, automaticas = ehCena && frameId != null && frameId !in estado.referenciasEscolhidas),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.weight(1f, fill = false),
         )

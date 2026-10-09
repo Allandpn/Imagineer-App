@@ -894,10 +894,12 @@ fun elementosMudaram(dados: ElementosParaVincular, selecao: SelecaoNoSeletor): B
     todosOsElementos(dados).filter { it.no_frame }.map { it.estado_id }.toSet() != selecao.elementos
 
 /** A linha "Elementos e imagens: ..." junto do botão de gerar (EV1, EV8, W10). */
-fun descreverSelecao(ehCena: Boolean, vinculados: List<String>, imagens: Int, modeloAceita: Boolean): String {
+fun descreverSelecao(ehCena: Boolean, vinculados: List<String>, imagens: Int, modeloAceita: Boolean, automaticas: Boolean = false): String {
     val partes = mutableListOf<String>()
     if (!ehCena) partes += if (vinculados.isEmpty()) "vinculados: nenhum" else "vinculados: ${vinculados.joinToString(", ")}"
     partes += when {
+        // AP6: numa cena sem escolha da pessoa, o servidor manda sozinho a âncora de cada elemento (FL10).
+        imagens == 0 && automaticas && modeloAceita -> "imagens: automáticas (a âncora de cada elemento da cena)"
         imagens == 0 -> "imagens: nenhuma"
         !modeloAceita -> "$imagens ${if (imagens == 1) "imagem guardada" else "imagens guardadas"}, este modelo não as usa"
         imagens == 1 -> "1 imagem"
