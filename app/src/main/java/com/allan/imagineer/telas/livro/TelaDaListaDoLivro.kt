@@ -45,7 +45,7 @@ import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.Artefato
 import com.allan.imagineer.rede.enderecoDaImagem
-import com.allan.imagineer.telas.capitulo.iconeDoArtefato
+import com.allan.imagineer.telas.capitulo.SeloDoArtefato
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
 
 /**
@@ -141,7 +141,7 @@ private fun LinhaDoArtefatoDoLivro(artefato: Artefato, mostrarSituacao: Boolean,
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(Color.Black),
             )
         } else {
-            Icon(iconeDoArtefato(artefato), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+            SeloDoArtefato(artefato, Modifier.size(28.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(artefato.rotulo, style = MaterialTheme.typography.bodyLarge)

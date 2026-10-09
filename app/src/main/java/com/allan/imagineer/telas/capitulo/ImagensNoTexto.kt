@@ -30,6 +30,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -110,14 +111,17 @@ internal fun QuadroDaImagemNoTexto(artefato: Artefato, urlBase: String, modifier
 // Os ícones dentro da linha e os blocos do texto (I9, I10)
 // ---------------------------------------------------------------------------------------------------------------- //
 
-/** O tamanho de um ícone dentro da linha: o de uma linha de leitura (I9). */
+/** O tamanho de um selo dentro da linha quando a fonte não diz o seu (I9; SE3 faz o selo acompanhar a fonte). */
 internal val TAMANHO_DO_ICONE_NA_LINHA = 26.sp
 
 /** O parágrafo com os ícones desenhados **no começo**, cada um seguido de um espaço, e o que isso soma ao texto. */
 internal class TextoComIcones(val anotado: AnnotatedString, val prefixo: Int, val marcadores: List<AnnotatedString.Range<Placeholder>>)
 
-/** Monta o texto com [quantidade] ícones no começo (I9). O `prefixo` é quantos caracteres os ícones ocupam antes do texto. */
-internal fun textoComIcones(texto: String, quantidade: Int): TextoComIcones {
+/**
+ * Monta o texto com [quantidade] selos no começo (I9). O `prefixo` é quantos caracteres os selos ocupam antes do texto.
+ * [tamanho] é o do selo (SE3, `tamanhoDoSelo` da fonte do parágrafo); quem **mede** o texto e quem o **desenha** têm de passar o mesmo.
+ */
+internal fun textoComIcones(texto: String, quantidade: Int, tamanho: TextUnit = TAMANHO_DO_ICONE_NA_LINHA): TextoComIcones {
     val anotado = buildAnnotatedString {
         repeat(quantidade) {
             appendInlineContent("icone$it", "\uFFFD")
@@ -125,7 +129,7 @@ internal fun textoComIcones(texto: String, quantidade: Int): TextoComIcones {
         }
         append(texto)
     }
-    val marcador = Placeholder(TAMANHO_DO_ICONE_NA_LINHA, TAMANHO_DO_ICONE_NA_LINHA, PlaceholderVerticalAlign.TextCenter)
+    val marcador = Placeholder(tamanho, tamanho, PlaceholderVerticalAlign.TextCenter)
     return TextoComIcones(anotado, quantidade * 2, List(quantidade) { AnnotatedString.Range(marcador, it * 2, it * 2 + 1) })
 }
 
@@ -138,23 +142,16 @@ internal const val ETIQUETA_DO_DESTAQUE = "destaque:"
 /** O começo da etiqueta de um nome de elemento; o resto é o id dele (RL14). */
 internal const val ETIQUETA_DO_NOME = "nome:"
 
-/** Um ícone de artefato dentro da linha de texto: o desenho do tipo, a cor da situação, tocável (leva ao painel). */
+/** Um selo de artefato dentro da linha de texto (SE1): o glifo do tipo em branco, o fundo da situação, tocável (leva ao painel). */
 @Composable
 private fun IconeNaLinha(artefato: Artefato, aoTocar: (Artefato) -> Unit) {
-    Box(
+    SeloDoArtefato(
+        artefato = artefato,
         modifier = Modifier
             .fillMaxSize()
             .clickable(onClickLabel = "Abrir no painel de IA") { aoTocar(artefato) }
             .semantics { contentDescription = descreverArtefato(artefato) },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = iconeDoArtefato(artefato),
-            contentDescription = null,
-            tint = corDoArtefatoNaLinha(artefato),
-            modifier = Modifier.size(20.dp),
-        )
-    }
+    )
 }
 
 /** Um parágrafo (ou um pedaço dele) com os [icones] dentro da primeira linha (I9). */
@@ -169,8 +166,9 @@ internal fun TextoDoParagrafo(
     marcas: List<MarcaNoTexto> = emptyList(),
     aoTocarMarca: (etiqueta: String) -> Unit = {},
 ) {
-    val montado = remember(texto, icones.size, marcas) {
-        val base = textoComIcones(texto, icones.size)
+    val selo = tamanhoDoSelo(estilo.fontSize)
+    val montado = remember(texto, icones.size, marcas, selo) {
+        val base = textoComIcones(texto, icones.size, selo)
         if (marcas.isEmpty()) base else TextoComIcones(
             anotado = buildAnnotatedString {
                 append(base.anotado)
