@@ -77,7 +77,7 @@ internal fun LinhaDoSeletorDeElementos(
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.weight(1f, fill = false),
         )
-        TextButton(onClick = aoEscolher, enabled = !ocupado) { Text("Escolher", maxLines = 1, softWrap = false) }
+        BotaoDeEscolha("Escolher", aoEscolher, habilitado = !ocupado) // PX1: escolher algo é um botão contornado, não um texto solto
     }
     // EV14: as miniaturas das imagens que vão como referência (esmaecidas se o modelo em uso não as usa).
     val ids = frameId?.let { estado.referenciasEscolhidas[it] }.orEmpty()

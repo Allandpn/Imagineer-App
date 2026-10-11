@@ -672,13 +672,6 @@ const val ROTULO_SO_O_PROMPT = "Só o prompt"
 fun avisoDoBotaoPrincipal(jaTemPrompt: Boolean): String =
     if (jaTemPrompt) "Gera a imagem (gasta IA)." else "Gera o prompt e a imagem (gasta IA)."
 
-/** O rótulo do botão que recolhe e mostra os prompts (Q7). */
-fun rotuloDeVerPrompts(aberto: Boolean, quantos: Int): String = when {
-    aberto -> "Ocultar prompts"
-    quantos > 0 -> "Ver prompts ($quantos)"
-    else -> "Ver prompts"
-}
-
 /** O aviso depois de salvar a imagem na galeria (U2). */
 const val AVISO_SALVA_NA_GALERIA = "Salva na galeria."
 

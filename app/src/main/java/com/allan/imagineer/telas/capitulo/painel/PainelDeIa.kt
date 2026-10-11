@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -268,10 +270,12 @@ fun PainelDeIa(
     /** Todos os artefatos do capítulo: a fila (item 7.5e) tira deles a posição e a situação de cada item. */
     artefatos: List<Artefato> = emptyList(),
 ) {
+    var legendaAberta by rememberSaveable { mutableStateOf(false) }
+    if (legendaAberta) DialogoDaLegenda(aoFechar = { legendaAberta = false })
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Column(modifier = Modifier.fillMaxSize()) {
-            CabecalhoDoPainel(aoFechar, acoes.aoAbrirModelosDeIa)
-            LegendaDosSelos(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) // SE5
+            // PT1, PT2: um cabeçalho de uma linha só; a legenda das cores foi para o "?".
+            CabecalhoDoPainel(aoFechar, acoes.aoAbrirModelosDeIa, aoAbrirLegenda = { legendaAberta = true })
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 CorpoDoPainel(estado, acoes, retratos, cenasDeTrechos, artefatos)
             }
@@ -429,7 +433,7 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
 }
 
 @Composable
-private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Unit)?) {
+private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Unit)?, aoAbrirLegenda: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -440,6 +444,8 @@ private fun CabecalhoDoPainel(aoFechar: (() -> Unit)?, aoAbrirModelos: (() -> Un
             Text("IA do capítulo", style = MaterialTheme.typography.titleMedium)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // PT2: o "?" explica as cores dos selos (antes era uma linha fixa de legenda).
+            BotaoDeIcone(Icons.AutoMirrored.Filled.HelpOutline, "O que as cores querem dizer", aoAbrirLegenda, cor = LocalContentColor.current)
             // Escolher os modelos de IA (extração, prompt, vídeo...) sem sair do capítulo para procurar nas Configurações.
             if (aoAbrirModelos != null) BotaoDeIcone(Icons.Filled.Tune, "Modelos de IA", aoAbrirModelos, cor = LocalContentColor.current)
             if (aoFechar != null) BotaoDeIcone(Icons.Filled.Close, "Fechar o painel de IA", aoFechar, cor = LocalContentColor.current)
@@ -545,25 +551,29 @@ private fun ListaDeSugestoes(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // O alto fica fixo: o título e os botões em duas linhas (com dois botões, a linha única espremia o texto do segundo em telas
-        // estreitas), os avisos da análise e as abas.
-        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Sugestões da IA", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // O alto fica fixo: uma linha de ações (PT3), os avisos da análise (PT4) e as abas.
+        Column(modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 // L1: só tem sentido quando há algo a confirmar; o diálogo mostra a conta antes de agir.
                 Button(
                     onClick = acoes.aoPedirConfirmarTodos,
                     enabled = !estado.analisando && !estado.executandoLote && resumoParaConfirmarTodos(sugestoes).temAlgoParaConfirmar,
                 ) { Text("Confirmar todos", maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = acoes.aoPedirReanalise, enabled = !estado.analisando && !estado.executandoLote) {
-                    Text("Reanalisar", maxLines = 1, softWrap = false)
-                }
-                // GF2: marcar vários e gerar em fila. Some enquanto a fila roda (um assunto de cada vez).
-                if (!fila.rodando) {
-                    OutlinedButton(onClick = acoes.aoAlternarSelecaoDaFila, enabled = !estado.analisando && itensDaFila.any { it.podeEntrar }) {
-                        Text(if (fila.selecionando) "Sair da seleção" else "Selecionar", maxLines = 1, softWrap = false)
-                    }
-                }
+                // PT3: Reanalisar (gasta IA, com o diálogo de sempre) e Selecionar vários (GF2) moram no ⋮. Selecionar some com a fila rodando.
+                MenuMais(
+                    itens = buildList {
+                        add(ItemDeMenu(ItemDoMenuDoTopo.REANALISAR.rotulo, habilitado = !estado.analisando && !estado.executandoLote) { acoes.aoPedirReanalise() })
+                        if (!fila.rodando) {
+                            add(
+                                ItemDeMenu(
+                                    rotuloDeSelecionar(fila.selecionando),
+                                    habilitado = !estado.analisando && (fila.selecionando || itensDaFila.any { it.podeEntrar }),
+                                ) { acoes.aoAlternarSelecaoDaFila() },
+                            )
+                        }
+                    },
+                    descricao = "Mais ações do painel",
+                )
             }
             ErroDaAnalise(estado)
             AnaliseEmAndamento(estado)
@@ -693,16 +703,22 @@ private fun CartaoDeCenaAdicional(cena: Artefato, aberto: Boolean, aoAlternar: (
                 EtiquetaDaCena("Confirmada", FiltroDoPainel.CONFIRMADOS)
                 // RL36: a cena adicional também se favorita.
                 com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(frameId))
-                IconButton(onClick = { acoes.aoIniciarPosicionamentoDeFrame(true, frameId, cena.rotulo) }) {
-                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                }
+                // PC1, PC2: posicionar, voltar à posição automática, editar e apagar moram no ⋮ (apagar, separado e em vermelho).
+                MenuMais(
+                    itens = itensDoMenuDaCena(temFrame = true).map { item ->
+                        ItemDeMenu(item.rotulo, item.perigoso) {
+                            when (item) {
+                                ItemDoMenuDoCartao.POSICIONAR -> acoes.aoIniciarPosicionamentoDeFrame(true, frameId, cena.rotulo)
+                                ItemDoMenuDoCartao.VOLTAR_A_POSICAO_AUTOMATICA -> acoes.aoTirarPosicao(true, null, frameId)
+                                ItemDoMenuDoCartao.EDITAR_A_CENA -> acoes.aoAbrirEdicaoDeFrame(frameId, cena.rotulo)
+                                ItemDoMenuDoCartao.APAGAR_A_CENA -> acoes.aoPedirApagarFrame(frameId, cena.rotulo, false)
+                            }
+                        }
+                    },
+                    descricao = "Mais ações de ${cena.rotulo}",
+                )
             }
             if (aberto) {
-                FlowRow {
-                    BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, null, frameId) })
-                    BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDeFrame(frameId, cena.rotulo) })
-                    BotaoDeIcone(Icons.Filled.Delete, ROTULO_APAGAR_A_CENA, { acoes.aoPedirApagarFrame(frameId, cena.rotulo, false) }, cor = MaterialTheme.colorScheme.error)
-                }
                 estado.mensagensDePrompt[frameId]?.takeIf { it.ehErro }?.let { Text(it.texto, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 BlocoDePrompts(
                     frameId, cena.rotulo, estado, acoes, chaveDoFluxoDoFrame(frameId), "Gerar imagem", ehCena = true,
@@ -760,12 +776,23 @@ internal fun CartaoDeElemento(
                 Etiqueta(etiquetaDaSituacao(elemento), situacao)
                 // RL36: só o elemento que já existe (confirmado ou criado) se favorita.
                 if (!elemento.descartada) elemento.elemento_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Elemento(it)) }
-                // Posicionar no texto: sempre à mão no cartão, aberto ou fechado.
-                if (!elemento.descartada) {
-                    IconButton(onClick = { acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome) }, enabled = !ocupado) {
-                        Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
+                // PC1, PC2: posicionar e voltar à posição automática moram no ⋮, aberto ou fechado (o alfinete se confundia com os Pins).
+                MenuMais(
+                    itens = itensDoMenuDoElemento(elemento).map { item ->
+                        ItemDeMenu(item.rotulo, item.perigoso, habilitado = !ocupado) {
+                            when (item) {
+                                ItemDoMenuDoCartao.POSICIONAR -> acoes.aoIniciarPosicionamento(false, elemento.id, elemento.nome)
+                                ItemDoMenuDoCartao.VOLTAR_A_POSICAO_AUTOMATICA -> acoes.aoTirarPosicao(false, elemento.id, null)
+                                else -> Unit
+                            }
+                        }
+                    },
+                    descricao = "Mais ações de ${elemento.nome}",
+                )
+            }
+            // PC3: a decisão à vista, sem abrir o cartão (aberto, a lista completa de ações já está lá).
+            if (!aberto) acaoPrincipalDoElemento(elemento)?.let { acao ->
+                FilledTonalButton(onClick = { acoes.aoExecutar(acao, elemento) }, enabled = !ocupado) { Text(acao.rotulo, maxLines = 1, softWrap = false) }
             }
             descreverCenasDoElemento(cenas)?.let {
                 Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -789,8 +816,6 @@ internal fun CartaoDeElemento(
 
             if (aberto) {
                 DetalhesDoElemento(elemento, situacao, cenas)
-                // O ícone do cabeçalho põe o artefato num parágrafo; aqui, desfazer a escolha (volta ao lugar achado sozinho).
-                BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(false, elemento.id, null) })
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     acoesDoElemento(situacao).forEachIndexed { indice, acao ->
                         val aoTocar: () -> Unit = {
@@ -1124,12 +1149,14 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
                 EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
                 // RL36: favoritar a cena direto do cartão da lista (a confirmada, a que tem frame).
                 cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
-                IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = !ocupada) {
-                    Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-                }
+                MenuDaCena(cena, estado, acoes) // PC1, PC2
             }
             // Fechado, o recado e o progresso continuam visíveis; aberto, o corpo já os mostra.
             if (!aberto) {
+                // PC3: a decisão à vista (Confirmar cena), sem abrir o cartão.
+                acaoPrincipalDaCena(cena)?.let { acao ->
+                    FilledTonalButton(onClick = { acoes.aoExecutarCena(acao, cena) }, enabled = !ocupada) { Text(acao.rotulo, maxLines = 1, softWrap = false) }
+                }
                 estado.mensagensDeCena[cena.id]?.let { RecadoDaCena(it) }
                 if (ocupada) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             } else {
@@ -1137,6 +1164,29 @@ internal fun CartaoDeCena(cena: CenaSugerida, aberto: Boolean, aoAlternar: () ->
             }
         }
     }
+}
+
+/**
+ * O ⋮ do cartão ou do modal de uma cena da análise (PC2): posicionar, voltar à posição automática, editar e, se a cena já virou frame,
+ * apagar (separado, em vermelho, com a confirmação de sempre). Substitui o alfinete e os três ícones soltos que havia.
+ */
+@Composable
+private fun MenuDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: AcoesDoPainel) {
+    val ocupada = cena.id in estado.cenasOcupadas
+    val frameId = cena.frame_id
+    MenuMais(
+        itens = itensDoMenuDaCena(temFrame = frameId != null).map { item ->
+            ItemDeMenu(item.rotulo, item.perigoso, habilitado = !ocupada) {
+                when (item) {
+                    ItemDoMenuDoCartao.POSICIONAR -> acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo)
+                    ItemDoMenuDoCartao.VOLTAR_A_POSICAO_AUTOMATICA -> acoes.aoTirarPosicao(true, cena.id, null)
+                    ItemDoMenuDoCartao.EDITAR_A_CENA -> acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao)
+                    ItemDoMenuDoCartao.APAGAR_A_CENA -> frameId?.let { acoes.aoPedirApagarFrame(it, cena.titulo, true) }
+                }
+            }
+        },
+        descricao = "Mais ações da cena ${cena.titulo}",
+    )
 }
 
 /**
@@ -1168,7 +1218,8 @@ internal fun BlocoDePrompts(
     val lista = (conteudo as? PromptsDoFrame.Pronto)?.lista.orEmpty()
     var aberto by rememberSaveable(frameId) { mutableStateOf(false) }
 
-    // Q1: a imagem em destaque, com o botão que faz o que falta.
+    // PM1: o corpo do frame tem seções com título. Q1: a imagem em destaque, com o botão que faz o que falta.
+    TituloDeSecao(TITULO_DA_SECAO_DE_IMAGENS)
     SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena)
 
     // Item 4.9 (FL9): a lista do que vai aparecer na cena, recolhida por padrão; o retrato não tem (a imagem dele é neutra).
@@ -1180,8 +1231,8 @@ internal fun BlocoDePrompts(
     // Falhas do prompt (do fluxo ou do Novo prompt) ficam fora do recolhido: a pessoa precisa vê-las.
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
 
-    // Q7: os prompts recolhidos.
-    TextButton(onClick = { aberto = !aberto }) { Text(rotuloDeVerPrompts(aberto, lista.size)) }
+    // Q7, PM1, PX1: os prompts recolhidos, numa linha de seção (título com a quantidade e a seta), tocável na linha inteira.
+    LinhaDeSecao(tituloDaSecaoDePrompts(lista.size), aberta = aberto, aoAlternar = { aberto = !aberto })
     if (aberto) {
         when (conteudo) {
             null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -1292,18 +1343,28 @@ private fun CartaoDePrompt(
             ModeloDeImagemEmUso(estado, acoes, ocupado)
             // As imagens de referência são do frame, mas valem para qualquer prompt: a escolha também fica à vista aqui.
             aoEscolherElementos?.let { LinhaDoSeletorDeElementos(frameId, ehCena, estado, acoes, aoEscolher = it, ocupado = ocupado) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
-                BotaoDeIcone(Icons.Filled.Share, "Compartilhar", aoCompartilhar)
+            // PM2: Gerar imagem é a ação principal (botão cheio); Copiar fica contornado, à vista; o resto mora no ⋮.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
-                OutlinedButton(
+                Button(
                     onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null, null) },
                     enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
                 ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
-                // R1: editar o texto antes de gerar; T4: a importação é única, por frame (não por prompt).
-                BotaoDeIcone(Icons.Filled.Edit, "Editar o prompt", { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) })
-                // VD14: ver o prompt em português, à vista (o mesmo diálogo da edição, já na aba Português).
-                BotaoDeIcone(Icons.Filled.Translate, "Ver em português", { acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto) })
+                OutlinedButton(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
+                MenuMais(
+                    itens = ItemDoMenuDoPrompt.entries.map { item ->
+                        ItemDeMenu(item.rotulo) {
+                            when (item) {
+                                ItemDoMenuDoPrompt.COMPARTILHAR -> aoCompartilhar()
+                                // R1: editar o texto antes de gerar.
+                                ItemDoMenuDoPrompt.EDITAR -> acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto)
+                                // VD14: ver o prompt em português (o mesmo diálogo da edição, já na aba Português).
+                                ItemDoMenuDoPrompt.VER_EM_PORTUGUES -> acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto)
+                            }
+                        }
+                    },
+                    descricao = "Mais ações do prompt $numero",
+                )
             }
             ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
@@ -1624,15 +1685,10 @@ private fun ConteudoDoModalDaCena(cena: CenaSugerida, estado: EstadoDoPainel, ac
         EtiquetaDaCena(etiquetaDaCena(cena), filtroDaCena(cena))
         // RL36: a cena confirmada (a que tem frame) se favorita.
         cena.frame_id?.let { com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Cena(it)) }
-        IconButton(onClick = { acoes.aoIniciarPosicionamento(true, cena.id, cena.titulo) }, enabled = cena.id !in estado.cenasOcupadas) {
-            Icon(Icons.Filled.Place, contentDescription = ROTULO_POSICIONAR, tint = MaterialTheme.colorScheme.primary)
-        }
+        // PC2: o mesmo ⋮ do cartão da lista. Apagar a cena confirmada (o frame sai com os prompts e as imagens, sem volta) está nele, em vermelho.
+        MenuDaCena(cena, estado, acoes)
     }
     CorpoDaCena(cena, estado, acoes)
-    // Apagar a cena confirmada: o frame sai com os prompts e as imagens (sem volta) e a cena volta a ser pendente.
-    cena.frame_id?.let { frameId ->
-        BotaoDeIcone(Icons.Filled.Delete, ROTULO_APAGAR_A_CENA, { acoes.aoPedirApagarFrame(frameId, cena.titulo, true) }, cor = MaterialTheme.colorScheme.error)
-    }
 }
 
 /**
@@ -1645,12 +1701,7 @@ private fun CorpoDaCena(cena: CenaSugerida, estado: EstadoDoPainel, acoes: Acoes
     val ocupada = cena.id in estado.cenasOcupadas
     val sugestoes = (estado.conteudo as? ConteudoDoPainel.Pronto)?.sugestoes
 
-    // Desfazer a posição escolhida e editar título e descrição: em toda cena, no cartão da lista e no modal. (O ícone de posicionar
-    // fica no cabeçalho.) FlowRow: os botões passam para a linha de baixo em vez de sair da tela.
-    FlowRow {
-        BotaoDeIcone(Icons.Filled.LocationOff, ROTULO_TIRAR_POSICAO, { acoes.aoTirarPosicao(true, cena.id, null) })
-        BotaoDeIcone(Icons.Filled.Edit, ROTULO_EDITAR_A_CENA, { acoes.aoAbrirEdicaoDaCena(cena.id, cena.titulo, cena.descricao) })
-    }
+    // Voltar à posição automática e editar a cena moram no ⋮ do cabeçalho (PC2), no cartão da lista e no modal.
     cena.descricao?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
     // FD7: as palavras do autor nesse momento; é o que a IA usa para conferir a cena, e dá para a pessoa conferir também.
     legendaDoTrecho(cena.trecho)?.let {

@@ -51,13 +51,6 @@ class RegrasDoUmToqueTest {
         assertEquals("Gera o prompt e a imagem (gasta IA).", avisoDoBotaoPrincipal(jaTemPrompt = false))
         assertEquals("Gera a imagem (gasta IA).", avisoDoBotaoPrincipal(jaTemPrompt = true))
     }
-
-    @Test
-    fun `Q7 o botao dos prompts diz quantos ha e muda quando aberto`() {
-        assertEquals("Ver prompts", rotuloDeVerPrompts(aberto = false, quantos = 0))
-        assertEquals("Ver prompts (3)", rotuloDeVerPrompts(aberto = false, quantos = 3))
-        assertEquals("Ocultar prompts", rotuloDeVerPrompts(aberto = true, quantos = 3))
-    }
 }
 
 /** O fluxo de um toque no ViewModel do painel (Q1 a Q6). */

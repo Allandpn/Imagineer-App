@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -53,12 +56,23 @@ internal fun CartaoDoQueVaiAparecer(frameId: Int, estado: EstadoDoPainel, acoes:
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // PX1: o que abre e fecha é uma linha de seção (título, resumo e seta), tocável inteira; o "Ver e ajustar" solto parecia um rótulo.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClickLabel = if (aberto) "Recolher" else "Ver e ajustar", role = androidx.compose.ui.semantics.Role.Button) { aberto = !aberto },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("O que vai aparecer", style = MaterialTheme.typography.titleSmall)
                     resumo?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
-                TextButton(onClick = { aberto = !aberto }) { Text(if (aberto) "Recolher" else "Ver e ajustar", maxLines = 1, softWrap = false) }
+                androidx.compose.material3.Icon(
+                    if (aberto) androidx.compose.material.icons.Icons.Filled.ExpandLess else androidx.compose.material.icons.Icons.Filled.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             // AP8: o aviso fica à vista mesmo com o cartão recolhido, porque é o que evita gerar a imagem com o prompt velho.
             val promptsAgora = (estado.prompts[frameId] as? PromptsDoFrame.Pronto)?.lista?.size
