@@ -229,6 +229,7 @@ class AcoesDoPainel(
     val aoPedirLerDossie: (frameId: Int) -> Unit = {},
     val aoCancelarLerDossie: () -> Unit = {},
     val aoLerDossie: (frameId: Int) -> Unit = {},
+    val aoMudarCampoDoCenario: (frameId: Int, campo: String, texto: String) -> Unit = { _, _, _ -> },
     val aoConfirmarDossie: (frameId: Int) -> Unit = {},
     val aoPedirConferirImagem: (imagemId: Int) -> Unit = {},
     val aoConferirImagem: () -> Unit = {},

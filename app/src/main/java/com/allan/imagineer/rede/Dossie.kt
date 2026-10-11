@@ -18,6 +18,22 @@ fun rotuloDoTipoDePresente(tipo: String): String = when (tipo) {
     else -> tipo
 }
 
+/** Um campo do cenário (item 4.11, AF1): o [texto] e de onde ele veio ([origem]: `texto`, `anterior` ou `sugerido`). */
+@Serializable
+data class CampoDoCenario(val texto: String? = null, val origem: String = "texto")
+
+/** O cenário e a fotografia da cena (item 4.11, AF1): ambiente, clima, luz, hora e estação, atmosfera, enquadramento e lente. Campo nulo = sem informação. */
+@Serializable
+data class CenarioDaCena(
+    val ambiente: CampoDoCenario? = null,
+    val clima: CampoDoCenario? = null,
+    val iluminacao: CampoDoCenario? = null,
+    val hora_e_estacao: CampoDoCenario? = null,
+    val atmosfera: CampoDoCenario? = null,
+    val enquadramento: CampoDoCenario? = null,
+    val lente: CampoDoCenario? = null,
+)
+
 /** Quem ou o que aparece na cena naquele momento (FL5). [incluir] = a pessoa o deixou na cena (FL9). */
 @Serializable
 data class PresenteDaCena(
@@ -39,6 +55,8 @@ data class DossieDaCena(
     val onde: String? = null,
     val luz_e_clima: String? = null,
     val acao: String? = null,
+    /** O cenário e a fotografia (item 4.11, AF4). Nulo = dossiê lido antes de o cenário existir, ou servidor antigo. */
+    val cenario: CenarioDaCena? = null,
     /** O que o texto não deixa claro (a IA não supôs). */
     val faltou: List<String> = emptyList(),
     /** A pessoa viu a lista e a aceitou (`PUT /frames/{id}/dossie`). */
@@ -55,6 +73,7 @@ data class DossieLido(
     val onde: String? = null,
     val luz_e_clima: String? = null,
     val acao: String? = null,
+    val cenario: CenarioDaCena? = null,
     val faltou: List<String> = emptyList(),
     val confirmado: Boolean = false,
     val desatualizado: Boolean = false,
@@ -62,7 +81,7 @@ data class DossieLido(
     val custo: String? = null,
 ) {
     /** O mesmo dossiê, sem o modelo e o custo. */
-    fun comoDossie(): DossieDaCena = DossieDaCena(momento_incerto, presentes, onde, luz_e_clima, acao, faltou, confirmado, desatualizado)
+    fun comoDossie(): DossieDaCena = DossieDaCena(momento_incerto, presentes, onde, luz_e_clima, acao, cenario, faltou, confirmado, desatualizado)
 }
 
 /** O corpo de `PUT /frames/{id}/dossie` (FL9): a lista inteira como a pessoa a deixou, mais o lugar, a luz e a ação. */
@@ -72,6 +91,8 @@ data class DossieParaGravar(
     val onde: String? = null,
     val luz_e_clima: String? = null,
     val acao: String? = null,
+    /** Só o que a pessoa deixou no cenário (AF8); campo ausente fica como estava no servidor. */
+    val cenario: CenarioDaCena? = null,
 )
 
 /** O resultado de `POST /imagens/{id}/conferir` (FL13.1): uma opinião, que não muda nada. */

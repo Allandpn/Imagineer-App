@@ -550,6 +550,7 @@ private fun LeitorPaginado(
         aoAlternarPresente = painel::alternarPresenteDoDossie,
         aoMudarCaracteristicas = painel::mudarCaracteristicasDoDossie,
         aoMudarCampoDoDossie = painel::mudarCampoDoDossie,
+        aoMudarCampoDoCenario = painel::mudarCampoDoCenario,
         aoPedirAcrescentarAoDossie = painel::pedirAcrescentarAoDossie,
         aoCancelarAcrescentarAoDossie = painel::cancelarAcrescentarAoDossie,
         aoAcrescentarAoDossie = painel::acrescentarAoDossie,

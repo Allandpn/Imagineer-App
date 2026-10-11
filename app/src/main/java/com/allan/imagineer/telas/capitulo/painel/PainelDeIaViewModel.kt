@@ -1517,6 +1517,9 @@ class PainelDeIaViewModel(
         }
     }
 
+    /** Edita um campo do cenário (item 4.11, AF8): [campo] é a chave do servidor (`ambiente`, `clima`...). */
+    fun mudarCampoDoCenario(frameId: Int, campo: String, texto: String) = editarRascunho(frameId) { it.copy(cenario = it.cenario + (campo to texto)) }
+
     fun pedirAcrescentarAoDossie(frameId: Int) {
         _estado.update { it.copy(acrescentandoAoDossie = frameId) }
     }

@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
+import com.allan.imagineer.rede.CampoDoCenario
+import com.allan.imagineer.rede.CenarioDaCena
 import com.allan.imagineer.rede.DossieDaCena
 import com.allan.imagineer.rede.DossieParaGravar
 import com.allan.imagineer.rede.FichaDoPrompt
@@ -31,7 +33,61 @@ data class RascunhoDoDossie(
     val onde: String = "",
     val luzEClima: String = "",
     val acao: String = "",
+    /** O texto de cada campo do cenário (item 4.11, AF8), pela chave do servidor (`ambiente`, `clima`...). Vazio = sem informação. */
+    val cenario: Map<String, String> = emptyMap(),
 )
+
+/** Os 7 campos do cenário, na ordem da tela, com o nome que a pessoa lê (item 4.11, AF1). A chave é a do servidor. */
+val CAMPOS_DO_CENARIO: List<Pair<String, String>> = listOf(
+    "ambiente" to "Ambiente",
+    "clima" to "Clima",
+    "iluminacao" to "Iluminação",
+    "hora_e_estacao" to "Hora do dia e estação",
+    "atmosfera" to "Paleta e atmosfera",
+    "enquadramento" to "Enquadramento e ângulo",
+    "lente" to "Lente e profundidade de campo",
+)
+
+/** O campo [chave] do cenário (ou `null` se o cenário não o tem). */
+fun CenarioDaCena.campo(chave: String): CampoDoCenario? = when (chave) {
+    "ambiente" -> ambiente
+    "clima" -> clima
+    "iluminacao" -> iluminacao
+    "hora_e_estacao" -> hora_e_estacao
+    "atmosfera" -> atmosfera
+    "enquadramento" -> enquadramento
+    "lente" -> lente
+    else -> null
+}
+
+/** De onde veio um campo do cenário, como a pessoa lê (AF8): "do texto", "herdado do anterior" ou "sugerido". */
+fun rotuloDaOrigemDoCenario(origem: String): String = when (origem) {
+    "anterior" -> "herdado do anterior"
+    "sugerido" -> "sugerido"
+    else -> "do texto"
+}
+
+/**
+ * A etiqueta de um campo do cenário na tela (AF8): a origem que o servidor guardou, ou "editado por você" se o texto do [rascunho] já difere do que
+ * o servidor tem; vazia (sem etiqueta) se o campo está em branco.
+ */
+fun etiquetaDoCampoDoCenario(guardado: DossieDaCena?, rascunho: RascunhoDoDossie, chave: String): String? {
+    val texto = rascunho.cenario[chave].orEmpty().trim()
+    val noServidor = guardado?.cenario?.campo(chave)
+    if (texto.isEmpty()) return null
+    if (texto != noServidor?.texto?.trim().orEmpty()) return "editado por você"
+    return rotuloDaOrigemDoCenario(noServidor?.origem ?: "texto")
+}
+
+/** As linhas "Rótulo: texto (origem)" de um cenário só para ler (a ficha do estado do elemento, item 4.11, AF8); vazia se não há nada. */
+fun linhasDoCenario(cenario: CenarioDaCena?): List<String> = CAMPOS_DO_CENARIO.mapNotNull { (chave, rotulo) ->
+    val campo = cenario?.campo(chave)
+    val texto = campo?.texto?.trim().orEmpty()
+    if (texto.isEmpty()) null else "$rotulo: $texto" + (campo?.origem?.takeIf { it != "texto" }?.let { " (${rotuloDaOrigemDoCenario(it)})" } ?: "")
+}
+
+/** O bloco Cenário aparece se o servidor leu um cenário (servidor antigo ou dossiê antigo não têm; item 4.11, AF8). */
+fun temCenario(guardado: DossieDaCena?): Boolean = guardado?.cenario != null
 
 /** Começa um rascunho a partir do que o servidor guardou (ou de uma lista vazia, se a cena ainda não foi lida). */
 fun rascunhoDe(dossie: DossieDaCena?): RascunhoDoDossie = RascunhoDoDossie(
@@ -39,6 +95,7 @@ fun rascunhoDe(dossie: DossieDaCena?): RascunhoDoDossie = RascunhoDoDossie(
     onde = dossie?.onde.orEmpty(),
     luzEClima = dossie?.luz_e_clima.orEmpty(),
     acao = dossie?.acao.orEmpty(),
+    cenario = CAMPOS_DO_CENARIO.associate { (chave, _) -> chave to dossie?.cenario?.campo(chave)?.texto.orEmpty() },
 )
 
 /** Marca ou desmarca o item [indice] (tirá-lo da cena é desmarcar a caixa; ele continua na tela, AP3). */
@@ -72,6 +129,28 @@ fun RascunhoDoDossie.paraGravar(guardado: DossieDaCena?): DossieParaGravar {
         onde = campo(onde, guardado?.onde),
         luz_e_clima = campo(luzEClima, guardado?.luz_e_clima),
         acao = campo(acao, guardado?.acao),
+        cenario = cenarioParaGravar(guardado),
+    )
+}
+
+/**
+ * O cenário do `PUT` (item 4.11, AF8): cada campo com o texto do rascunho e a origem que o servidor guardou (o servidor decide se virou palavra da
+ * pessoa, comparando o texto). Campo em branco vai como `texto: null` (apaga) só se o servidor tinha texto; senão não vai. `null` se o servidor não tem cenário.
+ */
+private fun RascunhoDoDossie.cenarioParaGravar(guardado: DossieDaCena?): CenarioDaCena? {
+    if (!temCenario(guardado)) return null
+    fun campoDe(chave: String): CampoDoCenario? {
+        val texto = cenario[chave].orEmpty().trim()
+        val antes = guardado?.cenario?.campo(chave)
+        return when {
+            texto.isNotEmpty() -> CampoDoCenario(texto, antes?.origem ?: "texto")
+            antes?.texto.isNullOrBlank() -> null
+            else -> CampoDoCenario(null)
+        }
+    }
+    return CenarioDaCena(
+        ambiente = campoDe("ambiente"), clima = campoDe("clima"), iluminacao = campoDe("iluminacao"), hora_e_estacao = campoDe("hora_e_estacao"),
+        atmosfera = campoDe("atmosfera"), enquadramento = campoDe("enquadramento"), lente = campoDe("lente"),
     )
 }
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.allan.imagineer.rede.DossieDaCena
 import com.allan.imagineer.rede.TIPOS_DE_PRESENTE
 import com.allan.imagineer.rede.rotuloDoTipoDePresente
 
@@ -149,6 +150,8 @@ private fun CorpoDoQueVaiAparecer(frameId: Int, dossie: DossieDoFrame.Pronto, ac
     CampoDoDossieNaTela("Luz e clima", rascunho.luzEClima, ocupado) { acoes.aoMudarCampoDoDossie(frameId, CampoDoDossie.LUZ_E_CLIMA, it) }
     CampoDoDossieNaTela("Ação (um instante parado)", rascunho.acao, ocupado) { acoes.aoMudarCampoDoDossie(frameId, CampoDoDossie.ACAO, it) }
 
+    if (temCenario(guardado)) BlocoDoCenario(frameId, guardado, rascunho, ocupado, acoes)
+
     if (dossie.rascunho != null) Text(AVISO_ALTERACOES_NAO_CONFIRMADAS, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { acoes.aoConfirmarDossie(frameId) }, enabled = !ocupado) {
@@ -167,6 +170,29 @@ private fun CorpoDoQueVaiAparecer(frameId: Int, dossie: DossieDoFrame.Pronto, ac
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** O cenário e a fotografia (item 4.11, AF8): sete campos editáveis, cada um com a etiqueta de onde veio (do texto, herdado, sugerido, editado por você). */
+@Composable
+private fun BlocoDoCenario(frameId: Int, guardado: DossieDaCena?, rascunho: RascunhoDoDossie, ocupado: Boolean, acoes: AcoesDoPainel) {
+    Text("Cenário e fotografia", style = MaterialTheme.typography.titleSmall)
+    Text(
+        "O que o livro não diz vem do que veio antes; enquadramento e lente são sugestões. Edite o que quiser.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    CAMPOS_DO_CENARIO.forEach { (chave, rotulo) ->
+        OutlinedTextField(
+            value = rascunho.cenario[chave].orEmpty(),
+            onValueChange = { acoes.aoMudarCampoDoCenario(frameId, chave, it) },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(rotulo) },
+            supportingText = etiquetaDoCampoDoCenario(guardado, rascunho, chave)?.let { etiqueta -> { Text(etiqueta) } },
+            enabled = !ocupado,
+            minLines = 1,
+            maxLines = 3,
+        )
+    }
 }
 
 @Composable

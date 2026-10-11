@@ -135,6 +135,8 @@ data class EstadoDoElemento(
     val ordem_do_capitulo: Int? = null,
     val titulo_do_capitulo: String? = null,
     val descricao: String,
+    /** O cenário e a fotografia do elemento neste capítulo (item 4.11, AF5), só para objeto, lugar, edificação, criatura e veículo. */
+    val cenario: CenarioDaCena? = null,
 )
 
 /** O que um capítulo acrescentou sobre **quem** o elemento é. */

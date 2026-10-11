@@ -51,7 +51,9 @@ class RegrasDoDossieTest {
         val rascunho = rascunhoDe(dossieDeTeste)
         assertEquals(listOf(auri, prato), rascunho.presentes)
         assertEquals("a cozinha", rascunho.onde)
-        assertEquals(RascunhoDoDossie(), rascunhoDe(null))
+        // Sem dossiê: lista vazia e os textos em branco (o cenário, item 4.11, tem os 7 campos, todos vazios).
+        assertEquals(RascunhoDoDossie(cenario = rascunhoDe(null).cenario), rascunhoDe(null))
+        assertTrue(rascunhoDe(null).cenario.values.all { it.isEmpty() })
     }
 
     @Test

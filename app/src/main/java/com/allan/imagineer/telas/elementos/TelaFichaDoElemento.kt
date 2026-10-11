@@ -57,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.allan.imagineer.ImagineerApp
+import com.allan.imagineer.telas.capitulo.painel.linhasDoCenario
 import com.allan.imagineer.rede.DetalheDoElemento
 import com.allan.imagineer.telas.capitulo.painel.TIPOS_DE_ELEMENTO
 import com.allan.imagineer.telas.capitulo.painel.identidadeVigente
@@ -252,6 +253,11 @@ private fun ConteudoDaFicha(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(estado.descricao, style = MaterialTheme.typography.bodyMedium)
+                    // Item 4.11, AF8: o cenário e a fotografia lidos para este estado (objeto, lugar, edificação, criatura, veículo), só para ler.
+                    linhasDoCenario(estado.cenario).takeIf { it.isNotEmpty() }?.let { linhas ->
+                        Text("Cenário e fotografia", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        linhas.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         BotaoDeIcone(Icons.Filled.Edit, "Editar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ESTADO, estado.id) })
                         BotaoDeIcone(Icons.Filled.Delete, "Apagar", { viewModel.abrirDialogo(TipoDeDialogoDaFicha.APAGAR_ESTADO, estado.id) }, cor = MaterialTheme.colorScheme.error)
