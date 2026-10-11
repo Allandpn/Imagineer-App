@@ -3,7 +3,7 @@ package com.allan.imagineer.telas.biblioteca
 import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
-import com.allan.imagineer.telas.livro.MenuDoLivro
+import com.allan.imagineer.telas.livro.AcoesDoMenuNaBiblioteca
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import com.allan.imagineer.telas.menu.ModoDaBiblioteca
@@ -94,11 +94,13 @@ fun TelaBiblioteca(
     aoAbrirLixeira: () -> Unit,
     aoAbrirEstatisticas: () -> Unit = {},
     aoAbrirCustos: () -> Unit,
+    /** BL5: as telas do livro que o menu ⋮ da lista abre sem passar pelo livro; cada uma recebe o `livroId` do cartão. */
+    aoAbrirNoLivro: (DestinoNoLivro, livroId: Int) -> Unit = { _, _ -> },
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
     val viewModel: BibliotecaViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { BibliotecaViewModel(aplicacao.repositorioDeLivros) }
+            initializer { BibliotecaViewModel(aplicacao.repositorioDeLivros, aplicacao.repositorioDeFavoritos) }
         },
     )
     val estado by viewModel.estado.collectAsState()
@@ -174,6 +176,12 @@ fun TelaBiblioteca(
             escopoDoModo.launch { aplicacao.armazenamento.salvarModoDaBiblioteca(novo.name) }
         },
         aoPedirRemocao = viewModel::pedirRemocao,
+        aoAlternarFavorito = { livro ->
+            viewModel.alternarFavorito(livro) { falha ->
+                if (falha != null) android.widget.Toast.makeText(contexto, falha, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        },
+        aoAbrirNoLivro = aoAbrirNoLivro,
         aoDefinirCapa = { livro ->
             livroDaCapa = livro.id
             seletorDeCapa.launch(arrayOf("image/*", "application/epub+zip", "application/octet-stream"))
@@ -212,9 +220,32 @@ fun ConteudoDaBiblioteca(
     aoCancelarRemocao: () -> Unit,
     aoConfirmarRemocao: () -> Unit,
     aoImportar: () -> Unit,
+    aoAlternarFavorito: (LivroResumo) -> Unit = {},
+    aoAbrirNoLivro: (DestinoNoLivro, livroId: Int) -> Unit = { _, _ -> },
 ) {
-    // RL36: o filtro "só os favoritos" (o coração da barra); some ao sair da tela, não é uma preferência.
-    var soFavoritos by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    // BL4 a BL6: o ⋮ de cada livro. Na lista é o completo (as telas do livro); nas capas, o curto.
+    val menuDaLista: (LivroResumo) -> AcoesDoMenuNaBiblioteca = { livro ->
+        AcoesDoMenuNaBiblioteca(
+            aoDefinirCapa = { aoDefinirCapa(livro) },
+            aoApagar = { aoPedirRemocao(livro) },
+            aoAlternarFavorito = { aoAlternarFavorito(livro) },
+            rotuloDoFavoritar = rotuloDoFavoritar(livro),
+            aoPesquisar = { aoAbrirNoLivro(DestinoNoLivro.PESQUISA, livro.id) },
+            aoAbrirDestaques = { aoAbrirNoLivro(DestinoNoLivro.DESTAQUES, livro.id) },
+            aoAbrirFavoritos = { aoAbrirNoLivro(DestinoNoLivro.FAVORITOS, livro.id) },
+            aoAbrirModelos = { aoAbrirNoLivro(DestinoNoLivro.MODELOS, livro.id) },
+            aoAbrirLixeira = { aoAbrirNoLivro(DestinoNoLivro.LIXEIRA, livro.id) },
+            aoEditar = { aoAbrirNoLivro(DestinoNoLivro.EDICAO, livro.id) },
+        )
+    }
+    val menuDasCapas: (LivroResumo) -> AcoesDoMenuNaBiblioteca = { livro ->
+        AcoesDoMenuNaBiblioteca(
+            aoDefinirCapa = { aoDefinirCapa(livro) },
+            aoApagar = { aoPedirRemocao(livro) },
+            aoAlternarFavorito = { aoAlternarFavorito(livro) },
+            rotuloDoFavoritar = rotuloDoFavoritar(livro),
+        )
+    }
     // MN1, MN2: a barra só tem o hambúrguer; tudo o mais mora na gaveta.
     val gaveta = rememberDrawerState(DrawerValue.Closed)
     val escopo = rememberCoroutineScope()
@@ -252,13 +283,7 @@ fun ConteudoDaBiblioteca(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { soFavoritos = !soFavoritos }) {
-                        Icon(
-                            if (soFavoritos) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (soFavoritos) "Mostrar todos os livros" else "Mostrar só os favoritos",
-                            tint = if (soFavoritos) MaterialTheme.colorScheme.primary else LocalContentColor.current,
-                        )
-                    }
+                    // BL3: o coração que filtrava os favoritos saiu; eles têm a seção própria no topo da lista.
                     // Capas ou lista: o mesmo modo que a tela de Configurações guarda.
                     IconButton(onClick = aoAlternarModo) {
                         Icon(
@@ -281,13 +306,12 @@ fun ConteudoDaBiblioteca(
                     onRefresh = aoAtualizar,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    val livros = livrosParaMostrar(estado.livros, soFavoritos)
-                    if (livros.isEmpty()) Centralizado {
-                        Text("Nenhum livro favorito. Toque no coração de um livro, dentro dele.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-                    } else if (modo == ModoDaBiblioteca.CAPAS) {
-                        GradeDeLivros(livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                    // BL1: os favoritos numa seção no topo, os outros abaixo; o livro aparece em um lugar só.
+                    val secoes = remember(estado.livros) { dividirEmSecoes(estado.livros) }
+                    if (modo == ModoDaBiblioteca.CAPAS) {
+                        GradeDeLivros(secoes, aoAbrirLivro, menuDasCapas)
                     } else {
-                        ListaDeLivros(livros, aoAbrirLivro, aoPedirRemocao, aoDefinirCapa)
+                        ListaDeLivros(secoes, aoAbrirLivro, menuDaLista)
                     }
                 }
 
@@ -339,10 +363,9 @@ private fun Centralizado(conteudo: @Composable () -> Unit) {
 
 @Composable
 private fun ListaDeLivros(
-    livros: List<LivroResumo>,
+    secoes: SecoesDaBiblioteca,
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoPedirRemocao: (LivroResumo) -> Unit,
-    aoDefinirCapa: (LivroResumo) -> Unit,
+    menuDe: (LivroResumo) -> AcoesDoMenuNaBiblioteca,
 ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -350,14 +373,10 @@ private fun ListaDeLivros(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(livros, key = { it.id }) { livro ->
-                CartaoDeLivro(
-                    livro,
-                    aoTocar = { aoAbrirLivro(livro.id) },
-                    aoPedirRemocao = { aoPedirRemocao(livro) },
-                    aoDefinirCapa = { aoDefinirCapa(livro) },
-                )
-            }
+            if (secoes.cabecalhoDosFavoritos) item(key = "cabecalho-favoritos") { CabecalhoDaSecao(tituloDosFavoritos(secoes.favoritos.size)) }
+            items(secoes.favoritos, key = { it.id }) { livro -> CartaoDeLivro(livro, aoTocar = { aoAbrirLivro(livro.id) }, menu = menuDe(livro)) }
+            if (secoes.cabecalhoDosOutros) item(key = "cabecalho-outros") { CabecalhoDaSecao(TITULO_DOS_OUTROS_LIVROS) }
+            items(secoes.outros, key = { it.id }) { livro -> CartaoDeLivro(livro, aoTocar = { aoAbrirLivro(livro.id) }, menu = menuDe(livro)) }
         }
     }
 }
@@ -366,8 +385,7 @@ private fun ListaDeLivros(
 private fun CartaoDeLivro(
     livro: LivroResumo,
     aoTocar: () -> Unit,
-    aoPedirRemocao: () -> Unit,
-    aoDefinirCapa: () -> Unit,
+    menu: AcoesDoMenuNaBiblioteca,
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar)) {
         Row(
@@ -392,11 +410,12 @@ private fun CartaoDeLivro(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
+            // DL1: o ícone de download, ao lado do ⋮.
+            com.allan.imagineer.telas.livro.BotaoDeDownloadDoLivro(livro)
+            com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, acoes = menu, revisaoDoServidor = livro.revisao)
         }
     }
 }
 
-/** Os livros da lista: todos, ou só os favoritos (RL36) quando [soFavoritos]. A ordem é a do servidor. */
-fun livrosParaMostrar(livros: List<LivroResumo>, soFavoritos: Boolean): List<LivroResumo> =
-    if (soFavoritos) livros.filter { it.favorito_id != null } else livros
+/** As telas de um livro que o ⋮ da lista abre sem passar pelo livro (BL5). */
+enum class DestinoNoLivro { PESQUISA, DESTAQUES, FAVORITOS, MODELOS, LIXEIRA, EDICAO }

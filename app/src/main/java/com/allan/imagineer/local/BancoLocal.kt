@@ -1,6 +1,7 @@
 package com.allan.imagineer.local
 
 import android.content.Context
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -9,6 +10,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.Transaction
 import java.io.File
 
@@ -43,6 +46,8 @@ data class DownloadLocal(
     val baixadoEm: Long,
     val bytes: Long,
     val imagensIds: String,
+    /** A `revisao` do livro no servidor quando o download terminou (item 7.5g, DL2); 0 nos que vieram antes dessa coluna. */
+    @ColumnInfo(defaultValue = "0") val revisao: Int = 0,
 )
 
 /** As consultas ao banco. Classe abstrata para poder ter uma função com `@Transaction`. */
@@ -99,7 +104,7 @@ abstract class DaoLocal {
  */
 @Database(
     entities = [LivroLocal::class, TextoLocal::class, DownloadLocal::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class BancoLocal : RoomDatabase() {
@@ -117,7 +122,16 @@ abstract class BancoLocal : RoomDatabase() {
                 BancoLocal::class.java,
                 File(contexto.noBackupFilesDir, "imagineer.db").path,
             )
+                // 4 → 5 (DL2): a coluna da revisão baixada entra sem apagar os downloads já marcados.
+                .addMigrations(MIGRACAO_4_5)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
+    }
+}
+
+/** A coluna `revisao` do registro de download (item 7.5g, DL2). Os downloads antigos ficam com 0: o app oferece "Atualizar" uma vez. */
+val MIGRACAO_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE download_local ADD COLUMN revisao INTEGER NOT NULL DEFAULT 0")
     }
 }

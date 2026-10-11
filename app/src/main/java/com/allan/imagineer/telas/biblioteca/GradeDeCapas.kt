@@ -1,6 +1,6 @@
 package com.allan.imagineer.telas.biblioteca
 
-import com.allan.imagineer.telas.livro.MenuDoLivro
+import com.allan.imagineer.telas.livro.AcoesDoMenuNaBiblioteca
 import com.allan.imagineer.telas.livro.progressoDoLivro
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator
@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
@@ -54,14 +55,13 @@ const val CAPAS_POR_LINHA = 3
 
 /**
  * A biblioteca **em capas**, como no Kindle (CP4): só a capa de cada livro, **três por linha**. Tocar abre o livro; o menu ⋮ sobre a
- * capa remove.
+ * capa tem o essencial ([menuDe], BL6). Os favoritos vêm numa seção no topo (BL1).
  */
 @Composable
 fun GradeDeLivros(
-    livros: List<LivroResumo>,
+    secoes: SecoesDaBiblioteca,
     aoAbrirLivro: (livroId: Int) -> Unit,
-    aoPedirRemocao: (LivroResumo) -> Unit,
-    aoDefinirCapa: (LivroResumo) -> Unit,
+    menuDe: (LivroResumo) -> AcoesDoMenuNaBiblioteca,
 ) {
     val urlBase = urlDoServidorEmUso()
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
@@ -72,19 +72,32 @@ fun GradeDeLivros(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            items(livros, key = { it.id }) { livro ->
-                CapaNaGrade(livro, urlBase, aoTocar = { aoAbrirLivro(livro.id) }, aoPedirRemocao = { aoPedirRemocao(livro) }, aoDefinirCapa = { aoDefinirCapa(livro) })
+            if (secoes.cabecalhoDosFavoritos) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "cabecalho-favoritos") { CabecalhoDaSecao(tituloDosFavoritos(secoes.favoritos.size)) }
             }
+            items(secoes.favoritos, key = { it.id }) { livro -> CapaNaGrade(livro, urlBase, { aoAbrirLivro(livro.id) }, menuDe(livro)) }
+            if (secoes.cabecalhoDosOutros) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "cabecalho-outros") { CabecalhoDaSecao(TITULO_DOS_OUTROS_LIVROS) }
+            }
+            items(secoes.outros, key = { it.id }) { livro -> CapaNaGrade(livro, urlBase, { aoAbrirLivro(livro.id) }, menuDe(livro)) }
         }
     }
 }
 
+/** O cabeçalho de uma seção da biblioteca (BL1): "Favoritos (3)" e "Outros livros". */
 @Composable
-private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Unit, aoPedirRemocao: () -> Unit, aoDefinirCapa: () -> Unit) {
-    // Só a capa, com o ⋮ de remover (sem legenda embaixo): a capa sem imagem já traz o título e o autor dentro dela.
+fun CabecalhoDaSecao(titulo: String) {
+    Text(titulo, style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+}
+
+@Composable
+private fun CapaNaGrade(livro: LivroResumo, urlBase: String?, aoTocar: () -> Unit, menu: AcoesDoMenuNaBiblioteca) {
+    // Só a capa, com o ⋮ (sem legenda embaixo): a capa sem imagem já traz o título e o autor dentro dela.
     Box(modifier = Modifier.clickable(onClick = aoTocar)) {
         CapaDoLivro(livro, urlBase, Modifier.fillMaxWidth().aspectRatio(PROPORCAO_DA_CAPA).shadow(4.dp, RoundedCornerShape(4.dp)).clip(RoundedCornerShape(4.dp)))
-        com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, Modifier.align(Alignment.TopEnd), sobreACapa = true, aoDefinirCapa = aoDefinirCapa, aoApagar = aoPedirRemocao)
+        com.allan.imagineer.telas.livro.MenuDoLivroDaBiblioteca(livro.id, Modifier.align(Alignment.TopEnd), sobreACapa = true, acoes = menu, revisaoDoServidor = livro.revisao)
+        // DL1: o ícone de download no canto de baixo da capa, acima da barrinha de progresso de leitura.
+        com.allan.imagineer.telas.livro.BotaoDeDownloadDoLivro(livro, Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 8.dp), sobreACapa = true)
         // LE6: a barrinha do progresso (lidos ÷ ativos) no pé da capa; some quando nada foi lido.
         progressoDoLivro(livro)?.let { progresso ->
             LinearProgressIndicator(

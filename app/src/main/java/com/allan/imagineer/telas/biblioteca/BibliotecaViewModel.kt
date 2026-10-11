@@ -2,7 +2,9 @@ package com.allan.imagineer.telas.biblioteca
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.allan.imagineer.rede.AlvoDeFavorito
 import com.allan.imagineer.rede.LivroResumo
+import com.allan.imagineer.rede.RepositorioDeFavoritos
 import com.allan.imagineer.rede.RepositorioDeLivros
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.telas.comum.ControleDeRemocao
@@ -43,6 +45,7 @@ sealed interface EstadoDaBiblioteca {
  */
 class BibliotecaViewModel(
     private val repositorio: RepositorioDeLivros,
+    private val favoritos: RepositorioDeFavoritos,
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow<EstadoDaBiblioteca>(EstadoDaBiblioteca.Carregando)
@@ -102,6 +105,23 @@ class BibliotecaViewModel(
         }
     }
 
+    /**
+     * "Adicionar aos favoritos" / "Tirar dos favoritos" no ⋮ do livro (BL4), sem abrir o livro. Dá certo: relê a lista, e o livro muda de
+     * seção. Falha: [aoTerminar] recebe a mensagem do servidor para um aviso curto; no sucesso recebe `null`.
+     */
+    fun alternarFavorito(livro: LivroResumo, aoTerminar: (String?) -> Unit) {
+        viewModelScope.launch {
+            val favoritoId = livro.favorito_id
+            val falha: String? = if (favoritoId != null) {
+                (favoritos.desfavoritar(favoritoId) as? ResultadoDaChamada.Falha)?.motivo
+            } else {
+                (favoritos.favoritar(livro.id, AlvoDeFavorito.Livro) as? ResultadoDaChamada.Falha)?.motivo
+            }
+            if (falha == null) carregar()
+            aoTerminar(falha)
+        }
+    }
+
     /** O usuário escolheu "Remover" no menu do cartão: abre o diálogo de confirmação. */
     fun pedirRemocao(livro: LivroResumo) = controleDeRemocao.pedir(livro)
 
@@ -144,3 +164,33 @@ fun resumoDoLivroNaLista(livro: com.allan.imagineer.rede.LivroResumo): String {
     return "$capitulos · ${com.allan.imagineer.telas.livro.descreverTempoDeLeitura(livro.total_de_caracteres)}"
 }
 
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// Favoritos no topo (item 7.2b, BL1, BL2, BL4)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/**
+ * Os livros em **duas seções** (BL1): os favoritos no topo e os outros logo abaixo, cada livro em **um lugar só**, na ordem em que o
+ * servidor mandou. Os cabeçalhos só aparecem quando ajudam (BL2): sem nenhum favorito a tela é a de sempre, sem cabeçalho.
+ */
+data class SecoesDaBiblioteca(val favoritos: List<LivroResumo>, val outros: List<LivroResumo>) {
+    /** O cabeçalho "Favoritos (N)": só quando há favoritos. */
+    val cabecalhoDosFavoritos: Boolean get() = favoritos.isNotEmpty()
+
+    /** O cabeçalho "Outros livros": só quando há favoritos **e** outros (senão não há o que separar). */
+    val cabecalhoDosOutros: Boolean get() = favoritos.isNotEmpty() && outros.isNotEmpty()
+}
+
+/** Divide a lista do servidor nas seções (BL1). */
+fun dividirEmSecoes(livros: List<LivroResumo>): SecoesDaBiblioteca {
+    val (favoritos, outros) = livros.partition { it.favorito_id != null }
+    return SecoesDaBiblioteca(favoritos, outros)
+}
+
+/** O título da seção dos favoritos: "Favoritos (3)". */
+fun tituloDosFavoritos(quantos: Int): String = "Favoritos ($quantos)"
+
+const val TITULO_DOS_OUTROS_LIVROS = "Outros livros"
+
+/** O primeiro item do ⋮ de um livro na biblioteca (BL4): adicionar ou tirar dos favoritos. */
+fun rotuloDoFavoritar(livro: LivroResumo): String = if (livro.favorito_id != null) "Tirar dos favoritos" else "Adicionar aos favoritos"

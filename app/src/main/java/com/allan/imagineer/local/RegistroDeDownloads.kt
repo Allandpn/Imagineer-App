@@ -1,7 +1,7 @@
 package com.allan.imagineer.local
 
 /** O registro de que um livro está **Baixado** (PL4): quando, quanto ocupa e quais imagens foram baixadas (para poder removê-las). */
-data class DownloadGuardado(val livroId: Int, val baixadoEm: Long, val bytes: Long, val imagensIds: List<Int>)
+data class DownloadGuardado(val livroId: Int, val baixadoEm: Long, val bytes: Long, val imagensIds: List<Int>, val revisao: Int = 0)
 
 /**
  * Quais livros estão Baixados. Interface, para o baixador ser testado com uma versão em memória; a de verdade é
@@ -20,12 +20,12 @@ class RegistroDeDownloadsPeloRoom(private val dao: DaoLocal) : RegistroDeDownloa
 
     override suspend fun baixado(chave: ChaveDoCache, livroId: Int): DownloadGuardado? {
         val linha = dao.download(chave.identificador, livroId) ?: return null
-        return DownloadGuardado(linha.livroId, linha.baixadoEm, linha.bytes, linha.imagensIds.split(",").mapNotNull { it.toIntOrNull() })
+        return DownloadGuardado(linha.livroId, linha.baixadoEm, linha.bytes, linha.imagensIds.split(",").mapNotNull { it.toIntOrNull() }, linha.revisao)
     }
 
     override suspend fun guardar(chave: ChaveDoCache, download: DownloadGuardado) {
         dao.guardarDownload(
-            DownloadLocal(chave.identificador, download.livroId, download.baixadoEm, download.bytes, download.imagensIds.joinToString(",")),
+            DownloadLocal(chave.identificador, download.livroId, download.baixadoEm, download.bytes, download.imagensIds.joinToString(","), download.revisao),
         )
     }
 
@@ -35,7 +35,7 @@ class RegistroDeDownloadsPeloRoom(private val dao: DaoLocal) : RegistroDeDownloa
 
     override suspend fun todos(chave: ChaveDoCache): List<DownloadGuardado> =
         dao.downloads(chave.identificador).map {
-            DownloadGuardado(it.livroId, it.baixadoEm, it.bytes, it.imagensIds.split(",").mapNotNull { id -> id.toIntOrNull() })
+            DownloadGuardado(it.livroId, it.baixadoEm, it.bytes, it.imagensIds.split(",").mapNotNull { id -> id.toIntOrNull() }, it.revisao)
         }
 }
 

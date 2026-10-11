@@ -37,6 +37,9 @@ interface FonteDoDownload {
 
     /** `GET /imagens/{id}/arquivo?tamanho=`: grava a imagem em [destino]. `Falha` se não deu. */
     suspend fun baixarImagem(imagemId: Int, tamanho: String, destino: File): ResultadoDaChamada<Unit>
+
+    /** A `revisao` do livro agora, para guardar no fim do download (DL2); `null` se não deu para saber (o download segue, com 0). */
+    suspend fun revisao(livroId: Int): Int? = null
 }
 
 /** O andamento de um download: arquivos feitos de arquivos totais, e os bytes já gravados. */
@@ -50,7 +53,8 @@ sealed interface EstadoDoDownload {
     data class Baixando(val progresso: Progresso) : EstadoDoDownload
     /** Parado (por pedido ou porque não dá para seguir agora); tocar em baixar de novo **retoma**. [motivo] diz por quê. */
     data class Pausado(val progresso: Progresso, val motivo: String) : EstadoDoDownload
-    data class Baixado(val em: Long, val bytes: Long) : EstadoDoDownload
+    /** [revisao]: a do livro no servidor quando o download terminou (DL2); 0 nos antigos. */
+    data class Baixado(val em: Long, val bytes: Long, val revisao: Int = 0) : EstadoDoDownload
     data class Falhou(val motivo: String) : EstadoDoDownload
 }
 
@@ -90,7 +94,7 @@ class BaixadorDeLivros(
         if (livroId in trabalhos && trabalhos[livroId]?.isActive == true) return
         val chave = fonte.chave() ?: return
         val salvo = runCatching { registro.baixado(chave, livroId) }.getOrNull()
-        definir(livroId, if (salvo != null) EstadoDoDownload.Baixado(salvo.baixadoEm, salvo.bytes) else EstadoDoDownload.NaoBaixado)
+        definir(livroId, if (salvo != null) EstadoDoDownload.Baixado(salvo.baixadoEm, salvo.bytes, salvo.revisao) else EstadoDoDownload.NaoBaixado)
     }
 
     /** Quanto ainda falta baixar do livro (PL3: "Baixar — 240 MB"). */
@@ -108,8 +112,24 @@ class BaixadorDeLivros(
     /** Começa (ou retoma) o download do livro. Um por livro de cada vez. */
     fun baixar(livroId: Int, somenteWifi: Boolean = true) {
         if (trabalhos[livroId]?.isActive == true) return
-        trabalhos[livroId] = escopo.launch { executar(livroId, somenteWifi) }
+        // Tocar em "Continuar" depois de uma atualização parada continua a atualização, não um download comum.
+        val atualizar = livroId in emAtualizacao
+        trabalhos[livroId] = escopo.launch { executar(livroId, somenteWifi, atualizar = atualizar) }
     }
+
+    /**
+     * "Atualizar" (DL3): o livro já Baixado tem uma revisão antiga. Baixa de novo o texto de todos os capítulos (que um download comum
+     * pula por já estar gravado) e o que faltar de imagens, e no fim guarda a revisão nova. Enquanto roda, o livro mostra Baixando;
+     * se parar (sem conexão, falha), "Continuar" retoma a atualização.
+     */
+    fun atualizar(livroId: Int, somenteWifi: Boolean = true) {
+        if (trabalhos[livroId]?.isActive == true) return
+        emAtualizacao += livroId
+        trabalhos[livroId] = escopo.launch { executar(livroId, somenteWifi, atualizar = true) }
+    }
+
+    /** Os livros cuja atualização ainda não terminou (DL3). */
+    private val emAtualizacao = mutableSetOf<Int>()
 
     /** Para o download guardando o que já veio; tocar em baixar retoma. */
     fun pausar(livroId: Int) {
@@ -121,12 +141,18 @@ class BaixadorDeLivros(
     /** Para o download **e apaga** o que veio dele. */
     suspend fun cancelar(livroId: Int) {
         trabalhos.remove(livroId)?.cancel()
+        // Cancelar uma ATUALIZAÇÃO (DL3) não pode apagar o livro que já estava baixado: só desiste da atualização e volta ao que estava.
+        if (emAtualizacao.remove(livroId)) {
+            carregar(livroId)
+            return
+        }
         remover(livroId)
     }
 
     /** "Remover download" (PL4): apaga as imagens e o texto baixados e a marca. O texto lido volta sozinho, ao abrir o capítulo. */
     suspend fun remover(livroId: Int) {
         trabalhos.remove(livroId)?.cancel()
+        emAtualizacao.remove(livroId)
         val chave = fonte.chave()
         if (chave != null) {
             val ids = runCatching { registro.baixado(chave, livroId)?.imagensIds }.getOrNull() ?: planejadas[livroId].orEmpty()
@@ -148,7 +174,7 @@ class BaixadorDeLivros(
         trabalhos[livroId] = escopo.launch { executar(livroId, somenteWifi = true, silencioso = true) }
     }
 
-    private suspend fun executar(livroId: Int, somenteWifi: Boolean, silencioso: Boolean = false) {
+    private suspend fun executar(livroId: Int, somenteWifi: Boolean, silencioso: Boolean = false, atualizar: Boolean = false) {
         val chave = fonte.chave()
         if (chave == null) {
             definir(livroId, EstadoDoDownload.Falhou("O endereço do servidor ainda não foi configurado."))
@@ -157,6 +183,8 @@ class BaixadorDeLivros(
         val anterior = estadoDe(livroId)
         fun falhou(motivo: String) { if (!silencioso) definir(livroId, EstadoDoDownload.Falhou(motivo)) else definir(livroId, anterior) }
         if (!silencioso) definir(livroId, EstadoDoDownload.Baixando(Progresso(0, 0, 0)))
+        // A revisão do livro de agora, tirada antes de baixar: se ele mudar durante o download, a próxima conferência acusa a diferença (DL2).
+        val revisaoAgora = fonte.revisao(livroId) ?: 0
 
         // 1. O texto de todos os capítulos (uma chamada); o que já está gravado não se regrava.
         val lidos = when (val r = fonte.textos(livroId)) {
@@ -164,7 +192,7 @@ class BaixadorDeLivros(
             is ResultadoDaChamada.Falha -> return falhou(r.motivo)
         }
         for (capitulo in lidos) {
-            if (textos.ler(chave, livroId, capitulo.capitulo_id) == null) {
+            if (atualizar || textos.ler(chave, livroId, capitulo.capitulo_id) == null) {
                 val bytes = runCatching { textos.gravar(chave, livroId, capitulo.capitulo_id, capitulo.texto) }.getOrNull()
                     ?: return falhou("Não consegui guardar o texto no aparelho.")
                 runCatching { indice.registrarTexto(chave, TextoGuardado(capitulo.capitulo_id, livroId, bytes)) }
@@ -213,8 +241,11 @@ class BaixadorDeLivros(
         // 3. Pronto: marca o livro como Baixado.
         val total = imagens.tamanhoEmBytes(chave, ids) + lidos.sumOf { it.texto.toByteArray(Charsets.UTF_8).size.toLong() }
         val em = agora()
-        runCatching { registro.guardar(chave, DownloadGuardado(livroId, em, total, ids)) }
+        // O completar silencioso (PL5) não regrava o texto, então não pode dizer que o livro está em dia: mantém a revisão de antes.
+        val revisaoFinal = if (silencioso) (anterior as? EstadoDoDownload.Baixado)?.revisao ?: revisaoAgora else revisaoAgora
+        runCatching { registro.guardar(chave, DownloadGuardado(livroId, em, total, ids, revisaoFinal)) }
         planejadas.remove(livroId)
-        definir(livroId, EstadoDoDownload.Baixado(em, total))
+        emAtualizacao.remove(livroId)
+        definir(livroId, EstadoDoDownload.Baixado(em, total, revisaoFinal))
     }
 }
