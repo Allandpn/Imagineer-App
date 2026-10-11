@@ -19,7 +19,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -53,6 +58,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,6 +113,8 @@ internal fun SecaoDaImagemDoFrame(
     rotulo: String,
     rotuloDoBotao: String,
     ehCena: Boolean = false,
+    /** Só o retrato tem (VM3, LP4): abre o seletor das imagens que o elemento já tem. */
+    aoUsarImagemExistente: (() -> Unit)? = null,
 ) {
     val etapa = estado.etapasDeImagem[chave]
     val gerandoAlgum = lista.any { it.id in estado.gerandoImagem }
@@ -115,6 +124,9 @@ internal fun SecaoDaImagemDoFrame(
     val importando = (maisRecente != null && maisRecente.id in estado.importandoImagem) || chaveDaImportacaoDoFrame in estado.importandoImagem
     val gerandoPrompt = frameId in estado.gerandoPrompt
     val ocupado = etapa != null || gerandoAlgum || importando || gerandoPrompt
+    val area = LocalClipboardManager.current
+    // O "Copiado." some quando chega um prompt mais novo (o texto copiado deixou de ser o mais recente).
+    var copiado by remember(maisRecente?.id) { mutableStateOf(false) }
 
     // Z6: a lista de modelos vem do servidor, uma vez.
     LaunchedEffect(Unit) { acoes.aoCarregarModelosDeImagem() }
@@ -154,31 +166,41 @@ internal fun SecaoDaImagemDoFrame(
     if (ehCena) LinhaDoSeletorDeElementos(frameId, ehCena = true, estado = estado, acoes = acoes, aoEscolher = { acoes.aoAbrirSeletorDaCena(frameId) }, ocupado = ocupado)
     maisRecente?.let { prompt -> estado.mensagensDeImportacao[prompt.id]?.let { RecadoDeImagem(it) } }
     estado.mensagensDeImportacao[chaveDaImportacaoDoFrame]?.let { RecadoDeImagem(it) }
+    // LP3, LP4: a linha é de ícones (a dica, ao segurar o dedo, diz o nome); o de gerar é cheio por ser a ação principal.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(
-            onClick = { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
-            enabled = !ocupado,
-        ) { Text(rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(reais, it.id) }), maxLines = 1, softWrap = false) }
+        BotaoDeIconeComDica(
+            Icons.Filled.AutoAwesome,
+            rotuloDeGerarComNumero(rotuloDoBotao, maisRecente?.let { numeroDoPrompt(reais, it.id) }),
+            { acoes.aoGerarImagemDoFrame(chave, frameId, rotulo) },
+            habilitado = !ocupado,
+            cheio = true,
+        )
+        // LP6: copiar o prompt mais recente **daqui**, sem rolar até a lista de prompts lá embaixo (é um gesto muito repetido).
+        if (maisRecente != null) {
+            val numero = numeroDoPrompt(reais, maisRecente.id)
+            BotaoDeIconeComDica(
+                Icons.Filled.ContentCopy,
+                if (numero == null) "Copiar o prompt" else "Copiar o prompt $numero",
+                { area.setText(AnnotatedString(maisRecente.texto)); copiado = true },
+            )
+        }
         // GP1: sem nenhum prompt ainda, "Só o prompt" gera o prompt e para (com prompt, o "Novo prompt" abaixo já faz isso).
         if (maisRecente == null) {
-            OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoFrame(chave, frameId, rotulo) }, enabled = !ocupado) {
-                Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false)
-            }
+            BotaoDeIconeComDica(Icons.AutoMirrored.Filled.Notes, ROTULO_SO_O_PROMPT, { acoes.aoGerarSoOPromptDoFrame(chave, frameId, rotulo) }, habilitado = !ocupado)
         }
         // T1: um só botão por frame; a imagem vai para o prompt mais recente. PI4: **sem prompt** também importa (vai para o frame e o
         // servidor cria o "prompt só da imagem"). O seletor não abre aqui: mora na tela do capítulo (J2).
-        OutlinedButton(onClick = { acoes.aoEscolherImagem(frameId, maisRecente?.id ?: SEM_PROMPT) }, enabled = !ocupado) {
-            Text("Importar imagem", maxLines = 1, softWrap = false)
-        }
+        BotaoDeIconeComDica(Icons.Filled.AddPhotoAlternate, "Importar imagem", { acoes.aoEscolherImagem(frameId, maisRecente?.id ?: SEM_PROMPT) }, habilitado = !ocupado)
+        // LP4: só o retrato tem; antes era um ícone solto no fim do cartão, longe do que fazia.
+        aoUsarImagemExistente?.let { BotaoDeIconeComDica(Icons.Filled.PhotoLibrary, ROTULO_USAR_IMAGEM_EXISTENTE, it, habilitado = !ocupado) }
         if (maisRecente != null) {
             // G3, Q6: **Novo prompt** à vista: gera outro prompt (com o diálogo de custo e o ajuste opcional). Como o botão
             // principal usa o prompt mais recente, é por aqui que se recomeça do zero, por exemplo para testar outro
             // modelo de suavização. Depois é só tocar em Gerar imagem.
-            OutlinedButton(onClick = { acoes.aoPedirGerarPrompt(frameId, rotulo) }, enabled = !ocupado) {
-                Text(rotuloDoBotaoDePrompt(jaTemPrompts = true), maxLines = 1, softWrap = false)
-            }
+            BotaoDeIconeComDica(Icons.AutoMirrored.Filled.Notes, rotuloDoBotaoDePrompt(jaTemPrompts = true), { acoes.aoPedirGerarPrompt(frameId, rotulo) }, habilitado = !ocupado)
         }
     }
+    if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
     Text(avisoDoBotaoPrincipal(lista.isNotEmpty()) + if (lista.isEmpty()) " \"$ROTULO_SO_O_PROMPT\" gasta só o prompt." else "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 

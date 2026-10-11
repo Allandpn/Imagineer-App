@@ -253,6 +253,25 @@ class SituacoesDoElementoTest {
     }
 
     @Test
+    fun `LP2 so ver ficha, trocar e desfazer viram icone e as decisoes continuam com texto`() {
+        val deIcone = AcaoDoElemento.entries.filter(::ehAcaoDeIcone).toSet()
+        assertEquals(setOf(AcaoDoElemento.ABRIR_FICHA, AcaoDoElemento.TROCAR, AcaoDoElemento.DESFAZER), deIcone)
+        // Em nenhuma situação a decisão principal (a primeira da lista, com texto) é um ícone — exceto na confirmada, que não tem decisão.
+        listOf(SituacaoDoElemento.NOVA, SituacaoDoElemento.CASADA_AUTOMATICAMENTE, SituacaoDoElemento.CASADA_SEM_ESTADO).forEach {
+            assertEquals(false, ehAcaoDeIcone(acoesDoElemento(it).first()))
+        }
+    }
+
+    @Test
+    fun `LP2 a dica de cada icone diz o que ele faz, e a acao com texto devolve o proprio rotulo`() {
+        assertEquals("Ver a ficha do elemento", dicaDaAcao(AcaoDoElemento.ABRIR_FICHA))
+        assertEquals("Trocar por outro elemento", dicaDaAcao(AcaoDoElemento.TROCAR))
+        assertEquals("Desfazer a confirmação (desliga do elemento)", dicaDaAcao(AcaoDoElemento.DESFAZER))
+        assertEquals("Confirmar", dicaDaAcao(AcaoDoElemento.CONFIRMAR))
+        assertEquals("Criar elemento", dicaDaAcao(AcaoDoElemento.CRIAR))
+    }
+
+    @Test
     fun `E23 a lista de vincular e so do mesmo tipo, a menos que se peca os outros`() {
         val todos = listOf(
             ElementoDoLivro(1, "AMBIENTE", "Winterfell"),

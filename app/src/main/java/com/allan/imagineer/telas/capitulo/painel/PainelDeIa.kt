@@ -10,6 +10,13 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
@@ -222,6 +229,7 @@ class AcoesDoPainel(
     val aoAlternarPresente: (frameId: Int, indice: Int) -> Unit = { _, _ -> },
     val aoMudarCaracteristicas: (frameId: Int, indice: Int, texto: String) -> Unit = { _, _, _ -> },
     val aoMudarCampoDoDossie: (frameId: Int, campo: CampoDoDossie, texto: String) -> Unit = { _, _, _ -> },
+    val aoMudarCampoDoCenario: (frameId: Int, campo: String, texto: String) -> Unit = { _, _, _ -> },
     val aoPedirAcrescentarAoDossie: (frameId: Int) -> Unit = {},
     val aoCancelarAcrescentarAoDossie: () -> Unit = {},
     val aoAcrescentarAoDossie: (frameId: Int, nome: String, tipo: String, caracteristicas: String) -> Unit = { _, _, _, _ -> },
@@ -229,7 +237,6 @@ class AcoesDoPainel(
     val aoPedirLerDossie: (frameId: Int) -> Unit = {},
     val aoCancelarLerDossie: () -> Unit = {},
     val aoLerDossie: (frameId: Int) -> Unit = {},
-    val aoMudarCampoDoCenario: (frameId: Int, campo: String, texto: String) -> Unit = { _, _, _ -> },
     val aoConfirmarDossie: (frameId: Int) -> Unit = {},
     val aoPedirConferirImagem: (imagemId: Int) -> Unit = {},
     val aoConferirImagem: () -> Unit = {},
@@ -371,7 +378,6 @@ fun ModalDaSugestao(estado: EstadoDoPainel, acoes: AcoesDoPainel, id: Int, retra
                 else -> {
                     CartaoDeElemento(
                         elemento = elemento,
-                        cenas = cenasDoElemento(sugestoes)[elemento.id].orEmpty(),
                         aberto = true,
                         aoAlternar = {},
                         estado = estado,
@@ -414,22 +420,24 @@ private fun BlocoDoRetrato(elemento: ElementoSugerido, frameId: Int?, estado: Es
                 Text(descreverEtapa(etapa ?: EtapaDaImagem.CRIANDO_O_RETRATO), style = MaterialTheme.typography.bodySmall)
             }
         }
+        // LP3: as quatro opções são ícones (a dica, ao segurar o dedo, diz o nome); o de gerar é cheio por ser a ação principal.
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { acoes.aoGerarRetrato(elemento) }, enabled = !ocupado) { Text("Gerar retrato", maxLines = 1, softWrap = false) }
+            BotaoDeIconeComDica(Icons.Filled.AutoAwesome, "Gerar retrato", { acoes.aoGerarRetrato(elemento) }, habilitado = !ocupado, cheio = true)
             // GP1: só o prompt, para usar em outro app de geração de imagem.
-            OutlinedButton(onClick = { acoes.aoGerarSoOPromptDoRetrato(elemento) }, enabled = !ocupado) { Text(ROTULO_SO_O_PROMPT, maxLines = 1, softWrap = false) }
+            BotaoDeIconeComDica(Icons.AutoMirrored.Filled.Notes, ROTULO_SO_O_PROMPT, { acoes.aoGerarSoOPromptDoRetrato(elemento) }, habilitado = !ocupado)
             // VM3, VM4: usar uma imagem que o elemento já tem (de qualquer capítulo), sem gerar nada.
-            OutlinedButton(onClick = { acoes.aoAbrirImagemExistente(elemento, null) }, enabled = !ocupado) { Text(ROTULO_USAR_IMAGEM_EXISTENTE, maxLines = 1, softWrap = false) }
+            BotaoDeIconeComDica(Icons.Filled.PhotoLibrary, ROTULO_USAR_IMAGEM_EXISTENTE, { acoes.aoAbrirImagemExistente(elemento, null) }, habilitado = !ocupado)
             // PI4: a imagem que a pessoa já tem, sem gerar prompt antes (o frame do retrato é criado agora, sem gastar IA).
-            OutlinedButton(onClick = { acoes.aoImportarImagemDoRetrato(elemento) }, enabled = !ocupado) { Text("Importar imagem", maxLines = 1, softWrap = false) }
+            BotaoDeIconeComDica(Icons.Filled.AddPhotoAlternate, "Importar imagem", { acoes.aoImportarImagemDoRetrato(elemento) }, habilitado = !ocupado)
         }
         Text(avisoDoBotaoPrincipal(jaTemPrompt = false), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         BlocoDePrompts(
             frameId, rotuloDoRetrato(elemento), estado, acoes, chave, "Gerar retrato", ehCena = false,
             aoEscolherElementos = if (aceitaVinculos(elemento)) ({ acoes.aoAbrirSeletorDoRetrato(elemento, frameId) }) else null,
+            // LP4: o ícone de "usar imagem existente" mora na linha de ícones das imagens (antes ficava solto no fim do cartão).
+            aoUsarImagemExistente = { acoes.aoAbrirImagemExistente(elemento, frameId) },
         )
-        BotaoDeIcone(Icons.Filled.PhotoLibrary, ROTULO_USAR_IMAGEM_EXISTENTE, { acoes.aoAbrirImagemExistente(elemento, frameId) })
     }
 }
 
@@ -540,7 +548,6 @@ private fun ListaDeSugestoes(
     LaunchedEffect(estado.filtro) { abertos.clear() }
 
     val contagem = contagemPorFiltro(sugestoes.elementos, sugestoes.cenas)
-    val cenasDosElementos = cenasDoElemento(sugestoes)
     val temLista = sugestoes.elementos.isNotEmpty() || sugestoes.cenas.isNotEmpty() || cenasDeTrechos.isNotEmpty()
 
     // As três listas são **páginas** de um pager: o conteúdo acompanha o dedo e traz a próxima lista junto, como o texto do capítulo.
@@ -639,7 +646,6 @@ private fun ListaDeSugestoes(
                         LinhaSelecionavel(itemPorChave[chaveDaFilaDoElemento(elemento)], fila, acoes) {
                             CartaoDeElemento(
                                 elemento = elemento,
-                                cenas = cenasDosElementos[elemento.id].orEmpty(),
                                 aberto = chave in abertos,
                                 aoAlternar = { alternar(chave) },
                                 estado = estado,
@@ -734,16 +740,15 @@ private fun CartaoDeCenaAdicional(cena: Artefato, aberto: Boolean, aoAlternar: (
 internal const val AVISO_DE_NAO_ACHADO_NO_TEXTO = "Não achado no texto — confira"
 
 /**
- * E24 e E25: o cartão **fechado** tem tipo, nome, **uma** etiqueta de situação e, se for o caso, "Aparece em
- * N cenas"; o recado da última ação e o "em andamento" aparecem também fechado. **Aberto** mostra os detalhes
- * que cada situação tem (a "Sugestão da IA" só numa sugestão nova — numa casada ela só repete a identidade) e as
- * ações.
+ * E24 e E25: o cartão **fechado** tem tipo, nome e **uma** etiqueta de situação; o recado da última ação e o
+ * "em andamento" aparecem também fechado. **Aberto** mostra os detalhes que cada situação tem (a "Sugestão da IA"
+ * só numa sugestão nova — numa casada ela só repete a identidade) e as ações. Desde a LP1, o "casada com", o estado
+ * e o "aparece em" não estão mais aqui: moram na ficha do elemento.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CartaoDeElemento(
     elemento: ElementoSugerido,
-    cenas: List<String>,
     aberto: Boolean,
     aoAlternar: () -> Unit,
     estado: EstadoDoPainel,
@@ -795,9 +800,6 @@ internal fun CartaoDeElemento(
             if (!aberto) acaoPrincipalDoElemento(elemento)?.let { acao ->
                 FilledTonalButton(onClick = { acoes.aoExecutar(acao, elemento) }, enabled = !ocupado) { Text(acao.rotulo, maxLines = 1, softWrap = false) }
             }
-            descreverCenasDoElemento(cenas)?.let {
-                Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
-            }
             if (!elemento.achado_no_texto) {
                 Text(
                     AVISO_DE_NAO_ACHADO_NO_TEXTO,
@@ -816,8 +818,8 @@ internal fun CartaoDeElemento(
             if (ocupado) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
             if (aberto) {
-                DetalhesDoElemento(elemento, situacao, cenas)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetalhesDoElemento(elemento, situacao)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     acoesDoElemento(situacao).forEachIndexed { indice, acao ->
                         val aoTocar: () -> Unit = {
                             val elementoCasado = elemento.elemento_id
@@ -827,10 +829,11 @@ internal fun CartaoDeElemento(
                                 acoes.aoExecutar(acao, elemento)
                             }
                         }
-                        if (indice == 0) {
-                            Button(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
-                        } else {
-                            OutlinedButton(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
+                        when {
+                            // LP2: ver a ficha, trocar e desfazer são ícones; a dica (segurar o dedo) diz o que cada um faz.
+                            ehAcaoDeIcone(acao) -> BotaoDeIconeComDica(iconeDaAcao(acao), dicaDaAcao(acao), aoTocar, habilitado = !ocupado)
+                            indice == 0 -> Button(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
+                            else -> OutlinedButton(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
                         }
                     }
                 }
@@ -841,21 +844,16 @@ internal fun CartaoDeElemento(
     }
 }
 
-/** O que o cartão aberto mostra, conforme a situação (E25). */
+/**
+ * O que o cartão aberto mostra, conforme a situação (E25, revisto em LP1): só a "Sugestão da IA" de um artefato **novo** (ele ainda não
+ * tem ficha) e o recado de que falta estado. O "casada com", o estado vigente e o "aparece em" moram na **ficha do elemento**.
+ */
 @Composable
-private fun DetalhesDoElemento(elemento: ElementoSugerido, situacao: SituacaoDoElemento, cenas: List<String>) {
+private fun DetalhesDoElemento(elemento: ElementoSugerido, situacao: SituacaoDoElemento) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (situacao == SituacaoDoElemento.NOVA) {
             elemento.descricao?.let { Rotulado("Sugestão da IA", it) }
         }
-        elemento.elemento_casado?.let { casado ->
-            Rotulado(
-                "Casada com ${casado.nome} (${rotuloDoTipo(casado.tipo)})",
-                casado.identidade ?: "Sem identidade registrada.",
-                maxLinhas = 4,
-            )
-        }
-        linhaDoEstado(elemento)?.let { Rotulado(it.rotulo, it.texto, maxLinhas = 4) }
         if (elemento.elemento_id != null && elemento.estado_vigente == null) {
             Text(
                 "Este elemento ainda não tem estado até este capítulo.",
@@ -863,10 +861,14 @@ private fun DetalhesDoElemento(elemento: ElementoSugerido, situacao: SituacaoDoE
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (cenas.isNotEmpty()) {
-            Rotulado("Aparece em", cenas.joinToString("; "))
-        }
     }
+}
+
+/** O ícone de cada ação que é desenhada como ícone (LP2): ver *ficha* = documento, *trocar* = setas de troca, *desfazer* = elo quebrado. */
+private fun iconeDaAcao(acao: AcaoDoElemento): ImageVector = when (acao) {
+    AcaoDoElemento.ABRIR_FICHA -> Icons.Filled.Description
+    AcaoDoElemento.TROCAR -> Icons.Filled.SwapHoriz
+    else -> Icons.Filled.LinkOff
 }
 
 /** A etiqueta de situação do cartão fechado (E24). */
@@ -1206,6 +1208,8 @@ internal fun BlocoDePrompts(
     rotuloDoBotao: String,
     ehCena: Boolean,
     aoEscolherElementos: (() -> Unit)? = null,
+    /** Só o retrato tem (VM3): abre o seletor das imagens que o elemento já tem. `null` = sem o ícone. */
+    aoUsarImagemExistente: (() -> Unit)? = null,
 ) {
     LaunchedEffect(frameId) { acoes.aoCarregarPrompts(frameId) }
     // G13: com este modal na tela, ele mostra o próprio aviso; o aviso global (que ficaria atrás do modal) se cala.
@@ -1221,7 +1225,7 @@ internal fun BlocoDePrompts(
 
     // PM1: o corpo do frame tem seções com título. Q1: a imagem em destaque, com o botão que faz o que falta.
     TituloDeSecao(TITULO_DA_SECAO_DE_IMAGENS)
-    SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena)
+    SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena, aoUsarImagemExistente)
 
     // Item 4.9 (FL9): a lista do que vai aparecer na cena, recolhida por padrão; o retrato não tem (a imagem dele é neutra).
     if (ehCena) CartaoDoQueVaiAparecer(frameId, estado, acoes)
@@ -1347,11 +1351,15 @@ private fun CartaoDePrompt(
             // PM2: Gerar imagem é a ação principal (botão cheio); Copiar fica contornado, à vista; o resto mora no ⋮.
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
-                Button(
-                    onClick = { acoes.aoGerarImagem(frameId, prompt.id, null, null, null) },
-                    enabled = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
-                ) { Text(rotuloDeGerarComNumero("Gerar imagem", numero), maxLines = 1, softWrap = false) }
-                OutlinedButton(onClick = { aoCopiar(); copiado = true }) { Text("Copiar", maxLines = 1, softWrap = false) }
+                // LP5: os dois são ícones; o número do prompt vai na dica (o título do cartão já o traz).
+                BotaoDeIconeComDica(
+                    Icons.Filled.AutoAwesome,
+                    rotuloDeGerarComNumero("Gerar imagem", numero),
+                    { acoes.aoGerarImagem(frameId, prompt.id, null, null, null) },
+                    habilitado = prompt.id !in estado.gerandoImagem && prompt.id !in estado.importandoImagem,
+                    cheio = true,
+                )
+                BotaoDeIconeComDica(Icons.Filled.ContentCopy, "Copiar o prompt", { aoCopiar(); copiado = true })
                 MenuMais(
                     itens = ItemDoMenuDoPrompt.entries.map { item ->
                         ItemDeMenu(item.rotulo) {

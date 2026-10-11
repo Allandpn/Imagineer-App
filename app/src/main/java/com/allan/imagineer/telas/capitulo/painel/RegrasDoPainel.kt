@@ -120,6 +120,24 @@ fun acoesDoElemento(situacao: SituacaoDoElemento): List<AcaoDoElemento> {
     }
 }
 
+/**
+ * Se a ação do cartão aparece como **ícone** em vez de botão com texto (LP2): só as três que mexem no casamento já feito (ver a ficha,
+ * trocar de elemento, desfazer). As **decisões** (criar, vincular, descartar, confirmar, registrar estado) ficam com texto.
+ */
+fun ehAcaoDeIcone(acao: AcaoDoElemento): Boolean =
+    acao == AcaoDoElemento.ABRIR_FICHA || acao == AcaoDoElemento.TROCAR || acao == AcaoDoElemento.DESFAZER
+
+/**
+ * A dica do ícone (LP2), que aparece ao segurar o dedo nele e é o que o leitor de tela fala: diz **o que a ação faz**, já que o ícone
+ * sozinho não diz. Para as ações com texto, devolve o próprio rótulo.
+ */
+fun dicaDaAcao(acao: AcaoDoElemento): String = when (acao) {
+    AcaoDoElemento.ABRIR_FICHA -> "Ver a ficha do elemento"
+    AcaoDoElemento.TROCAR -> "Trocar por outro elemento"
+    AcaoDoElemento.DESFAZER -> "Desfazer a confirmação (desliga do elemento)"
+    else -> acao.rotulo
+}
+
 /** Os três filtros do painel (E24). */
 enum class FiltroDoPainel(val rotulo: String) {
     PENDENTES("Pendentes"),
