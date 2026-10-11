@@ -55,6 +55,37 @@ data class EstadoDoAudio(
     val criado_em: String? = null,
 )
 
+/** Uma narração pronta e guardada no servidor (`GET /capitulos/{id}/audios`, item 7.5g, AU3): uma por (capítulo, modelo, voz). */
+@Serializable
+@Suppress("PropertyName")
+data class AudioSalvo(
+    val id: Int,
+    val modelo: String,
+    val voz: String? = null,
+    val caracteres: Int? = null,
+    val tamanho_em_bytes: Long? = null,
+    /** O custo **estimado** em dólares; nulo = não se sabe. */
+    val custo: JsonPrimitive? = null,
+    val criado_em: String? = null,
+    /** É a feita com o modelo e a voz escolhidos agora em Configurações → Narração. */
+    val de_agora: Boolean = false,
+)
+
+/** A frase do teste de voz e quanto custa (`GET /configuracao/narracao/teste`, AU4). */
+@Serializable
+@Suppress("PropertyName")
+data class EstimativaDoTesteDeVoz(
+    val frase: String,
+    val caracteres: Int,
+    /** Dólares; zero = modelo gratuito; nulo = sem estimativa. */
+    val custo_estimado: JsonPrimitive? = null,
+    val modelo: String = "",
+    val voz: String? = null,
+)
+
+/** O MP3 do teste de voz e o custo estimado que o servidor mandou no cabeçalho (AU4). */
+class AmostraDeVoz(val mp3: ByteArray, val custoEstimado: String?)
+
 object SituacaoDoAudio {
     const val NAO_GERADO = "NAO_GERADO"
     const val GERANDO = "GERANDO"
@@ -100,6 +131,24 @@ fun narracaoPorIaDisponivel(modeloNarracao: String?, temChave: Boolean): Boolean
 /** O endereço do MP3 do capítulo, para o player ler em fluxo (`GET /capitulos/{id}/audio`, que aceita pedaços). */
 fun enderecoDaNarracao(urlBase: String, capituloId: Int): String = "${urlBase.trimEnd('/')}/capitulos/$capituloId/audio"
 
+/** O endereço do MP3 de uma narração guardada, pelo id (`GET /audios/{id}/arquivo`, AU3): é o que o player lê em fluxo. */
+fun enderecoDoAudioSalvo(urlBase: String, audioId: Int): String = "${urlBase.trimEnd('/')}/audios/$audioId/arquivo"
+
+/** O título de uma narração guardada na folha do fone (AU2): o modelo e, se houver, a voz. "microsoft/mai-voice-2.1-flash · pt-BR-Luana". */
+fun tituloDoAudioSalvo(audio: AudioSalvo): String = if (audio.voz.isNullOrBlank()) audio.modelo else "${audio.modelo} · ${audio.voz}"
+
+/** A linha de baixo de uma narração guardada (AU2): "2,4 MB · ≈ US$ 0,21 · 09/10/2026 · em uso agora". */
+fun detalheDoAudioSalvo(audio: AudioSalvo): String {
+    val pt = java.util.Locale("pt", "BR")
+    val tamanho = audio.tamanho_em_bytes?.let { String.format(pt, "%.1f MB", it / 1_048_576.0) }
+    val custo = decimalOuNulo(audio.custo)?.let { if (it <= 0.0) "grátis" else "≈ ${dolares(it)}" }
+    val dia = audio.criado_em?.take(10)?.split("-")?.takeIf { it.size == 3 }?.let { "${it[2]}/${it[1]}/${it[0]}" }
+    return listOfNotNull(tamanho, custo, dia, if (audio.de_agora) "em uso agora" else null).joinToString(" · ")
+}
+
+/** O texto do teste de voz antes de gerar (AU4): "Esta é a voz que… · ≈ US$ 0,0016" (ou "grátis", ou "sem estimativa de custo"). */
+fun descreverCustoDoTeste(estimativa: EstimativaDoTesteDeVoz): String = descreverCustoEstimado(estimativa.custo_estimado)
+
 /** A narração por IA. Interface, para os ViewModels serem testados com uma versão falsa. */
 interface RepositorioDeNarracao {
     /** `GET /configuracao/modelos-de-narracao`: os modelos de voz, os gratuitos primeiro. */
@@ -116,6 +165,20 @@ interface RepositorioDeNarracao {
 
     /** `DELETE /capitulos/{id}/audio`: apaga os áudios do capítulo e os arquivos. */
     suspend fun apagar(capituloId: Int): ResultadoDaChamada<Unit>
+
+    // Os métodos abaixo (item 7.5g) têm um padrão para os fakes antigos continuarem compilando.
+
+    /** `GET /capitulos/{id}/audios`: as narrações prontas guardadas, da mais nova para a mais antiga (AU3). */
+    suspend fun audios(capituloId: Int): ResultadoDaChamada<List<AudioSalvo>> = ResultadoDaChamada.Falha("Sem servidor.")
+
+    /** `DELETE /audios/{id}`: apaga UMA narração guardada (AU3). */
+    suspend fun apagarAudio(audioId: Int): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Sem servidor.")
+
+    /** `GET /configuracao/narracao/teste`: a frase e o custo do teste de voz, antes de gerar (AU4). [modelo] e [voz] nulos = os da configuração. */
+    suspend fun estimativaDoTeste(modelo: String?, voz: String?): ResultadoDaChamada<EstimativaDoTesteDeVoz> = ResultadoDaChamada.Falha("Sem servidor.")
+
+    /** `POST /configuracao/narracao/teste`: o MP3 da frase de teste. Gasta uma fração de centavo (nada num modelo gratuito) (AU4). */
+    suspend fun testarVoz(modelo: String?, voz: String?): ResultadoDaChamada<AmostraDeVoz> = ResultadoDaChamada.Falha("Sem servidor.")
 }
 
 class RepositorioDeNarracaoPeloRetrofit(private val provedor: ProvedorDeApi) : RepositorioDeNarracao {
@@ -143,5 +206,35 @@ class RepositorioDeNarracaoPeloRetrofit(private val provedor: ProvedorDeApi) : R
     override suspend fun apagar(capituloId: Int): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return chamarApi { api.apagarNarracao(capituloId) }
+    }
+
+    override suspend fun audios(capituloId: Int): ResultadoDaChamada<List<AudioSalvo>> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.audiosDoCapitulo(capituloId) }
+    }
+
+    override suspend fun apagarAudio(audioId: Int): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.apagarAudio(audioId) }
+    }
+
+    override suspend fun estimativaDoTeste(modelo: String?, voz: String?): ResultadoDaChamada<EstimativaDoTesteDeVoz> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return chamarApi { api.estimativaDoTesteDeVoz(modelo?.takeIf { it.isNotBlank() }, voz?.takeIf { it.isNotBlank() }) }
+    }
+
+    override suspend fun testarVoz(modelo: String?, voz: String?): ResultadoDaChamada<AmostraDeVoz> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        val corpo: JsonObject = buildJsonObject {
+            modelo?.takeIf { it.isNotBlank() }?.let { put("modelo", it) }
+            voz?.takeIf { it.isNotBlank() }?.let { put("voz", it) }
+        }
+        return chamarApi {
+            val resposta = api.testarAVoz(corpo)
+            // O Retrofit não lança para um erro de `Response<>`: lança-se aqui, para o `chamarApi` traduzir a mensagem do servidor.
+            if (!resposta.isSuccessful) throw retrofit2.HttpException(resposta)
+            val bytes = resposta.body()?.use { it.bytes() } ?: ByteArray(0)
+            AmostraDeVoz(bytes, resposta.headers()["X-Custo-Estimado"])
+        }
     }
 }

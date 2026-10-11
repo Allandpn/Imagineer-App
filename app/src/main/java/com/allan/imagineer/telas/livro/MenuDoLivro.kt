@@ -44,12 +44,19 @@ fun MenuDoLivro(
     aoAbrirDestaques: (() -> Unit)? = null,
     /** RL36: a lista de favoritos do livro. */
     aoAbrirFavoritos: (() -> Unit)? = null,
-    /** Bloco J (PN2): a lista de pins do livro. */
-    aoAbrirPins: (() -> Unit)? = null,
+    /** MV4: os modelos de IA só deste livro. */
+    aoAbrirModelos: (() -> Unit)? = null,
     aoPesquisar: (() -> Unit)? = null,
+    /** BL4: adicionar ou tirar o livro dos favoritos (nulo = sem o item); o texto vem do estado do livro. */
+    aoAlternarFavorito: (() -> Unit)? = null,
+    rotuloDoFavoritar: String = "Adicionar aos favoritos",
     /** PL3: o item de ler offline (nulo = sem o item) e o texto dele conforme o estado do download. */
     aoAbrirOffline: (() -> Unit)? = null,
-    rotuloDoOffline: String = "Baixar para ler offline",
+    rotuloDoOffline: String = ROTULO_DO_DOWNLOAD,
+    /** DL3: a linha pequena sob "Download" ("baixado", "há uma atualização"...). */
+    detalheDoOffline: String? = null,
+    /** Baixado, o item continua valendo sem rede (para remover o download); baixar e atualizar precisam do servidor. */
+    offlineValeSemRede: Boolean = false,
     aoApagar: (() -> Unit)? = null,
 ) {
     var aberto by remember { mutableStateOf(false) }
@@ -67,12 +74,24 @@ fun MenuDoLivro(
             IconButton(onClick = { aberto = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Mais opções") }
         }
         DropdownMenu(expanded = aberto, onDismissRequest = { aberto = false }) {
+            aoAlternarFavorito?.let { DropdownMenuItem(text = { Text(rotuloDoFavoritar) }, enabled = !offline, onClick = { aberto = false; it() }) }
             aoPesquisar?.let { DropdownMenuItem(text = { Text("Pesquisar no livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
             aoAbrirDestaques?.let { DropdownMenuItem(text = { Text("Destaques e notas") }, enabled = !offline, onClick = { aberto = false; it() }) }
-            aoAbrirFavoritos?.let { DropdownMenuItem(text = { Text("Favoritos") }, enabled = !offline, onClick = { aberto = false; it() }) }
-            aoAbrirPins?.let { DropdownMenuItem(text = { Text("Pins") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoAbrirFavoritos?.let { DropdownMenuItem(text = { Text("Favoritos do livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
+            aoAbrirModelos?.let { DropdownMenuItem(text = { Text("Modelos de IA do livro") }, enabled = !offline, onClick = { aberto = false; it() }) }
             // Sem conexão só dá para **remover** um download (o item "Baixado · remover download"); baixar precisa do servidor.
-            aoAbrirOffline?.let { DropdownMenuItem(text = { Text(rotuloDoOffline) }, enabled = !offline || rotuloDoOffline.startsWith("Baixado"), onClick = { aberto = false; it() }) }
+            aoAbrirOffline?.let {
+                DropdownMenuItem(
+                    text = {
+                        androidx.compose.foundation.layout.Column {
+                            Text(rotuloDoOffline)
+                            detalheDoOffline?.let { detalhe -> Text(detalhe, style = androidx.compose.material3.MaterialTheme.typography.labelSmall, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant) }
+                        }
+                    },
+                    enabled = !offline || offlineValeSemRede,
+                    onClick = { aberto = false; it() },
+                )
+            }
             aoEditar?.let { DropdownMenuItem(text = { Text("Editar") }, enabled = !offline, onClick = { aberto = false; it() }) }
             aoDefinirCapa?.let { DropdownMenuItem(text = { Text("Definir capa") }, enabled = !offline, onClick = { aberto = false; it() }) }
             aoEscolherPerfilPadrao?.let { DropdownMenuItem(text = { Text("Perfil de Renderização") }, enabled = !offline, onClick = { aberto = false; it() }) }

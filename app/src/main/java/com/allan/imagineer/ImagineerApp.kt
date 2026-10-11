@@ -127,6 +127,10 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.rede.RepositorioDaLixeiraDeFramesPeloRetrofit(provedorDeApi)
     }
 
+    val repositorioDeModelosDoLivro: com.allan.imagineer.rede.RepositorioDeModelosDoLivro by lazy {
+        com.allan.imagineer.rede.RepositorioDeModelosDoLivroPeloRetrofit(provedorDeApi)
+    }
+
     val repositorioDeModelos: com.allan.imagineer.rede.RepositorioDeModelos by lazy {
         com.allan.imagineer.rede.RepositorioDeModelosPeloRetrofit(provedorDeApi)
     }
@@ -180,10 +184,6 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
 
     val repositorioDeNarracao: com.allan.imagineer.rede.RepositorioDeNarracao by lazy {
         com.allan.imagineer.rede.RepositorioDeNarracaoPeloRetrofit(provedorDeApi)
-    }
-
-    val repositorioDePins: com.allan.imagineer.rede.RepositorioDePins by lazy {
-        com.allan.imagineer.rede.RepositorioDePinsPeloRetrofit(provedorDeApi)
     }
 
     val repositorioDeFavoritos: com.allan.imagineer.rede.RepositorioDeFavoritos by lazy {

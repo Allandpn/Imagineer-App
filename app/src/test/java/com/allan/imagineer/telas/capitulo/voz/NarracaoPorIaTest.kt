@@ -1,5 +1,6 @@
 package com.allan.imagineer.telas.capitulo.voz
 
+import com.allan.imagineer.rede.AudioSalvo
 import com.allan.imagineer.rede.ConfiguracaoAtual
 import com.allan.imagineer.rede.EstadoDoAudio
 import com.allan.imagineer.rede.EstimativaDaNarracao
@@ -12,7 +13,10 @@ import com.allan.imagineer.rede.descreverCustoEstimado
 import com.allan.imagineer.rede.descreverEstimativa
 import com.allan.imagineer.rede.descreverPrecoDoModelo
 import com.allan.imagineer.rede.dolares
+import com.allan.imagineer.rede.detalheDoAudioSalvo
 import com.allan.imagineer.rede.enderecoDaNarracao
+import com.allan.imagineer.rede.enderecoDoAudioSalvo
+import com.allan.imagineer.rede.tituloDoAudioSalvo
 import com.allan.imagineer.rede.jsonDoImagineer
 import com.allan.imagineer.rede.narracaoPorIaDisponivel
 import com.allan.imagineer.telas.menu.NarracaoEdicao
@@ -63,6 +67,22 @@ private class NarracaoFalsa : RepositorioDeNarracao {
     }
 
     override suspend fun apagar(capituloId: Int) = apagamento
+
+    // Item 7.5g (AU2, AU3): as narrações guardadas e o apagar de uma delas.
+    var audiosSalvos: ResultadoDaChamada<List<AudioSalvo>> = ResultadoDaChamada.Sucesso(emptyList())
+    var apagamentoDeUma: ResultadoDaChamada<Unit> = ResultadoDaChamada.Sucesso(Unit)
+    val audiosApagados = mutableListOf<Int>()
+    var leiturasDosAudios = 0
+
+    override suspend fun audios(capituloId: Int): ResultadoDaChamada<List<AudioSalvo>> {
+        leiturasDosAudios++
+        return audiosSalvos
+    }
+
+    override suspend fun apagarAudio(audioId: Int): ResultadoDaChamada<Unit> {
+        audiosApagados += audioId
+        return apagamentoDeUma
+    }
 }
 
 /** As regras da narração por IA (AN1, AN3) e o que o servidor devolve. */
@@ -289,20 +309,123 @@ class NarracaoPorIaViewModelTest {
         assertEquals(listOf(true), falso.pedidosDeGeracao)
     }
 
+    // ---- Item 7.5g: a folha do fone (AU2, AU3) ----
+
+    private fun salvo(id: Int, modelo: String = "microsoft/mai-voice-2.1-flash", voz: String? = "pt-BR-Luana", deAgora: Boolean = false) =
+        AudioSalvo(id = id, modelo = modelo, voz = voz, caracteres = 1000, tamanho_em_bytes = 2_516_582, custo = JsonPrimitive("0.0210"), criado_em = "2026-10-09T14:03:00Z", de_agora = deAgora)
+
     @Test
-    fun apagar_volta_para_nao_gerado_e_a_falha_do_servidor_aparece() = runTest {
-        val falso = NarracaoFalsa().also { it.estados = mutableListOf(ResultadoDaChamada.Sucesso(audio(SituacaoDoAudio.PRONTO))) }
+    fun AU2_carregar_audios_guarda_a_lista_do_servidor() = runTest {
+        val falso = NarracaoFalsa().also { it.audiosSalvos = ResultadoDaChamada.Sucesso(listOf(salvo(2), salvo(1, voz = null))) }
         val vm = vm(falso)
-        vm.consultar(); advanceUntilIdle()
+        assertNull(vm.estado.value.audios)
 
-        vm.pedirApagar()
-        assertEquals(DialogoDaNarracao.ConfirmarApagar, vm.estado.value.dialogo)
-        vm.apagar(); advanceUntilIdle()
-        assertEquals(SituacaoDoAudio.NAO_GERADO, vm.estado.value.audio?.situacao)
+        vm.carregarAudios(); advanceUntilIdle()
+
+        assertEquals(listOf(2, 1), vm.estado.value.audios?.map { it.id })
+        assertNull(vm.estado.value.erroDosAudios)
+    }
+
+    @Test
+    fun AU2_a_falha_ao_ler_a_lista_vira_o_motivo_na_folha_e_nao_um_aviso() = runTest {
+        val falso = NarracaoFalsa().also { it.audiosSalvos = ResultadoDaChamada.Falha("Não consegui falar com o servidor.") }
+        val vm = vm(falso)
+
+        vm.carregarAudios(); advanceUntilIdle()
+
+        assertNull(vm.estado.value.audios)
+        assertEquals("Não consegui falar com o servidor.", vm.estado.value.erroDosAudios)
+        assertNull(vm.estado.value.aviso)
+    }
+
+    @Test
+    fun AU2_apagar_uma_pede_confirmacao_depois_apaga_so_ela_e_relê_a_lista() = runTest {
+        val falso = NarracaoFalsa().also { it.audiosSalvos = ResultadoDaChamada.Sucesso(listOf(salvo(2), salvo(1))) }
+        val vm = vm(falso)
+        vm.carregarAudios(); advanceUntilIdle()
+        val leiturasAntes = falso.leiturasDosAudios
+
+        vm.pedirApagarSalva(salvo(1))
+        assertEquals(DialogoDaNarracao.ConfirmarApagarSalva(salvo(1)), vm.estado.value.dialogo)
+        assertTrue("pedir não apaga nada", falso.audiosApagados.isEmpty())
+
+        falso.audiosSalvos = ResultadoDaChamada.Sucesso(listOf(salvo(2)))
+        vm.apagarSalva(1); advanceUntilIdle()
+
+        assertEquals(listOf(1), falso.audiosApagados)
+        assertEquals(DialogoDaNarracao.Fechado, vm.estado.value.dialogo)
         assertEquals("Narração apagada.", vm.estado.value.aviso)
+        assertEquals(listOf(2), vm.estado.value.audios?.map { it.id })
+        assertTrue("a lista foi relida", falso.leiturasDosAudios > leiturasAntes)
+        assertFalse(vm.estado.value.ocupado)
+    }
 
-        falso.apagamento = ResultadoDaChamada.Falha("fora do ar")
-        vm.apagar(); advanceUntilIdle()
-        assertEquals("fora do ar", vm.estado.value.aviso)
+    @Test
+    fun AU2_apagar_uma_que_o_servidor_recusa_mostra_o_motivo_e_mantem_a_lista() = runTest {
+        val falso = NarracaoFalsa().also {
+            it.audiosSalvos = ResultadoDaChamada.Sucesso(listOf(salvo(1)))
+            it.apagamentoDeUma = ResultadoDaChamada.Falha("Esta narração ainda está sendo gerada.", 409)
+        }
+        val vm = vm(falso)
+        vm.carregarAudios(); advanceUntilIdle()
+
+        vm.apagarSalva(1); advanceUntilIdle()
+
+        assertEquals("Esta narração ainda está sendo gerada.", vm.estado.value.aviso)
+        assertEquals(listOf(1), vm.estado.value.audios?.map { it.id })
+        assertFalse(vm.estado.value.ocupado)
+    }
+
+    @Test
+    fun AU2_quando_a_geracao_termina_a_lista_das_guardadas_e_relida() = runTest {
+        val falso = NarracaoFalsa().also {
+            it.estados = mutableListOf(
+                ResultadoDaChamada.Sucesso(audio(SituacaoDoAudio.GERANDO)),
+                ResultadoDaChamada.Sucesso(audio(SituacaoDoAudio.PRONTO)),
+            )
+            it.audiosSalvos = ResultadoDaChamada.Sucesso(listOf(salvo(7, deAgora = true)))
+        }
+        val vm = vm(falso)
+
+        vm.gerar(refazer = false)
+        advanceTimeBy(500); advanceTimeBy(1_000); advanceTimeBy(1_000)
+
+        assertEquals(SituacaoDoAudio.PRONTO, vm.estado.value.audio?.situacao)
+        assertEquals(listOf(7), vm.estado.value.audios?.map { it.id })
+    }
+
+    @Test
+    fun AU2_o_titulo_e_o_detalhe_de_uma_narracao_guardada() {
+        assertEquals("microsoft/mai-voice-2.1-flash · pt-BR-Luana", tituloDoAudioSalvo(salvo(1)))
+        assertEquals("microsoft/mai-voice-2.1-flash", tituloDoAudioSalvo(salvo(1, voz = null)))
+        assertEquals("microsoft/mai-voice-2.1-flash", tituloDoAudioSalvo(salvo(1, voz = "  ")))
+        assertEquals("2,4 MB · ≈ US$ 0,02 · 09/10/2026", detalheDoAudioSalvo(salvo(1)))
+        assertTrue(detalheDoAudioSalvo(salvo(1, deAgora = true)).endsWith(" · em uso agora"))
+    }
+
+    @Test
+    fun AU2_o_detalhe_sem_tamanho_custo_ou_data_mostra_so_o_que_ha() {
+        val minimo = AudioSalvo(id = 1, modelo = "a/b")
+        assertEquals("", detalheDoAudioSalvo(minimo))
+        assertEquals("grátis", detalheDoAudioSalvo(minimo.copy(custo = JsonPrimitive("0"))))
+    }
+
+    @Test
+    fun AU3_o_endereco_de_uma_guardada_e_pelo_id_do_audio() {
+        assertEquals("http://100.1.1.1:8000/audios/7/arquivo", enderecoDoAudioSalvo("http://100.1.1.1:8000/", 7))
+    }
+
+    @Test
+    fun AU2_o_pedido_so_vale_para_o_capitulo_dele() {
+        assertTrue(pedidoValeParaOCapitulo(PedidoDeOuvir.Aparelho(5), 5))
+        assertTrue(pedidoValeParaOCapitulo(PedidoDeOuvir.Narracao(5, 9), 5))
+        assertFalse("passar a página não pode começar a narrar o vizinho", pedidoValeParaOCapitulo(PedidoDeOuvir.Aparelho(5), 6))
+        assertFalse(pedidoValeParaOCapitulo(null, 5))
+    }
+
+    @Test
+    fun AU2_o_botao_de_gerar_vira_refazer_quando_ja_ha_uma_com_o_modelo_e_a_voz_de_agora() {
+        assertEquals("Gerar nova narração", rotuloDeGerarNarracao(jaTemDeAgora = false))
+        assertEquals("Refazer com o modelo e a voz de agora", rotuloDeGerarNarracao(jaTemDeAgora = true))
     }
 }

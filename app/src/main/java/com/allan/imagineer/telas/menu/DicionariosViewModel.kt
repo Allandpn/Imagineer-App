@@ -82,6 +82,9 @@ class DicionariosViewModel(private val repositorio: RepositorioDeDicionario) : V
 
     fun descer(id: String) = mudar { moverDicionario(it, id, +1) }
 
+    /** Soltar a linha arrastada (CF2): leva o dicionário [id] para a posição [alvo] e grava, como as outras mudanças. */
+    fun moverPara(id: String, alvo: Int) = mudar { moverDicionarioPara(it, id, alvo) }
+
     /**
      * Grava **a cada toque** (RL30): a tela já mostra a lista nova, o servidor confirma; se falhar, volta ao que estava e avisa.
      */
@@ -103,5 +106,35 @@ class DicionariosViewModel(private val repositorio: RepositorioDeDicionario) : V
 
     fun avisoLido() {
         _estado.value = _estado.value.copy(aviso = null)
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------- //
+// Ordenar por arrastar (item 7.5g, CF2)
+// ---------------------------------------------------------------------------------------------------------------- //
+
+/** Leva o dicionário [id] para a posição [alvo] (0 = o primeiro), empurrando os outros; id desconhecido, posição fora da lista ou a mesma não mudam nada. */
+fun moverDicionarioPara(lista: List<DicionarioDoServidor>, id: String, alvo: Int): List<DicionarioDoServidor> {
+    val de = lista.indexOfFirst { it.id == id }
+    if (de < 0 || alvo !in lista.indices || alvo == de) return lista
+    return lista.toMutableList().also { it.add(alvo, it.removeAt(de)) }
+}
+
+/** Onde uma linha está na tela durante o arrastar: o id, o começo (px) e a altura (px). */
+data class LinhaNaTela(val id: String, val inicio: Int, val altura: Int)
+
+/**
+ * Para que posição o dicionário [arrastado] foi? Soma o [deslocamento] (px, para baixo é positivo) ao meio da linha dele e vê **sobre qual
+ * linha** esse ponto caiu. `null` quando a linha arrastada não está na tela; passando do fim ou do começo, vale a última ou a primeira linha.
+ */
+fun alvoDoArrasto(linhas: List<LinhaNaTela>, arrastado: String, deslocamento: Float): String? {
+    val dele = linhas.firstOrNull { it.id == arrastado } ?: return null
+    val ponto = dele.inicio + dele.altura / 2f + deslocamento
+    val primeira = linhas.minByOrNull { it.inicio } ?: return null
+    val ultima = linhas.maxByOrNull { it.inicio } ?: return null
+    return when {
+        ponto <= primeira.inicio -> primeira.id
+        ponto >= ultima.inicio + ultima.altura -> ultima.id
+        else -> linhas.first { ponto >= it.inicio && ponto < it.inicio + it.altura }.id
     }
 }

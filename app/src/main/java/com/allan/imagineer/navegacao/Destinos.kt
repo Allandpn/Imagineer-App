@@ -16,9 +16,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 object Biblioteca
 
-/** Detalhe de um livro, com a lista de capítulos (item 7.4). */
+/** Detalhe de um livro, com a lista de capítulos (item 7.4). [abrirEdicao]: entra já com o diálogo de edição aberto (o "Editar" do ⋮ da lista, BL5). */
 @Serializable
-data class Livro(val livroId: Int)
+data class Livro(val livroId: Int, val abrirEdicao: Boolean = false)
 
 /**
  * Um capítulo, com o texto e as sugestões (item 7.5). É o capítulo em que o leitor **começa**: dali se passa a
@@ -69,13 +69,13 @@ object Estatisticas
 @Serializable
 data class DestaquesDoLivro(val livroId: Int)
 
-/** Os pins de um livro: as posições marcadas à mão (bloco J). */
-@Serializable
-data class PinsDoLivro(val livroId: Int)
-
 /** Os favoritos de um livro: parágrafos, elementos, cenas e imagens (RL36). */
 @Serializable
 data class FavoritosDoLivro(val livroId: Int)
+
+/** Os modelos de IA só deste livro (item 7.5g, MV4). */
+@Serializable
+data class ModelosDoLivro(val livroId: Int)
 
 /** Os elementos de um livro (item 7.8). */
 @Serializable

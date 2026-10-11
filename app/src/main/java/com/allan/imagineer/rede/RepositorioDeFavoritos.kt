@@ -8,6 +8,7 @@ import kotlinx.serialization.json.put
 /** O que se pode favoritar (RL31). [rotulo] é o nome no singular e [plural] o do filtro da tela de Favoritos. */
 enum class TipoDeFavorito(val rotulo: String, val plural: String) {
     LIVRO("Livro", "Livros"),
+    CAPITULO("Capítulo", "Capítulos"),
     PARAGRAFO("Parágrafo", "Parágrafos"),
     ELEMENTO("Elemento", "Elementos"),
     CENA("Cena", "Cenas"),
@@ -56,6 +57,16 @@ sealed interface AlvoDeFavorito {
         override val tipo = TipoDeFavorito.LIVRO
         override fun corpo() = buildJsonObject { put("tipo", tipo.name) }
         override fun combina(favorito: Favorito) = favorito.tipo == tipo.name
+    }
+
+    /** O capítulo inteiro (item 7.5g, FV2): só o id dele. */
+    data class Capitulo(val capituloId: Int) : AlvoDeFavorito {
+        override val tipo = TipoDeFavorito.CAPITULO
+        override fun corpo() = buildJsonObject {
+            put("tipo", tipo.name)
+            put("capitulo_id", capituloId)
+        }
+        override fun combina(favorito: Favorito) = favorito.tipo == tipo.name && favorito.capitulo_id == capituloId
     }
 
     /** Um parágrafo, pelo lugar em que **começa** (a mesma posição que o texto usa). */

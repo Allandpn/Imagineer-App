@@ -28,6 +28,12 @@ data class EuAtual(
     val nome: String? = null,
     val dono: Boolean = false,
     val usa_chaves_do_servidor: Boolean = false,
+    /** Quantos livros a pessoa tem (item 7.5g, PF1). */
+    val livros: Int = 0,
+    /** O espaço que as imagens, os vídeos e os áudios dos livros dela ocupam no servidor. */
+    val uso_em_bytes: Long = 0,
+    /** A cota que vale para ela agora; nulo para o dono, que não tem cota. */
+    val cota_efetiva_em_gb: Int? = null,
 ) {
     /** Como a tela diz quem está conectado: o nome, senão o login, senão "a conta do dono". */
     val rotulo: String get() = nome?.takeIf { it.isNotBlank() } ?: login?.takeIf { it.isNotBlank() } ?: if (dono) "o dono do servidor" else "conta $id"

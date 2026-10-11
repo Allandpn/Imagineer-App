@@ -153,6 +153,14 @@ interface ApiImagineer {
     @GET("custos")
     suspend fun custos(@Query("mes") mes: String? = null): CustosDoMes
 
+    /** `GET /livros/{id}/modelos` — as trocas de modelo do livro e o que vale em cada tarefa (item 7.5g, MV3). */
+    @GET("livros/{id}/modelos")
+    suspend fun modelosDoLivro(@Path("id") livroId: Int): ModelosDoLivro
+
+    /** `PUT /livros/{id}/modelos` — substitui as trocas do livro (o que não vem volta ao global). */
+    @PUT("livros/{id}/modelos")
+    suspend fun trocarModelosDoLivro(@Path("id") livroId: Int, @Body trocas: Map<String, String>): ModelosDoLivro
+
     /** `GET /livros/{id}/marcador` — onde a pessoa parou; `marcador` nulo = nunca leu (LE2). */
     @GET("livros/{id}/marcador")
     suspend fun marcador(@Path("id") livroId: Int): MarcadorDoLivro
@@ -205,6 +213,22 @@ interface ApiImagineer {
     @DELETE("capitulos/{id}/audio")
     suspend fun apagarNarracao(@Path("id") capituloId: Int)
 
+    /** `GET /capitulos/{id}/audios` — as narrações prontas guardadas, de qualquer modelo e voz (item 7.5g, AU3). */
+    @GET("capitulos/{id}/audios")
+    suspend fun audiosDoCapitulo(@Path("id") capituloId: Int): List<AudioSalvo>
+
+    /** `DELETE /audios/{id}` — apaga UMA narração guardada e o arquivo dela (AU3). */
+    @DELETE("audios/{id}")
+    suspend fun apagarAudio(@Path("id") audioId: Int)
+
+    /** `GET /configuracao/narracao/teste` — a frase do teste de voz e o custo estimado, antes de gerar (AU4). */
+    @GET("configuracao/narracao/teste")
+    suspend fun estimativaDoTesteDeVoz(@Query("modelo") modelo: String?, @Query("voz") voz: String?): EstimativaDoTesteDeVoz
+
+    /** `POST /configuracao/narracao/teste` — o MP3 da frase de teste (AU4). `Response`, para ler o cabeçalho `X-Custo-Estimado`. */
+    @POST("configuracao/narracao/teste")
+    suspend fun testarAVoz(@Body corpo: JsonObject): retrofit2.Response<okhttp3.ResponseBody>
+
     /** `GET /configuracao/provedores` — os provedores de IA e o header da chave de cada um (CT24). */
     @GET("configuracao/provedores")
     suspend fun provedoresDeIa(): List<ProvedorDeIa>
@@ -228,22 +252,6 @@ interface ApiImagineer {
     /** `PATCH /admin/usuarios/{id}` — `usa_chaves_do_servidor` e/ou `cota_em_gb` (`null` volta ao padrão). */
     @PATCH("admin/usuarios/{id}")
     suspend fun ajustarConta(@Path("id") contaId: Int, @Body corpo: JsonObject): ContaDoServidor
-
-    /** `GET /livros/{id}/pins` — as posições marcadas à mão, na ordem do livro, com o começo do parágrafo (PN3). */
-    @GET("livros/{id}/pins")
-    suspend fun pins(@Path("id") livroId: Int): List<PinDoLivro>
-
-    /** `POST /livros/{id}/pins` — marca um ponto (`capitulo_id`, `posicao_no_texto`, `nota` opcional). */
-    @POST("livros/{id}/pins")
-    suspend fun criarPin(@Path("id") livroId: Int, @Body corpo: JsonObject): PinDoLivro
-
-    /** `PATCH /pins/{id}` — troca a nota (`null` a apaga). */
-    @PATCH("pins/{id}")
-    suspend fun ajustarPin(@Path("id") pinId: Int, @Body corpo: JsonObject): PinDoLivro
-
-    /** `DELETE /pins/{id}`. */
-    @DELETE("pins/{id}")
-    suspend fun apagarPin(@Path("id") pinId: Int)
 
     /** `GET /livros/{id}/favoritos` — os favoritos do livro, do mais novo ao mais antigo (RL34); `tipo` filtra. */
     @GET("livros/{id}/favoritos")

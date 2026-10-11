@@ -7,8 +7,8 @@ import com.allan.imagineer.telas.menu.TelaDicionarios
 import com.allan.imagineer.telas.menu.TelaPerfis
 import com.allan.imagineer.telas.estatisticas.TelaEstatisticas
 import com.allan.imagineer.telas.favoritos.TelaFavoritosDoLivro
-import com.allan.imagineer.telas.pins.TelaPinsDoLivro
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
+import com.allan.imagineer.telas.livro.TelaModelosDoLivro
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -50,6 +50,7 @@ import androidx.navigation.toRoute
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.telas.AcaoProvisoria
 import com.allan.imagineer.telas.TelaProvisoria
+import com.allan.imagineer.telas.biblioteca.DestinoNoLivro
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
@@ -107,6 +108,8 @@ private fun irParaODoLivro(controle: NavHostController, livroId: Int, destino: D
 /** Leva ao lugar do [favorito]: o parágrafo no texto, a ficha do elemento, ou a cena/imagem no modal do capítulo (RL36). */
 private fun abrirFavorito(controle: NavHostController, livroId: Int, favorito: com.allan.imagineer.rede.Favorito) {
     when (favorito.tipoDoFavorito) {
+        com.allan.imagineer.rede.TipoDeFavorito.CAPITULO ->
+            controle.navigate(Capitulo(favorito.capitulo_id ?: return))
         com.allan.imagineer.rede.TipoDeFavorito.PARAGRAFO ->
             controle.navigate(Capitulo(favorito.capitulo_id ?: return, irParaPosicao = favorito.posicao))
         com.allan.imagineer.rede.TipoDeFavorito.ELEMENTO ->
@@ -150,9 +153,28 @@ fun GrafoDeNavegacao() {
                 aoAbrirLixeira = { controle.navigate(Lixeira) },
                 aoAbrirCustos = { controle.navigate(Custos) },
                 aoAbrirEstatisticas = { controle.navigate(Estatisticas) },
+                // BL5: o ⋮ da lista abre as telas do livro sem passar por ele (a edição abre o livro já com o diálogo).
+                aoAbrirNoLivro = { destino, livroId ->
+                    controle.navigate(
+                        when (destino) {
+                            DestinoNoLivro.PESQUISA -> Pesquisa(livroId)
+                            DestinoNoLivro.DESTAQUES -> DestaquesDoLivro(livroId)
+                            DestinoNoLivro.FAVORITOS -> FavoritosDoLivro(livroId)
+                            DestinoNoLivro.MODELOS -> ModelosDoLivro(livroId)
+                            DestinoNoLivro.LIXEIRA -> LixeiraDoLivro(livroId)
+                            DestinoNoLivro.EDICAO -> Livro(livroId, abrirEdicao = true)
+                        },
+                    )
+                },
             )
         }
-        composable<Perfil> { TelaPerfil(aoVoltar = { controle.popBackStack() }) }
+        composable<Perfil> { entrada ->
+            TelaPerfil(
+                aoVoltar = { controle.popBackStack() },
+                aoAbrirChavesDeIa = { if (entrada.estaNaFrente()) controle.navigate(ChavesDeIa) },
+                aoAbrirAdministracao = { if (entrada.estaNaFrente()) controle.navigate(Administracao) },
+            )
+        }
         composable<Custos> { TelaCustos(aoVoltar = { controle.popBackStack() }) }
         composable<Estatisticas> { TelaEstatisticas(aoVoltar = { controle.popBackStack() }) }
         composable<ModelosDeIa> { entrada ->
@@ -190,6 +212,7 @@ fun GrafoDeNavegacao() {
             val destino = entrada.toRoute<Livro>()
             TelaLivro(
                 livroId = destino.livroId,
+                abrirEdicaoAoEntrar = destino.abrirEdicao,
                 aoIrParaODoLivro = { irParaODoLivro(controle, destino.livroId, it, entrada) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirCapitulo = { capituloId -> controle.navigate(Capitulo(capituloId)) },
@@ -197,7 +220,7 @@ fun GrafoDeNavegacao() {
                 aoAbrirLixeira = { controle.navigate(LixeiraDoLivro(destino.livroId)) },
                 aoAbrirDestaques = { controle.navigate(DestaquesDoLivro(destino.livroId)) },
                 aoAbrirFavoritos = { controle.navigate(FavoritosDoLivro(destino.livroId)) },
-                aoAbrirPins = { controle.navigate(PinsDoLivro(destino.livroId)) },
+                aoAbrirModelos = { controle.navigate(ModelosDoLivro(destino.livroId)) },
                 aoContinuarLendo = { capituloId, posicao -> controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }
@@ -208,13 +231,8 @@ fun GrafoDeNavegacao() {
                 aoAbrir = { capituloId, posicao -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(capituloId, irParaPosicao = posicao)) },
             )
         }
-        composable<PinsDoLivro> { entrada ->
-            TelaPinsDoLivro(
-                livroId = entrada.toRoute<PinsDoLivro>().livroId,
-                aoVoltar = { controle.popBackStack() },
-                // Como o favorito de parágrafo: o capítulo abre na posição do pin.
-                aoAbrir = { pin -> if (entrada.estaNaFrente()) controle.navigate(Capitulo(pin.capitulo_id, irParaPosicao = pin.posicao_no_texto)) },
-            )
+        composable<ModelosDoLivro> { entrada ->
+            TelaModelosDoLivro(livroId = entrada.toRoute<ModelosDoLivro>().livroId, aoVoltar = { controle.popBackStack() })
         }
         composable<FavoritosDoLivro> { entrada ->
             val destino = entrada.toRoute<FavoritosDoLivro>()
@@ -269,6 +287,7 @@ fun GrafoDeNavegacao() {
                 abrirPainel = destino.abrirPainel,
                 aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
                 aoAbrirModelosDeIa = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
+                aoAbrirNarracao = { if (entrada.estaNaFrente()) controle.navigate(Narracao) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa

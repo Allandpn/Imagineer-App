@@ -112,8 +112,6 @@ internal fun BarraDeParagrafos(
     modifier: Modifier = Modifier,
     /** RL36: os parágrafos marcados, para o coração de favoritar (vazio = sem coração). */
     paraFavoritar: List<com.allan.imagineer.rede.AlvoDeFavorito> = emptyList(),
-    /** Bloco J (PN1): marcar um pin no parágrafo; `null` = sem o ícone (só vale com **um** parágrafo marcado). */
-    aoMarcarPin: (() -> Unit)? = null,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.96f),
@@ -125,7 +123,6 @@ internal fun BarraDeParagrafos(
             IconButton(onClick = aoCopiar) { Icon(IconesDaSelecao.copiar, contentDescription = "Copiar texto") }
             IconButton(onClick = aoGerarPrompt) { Icon(IconesDaSelecao.gerarPrompt, contentDescription = ROTULO_GERAR_IMAGEM_DO_TRECHO) }
             com.allan.imagineer.telas.favoritos.BotaoDeFavoritoDosAlvos(paraFavoritar, cor = MaterialTheme.colorScheme.inverseOnSurface)
-            aoMarcarPin?.let { IconButton(onClick = it) { Icon(androidx.compose.material.icons.Icons.Filled.BookmarkAdd, contentDescription = "Marcar pin") } }
             IconButton(onClick = aoVoltarAoNormal) { Icon(IconesDaSelecao.voltarAoNormal, contentDescription = "Voltar ao normal") }
         }
     }

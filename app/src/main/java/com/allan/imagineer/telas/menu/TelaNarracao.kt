@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -51,6 +54,7 @@ fun TelaNarracao(aoVoltar: () -> Unit) {
         estado.aviso?.let { android.widget.Toast.makeText(contexto, it, android.widget.Toast.LENGTH_SHORT).show(); viewModel.avisoLido() }
     }
 
+    DialogoDoTesteDeVoz(estado.teste, aoOuvir = viewModel::gerarTesteDeVoz, aoFechar = viewModel::fecharTesteDeVoz)
     TelaDoMenu("Narração", aoVoltar) {
         Text(EXPLICACAO_DA_NARRACAO, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         when (val carga = estado.carga) {
@@ -69,8 +73,17 @@ fun TelaNarracao(aoVoltar: () -> Unit) {
                     Text("Modelo de voz", style = MaterialTheme.typography.titleMedium)
                     estado.erroDosModelos?.let { Text("Não consegui ler a lista de modelos: $it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                     if (estado.modelos.isEmpty() && estado.erroDosModelos == null) CircularProgressIndicator()
-                    estado.modelos.forEach { modelo ->
-                        OpcaoDaNarracao(modelo.nome, "${modelo.id} · ${descreverPrecoDoModelo(modelo)}", marcada = modelo.id == estado.edicao.modelo, disponivel = true) { viewModel.escolherModelo(modelo) }
+                    // CF3: os favoritos (a estrela) primeiro, sob o título "Favoritos".
+                    val favoritos = rememberFavoritosDeModelos(CategoriaDeModelo.NARRACAO)
+                    val modelosEmOrdem = ordenarComFavoritos(estado.modelos, favoritos.conjunto) { it.id }
+                    val quantosFavoritos = quantosSaoFavoritos(modelosEmOrdem, favoritos.conjunto) { it.id }
+                    modelosEmOrdem.forEachIndexed { indice, modelo ->
+                        if (indice == 0 && quantosFavoritos > 0) TituloDeGrupoDeModelos("Favoritos")
+                        if (indice == quantosFavoritos && quantosFavoritos > 0) TituloDeGrupoDeModelos("Outros modelos")
+                        OpcaoDaNarracao(
+                            modelo.nome, "${modelo.id} · ${descreverPrecoDoModelo(modelo)}", marcada = modelo.id == estado.edicao.modelo, disponivel = true,
+                            estrela = { EstrelaDeModelo(favoritos.ehFavorito(modelo.id), { favoritos.alternar(modelo.id) }) },
+                        ) { viewModel.escolherModelo(modelo) }
                     }
                     if (estado.edicao.modelo.isNotBlank() && estado.modelos.none { it.id == estado.edicao.modelo } && estado.modelos.isNotEmpty()) {
                         Text("O modelo guardado (${estado.edicao.modelo}) não está mais na lista; escolha outro.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -99,6 +112,18 @@ fun TelaNarracao(aoVoltar: () -> Unit) {
                     }
                 }
 
+                if (usaIa) {
+                    // AU4: ouvir a voz antes de escolher. O custo aparece antes de gastar (uma fração de centavo; nada num modelo gratuito).
+                    OutlinedButton(onClick = viewModel::abrirTesteDeVoz, enabled = podeTestarAVoz(estado.edicao)) {
+                        androidx.compose.material3.Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.padding(end = 6.dp))
+                        Text("Testar voz")
+                    }
+                    Text(
+                        "Fala uma frase curta com o modelo e a voz escolhidos acima (mesmo antes de salvar). Mostra o custo antes de gastar.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 Text("Quantas vozes", style = MaterialTheme.typography.titleMedium)
                 OpcaoDaNarracao("Uma voz", "Um narrador lê tudo", marcada = carga.configuracao.narracao_modo != "POR_PERSONAGEM", disponivel = true) {}
                 OpcaoDaNarracao("Uma voz por personagem", "Cada personagem fala com a sua voz", marcada = carga.configuracao.narracao_modo == "POR_PERSONAGEM", disponivel = false) {}
@@ -125,13 +150,21 @@ fun TelaNarracao(aoVoltar: () -> Unit) {
 
 /** Uma opção de escolha única: a disponível se escolhe tocando; a que ainda não existe aparece apagada, com "em breve". */
 @Composable
-private fun OpcaoDaNarracao(titulo: String, descricao: String, marcada: Boolean, disponivel: Boolean, aoEscolher: () -> Unit) {
+private fun OpcaoDaNarracao(
+    titulo: String,
+    descricao: String,
+    marcada: Boolean,
+    disponivel: Boolean,
+    /** A estrela de favorito do modelo (CF3), à direita; fora dela o clique escolhe a opção. */
+    estrela: (@Composable () -> Unit)? = null,
+    aoEscolher: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(enabled = disponivel, onClick = aoEscolher),
     ) {
         RadioButton(selected = marcada, onClick = null, enabled = disponivel)
-        Column(modifier = Modifier.padding(start = 12.dp)) {
+        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
             Text(
                 if (disponivel) titulo else "$titulo — em breve",
                 style = MaterialTheme.typography.bodyLarge,
@@ -139,5 +172,6 @@ private fun OpcaoDaNarracao(titulo: String, descricao: String, marcada: Boolean,
             )
             Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        estrela?.invoke()
     }
 }

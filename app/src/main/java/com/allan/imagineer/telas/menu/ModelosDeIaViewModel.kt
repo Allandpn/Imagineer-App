@@ -141,3 +141,6 @@ class ModelosDeIaViewModel(private val repositorio: RepositorioDeModelos) : View
         }
     }
 }
+
+/** O que o cartão da imagem mostra em *Modelos de IA* (CF1): o modelo escolhido, ou que falta escolher. */
+fun descricaoDoModeloDeImagem(config: ConfiguracaoAtual): String = config.modelo_imagem?.takeIf { it.isNotBlank() } ?: "Nenhum escolhido"

@@ -1,6 +1,9 @@
 package com.allan.imagineer.telas.capitulo
 
 import com.allan.imagineer.telas.capitulo.voz.ControleDeNarracao
+import com.allan.imagineer.telas.capitulo.voz.FolhaDeOuvir
+import com.allan.imagineer.telas.capitulo.voz.PedidoDeOuvir
+import androidx.compose.material.icons.filled.Headphones
 import com.allan.imagineer.rede.ResultadoDaChamada
 import androidx.compose.runtime.produceState
 import com.allan.imagineer.rede.Destaque
@@ -253,6 +256,8 @@ fun TelaCapitulo(
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit = { _, _ -> },
     /** Abre a tela de Modelos de IA (botão do painel de IA). */
     aoAbrirModelosDeIa: () -> Unit = {},
+    /** Abre Configurações → Narração (a folha do fone, item 7.5g, AU2). */
+    aoAbrirNarracao: () -> Unit = {},
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
@@ -292,6 +297,7 @@ fun TelaCapitulo(
             aoAtenderPosicao = { posicaoPendente = null },
             aoPesquisar = aoPesquisar,
             aoAbrirModelosDeIa = aoAbrirModelosDeIa,
+            aoAbrirNarracao = aoAbrirNarracao,
             modoDireto = abrirElementoId != null || abrirFrameId != null,
             framePendente = framePendente,
             rotuloDoFramePendente = abrirRotulo,
@@ -315,6 +321,7 @@ private fun LeitorPaginado(
     aoAtenderPosicao: () -> Unit,
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
     aoAbrirModelosDeIa: () -> Unit,
+    aoAbrirNarracao: () -> Unit,
     /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
     modoDireto: Boolean,
     framePendente: Int?,
@@ -340,6 +347,9 @@ private fun LeitorPaginado(
     val aplicacaoDaLeitura = LocalContext.current.applicationContext as ImagineerApp
     val preferenciasDaTela by aplicacaoDaLeitura.armazenamento.preferenciasDeLeitura.collectAsState(initial = PreferenciasDeLeitura())
     var folhaDeLeitura by remember { mutableStateOf(false) }
+    // AU1, AU2: o fone da barra de cima abre a folha de ouvir; o que a pessoa escolher nela vira o pedido que a página do capítulo executa.
+    var folhaDeOuvir by remember { mutableStateOf(false) }
+    var pedidoDeOuvir by remember { mutableStateOf<PedidoDeOuvir?>(null) }
     val escopoDaLeitura = androidx.compose.runtime.rememberCoroutineScope()
     EfeitosDaLeitura(preferenciasDaTela.telaAcesa, preferenciasDaTela.brilho)
     if (folhaDeLeitura) {
@@ -644,6 +654,15 @@ private fun LeitorPaginado(
         },
     )
 
+    if (folhaDeOuvir) {
+        FolhaDeOuvir(
+            capituloId = idDaTela,
+            aoEscolher = { pedidoDeOuvir = it; folhaDeOuvir = false },
+            aoConfigurar = { folhaDeOuvir = false; aoAbrirNarracao() },
+            aoFechar = { folhaDeOuvir = false },
+        )
+    }
+
     Scaffold(
         topBar = {
             // Como o botão de IA: some ao rolar para baixo e volta ao rolar para cima (e no topo e no fim do texto).
@@ -656,6 +675,21 @@ private fun LeitorPaginado(
                         }
                     },
                     actions = {
+                        // AU1: ouvir o capítulo (voz do aparelho ou narrações de IA guardadas).
+                        if (capituloDaTela != null) {
+                            IconButton(onClick = { folhaDeOuvir = true }) {
+                                Icon(Icons.Filled.Headphones, contentDescription = "Ouvir o capítulo")
+                            }
+                        }
+                        // FV2: favoritar o capítulo (o coração do livro mora na biblioteca).
+                        if (capituloDaTela != null) {
+                            CompositionLocalProvider(com.allan.imagineer.telas.favoritos.LocalFavoritos provides favoritosDaTela) {
+                                com.allan.imagineer.telas.favoritos.BotaoDeFavorito(
+                                    com.allan.imagineer.rede.AlvoDeFavorito.Capitulo(idDaTela),
+                                    cor = androidx.compose.material3.LocalContentColor.current,
+                                )
+                            }
+                        }
                         // RL1: a aparência da leitura (letra, tema, tela acesa).
                         IconButton(onClick = { folhaDeLeitura = true }) {
                             Icon(Icons.Filled.TextFields, contentDescription = "Aparência da leitura")
@@ -719,6 +753,8 @@ private fun LeitorPaginado(
                         val idDaPagina = lista.ids[pagina]
                         PaginaDoCapitulo(
                             capituloId = idDaPagina,
+                            pedidoDeOuvir = pedidoDeOuvir,
+                            aoTerminarDeOuvir = { pedidoDeOuvir = null },
                             ehAtual = pagina == estadoDoPager.currentPage,
                             ehAssentada = pagina == estadoDoPager.settledPage,
                             aoTocarArtefato = { artefato ->
@@ -819,6 +855,9 @@ private fun LeitorPaginado(
 @Composable
 private fun PaginaDoCapitulo(
     capituloId: Int,
+    /** O que a pessoa escolheu na folha do fone (AU2); só vale para o capítulo dele. */
+    pedidoDeOuvir: PedidoDeOuvir?,
+    aoTerminarDeOuvir: () -> Unit,
     ehAtual: Boolean,
     /** A página em que o pager **parou** (não só a que está mais à vista no meio de um deslize): só ela conta para lido e marcador. */
     ehAssentada: Boolean,
@@ -957,6 +996,8 @@ private fun PaginaDoCapitulo(
                 velocidade = leitura.velocidadeDaVoz,
                 aoMudarVelocidade = { v -> escopoDaVoz.launch { aplicacaoDaPagina.armazenamento.salvarPreferenciasDeLeitura(leitura.copy(velocidadeDaVoz = v)) } },
                 aoSeguirParagrafo = { posicaoDaVoz = it },
+                pedido = pedidoDeOuvir,
+                aoTerminar = aoTerminarDeOuvir,
             )
             }
             }
@@ -1006,10 +1047,6 @@ private fun LeitorDeTexto(
     val capitulo = estado.capitulo
     // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
     val trechos = remember(capitulo.id) { dividirEmParagrafosComInicio(capitulo.texto) }
-    // PN1: onde o pin vai ser marcado (nulo = sem diálogo aberto).
-    var posicaoDoPin by remember { mutableStateOf<Int?>(null) }
-    val escopoDoPin = androidx.compose.runtime.rememberCoroutineScope()
-    val aplicacaoDoPin = LocalContext.current.applicationContext as ImagineerApp
     val distribuidos = remember(artefatos, trechos) { distribuirArtefatos(artefatos, trechos) }
     // I1 a I6: a imagem ampliada (tela cheia, tamanho normal) e o endereço do servidor para montar as URLs.
     val urlBase = urlDoServidorEmUso()
@@ -1255,25 +1292,6 @@ private fun LeitorDeTexto(
         // AJ2: o puxador da rolagem, na borda direita.
         PuxadorDeRolagem(listaDeParagrafos)
     }
-    // PN1: o diálogo da nota do pin; marcar cria o pin no começo do parágrafo e desfaz a marcação.
-    posicaoDoPin?.let { posicao ->
-        com.allan.imagineer.telas.pins.DialogoDaNotaDoPin(
-            titulo = "Marcar pin",
-            notaInicial = "",
-            rotuloDoBotao = "Marcar",
-            aoConfirmar = { nota ->
-                posicaoDoPin = null
-                escopoDoPin.launch {
-                    val aviso = when (val r = aplicacaoDoPin.repositorioDePins.criar(capitulo.livro_id, capitulo.id, posicao, nota)) {
-                        is ResultadoDaChamada.Sucesso -> { marcados = emptySet(); "Pin marcado." }
-                        is ResultadoDaChamada.Falha -> "Não consegui marcar o pin: ${r.motivo}"
-                    }
-                    android.widget.Toast.makeText(contextoDaTela, aviso, android.widget.Toast.LENGTH_SHORT).show()
-                }
-            },
-            aoFechar = { posicaoDoPin = null },
-        )
-    }
     // LV4: a barra de ícones dos parágrafos marcados; some quando o último é desmarcado.
     if (marcados.isNotEmpty() && posicionando == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
@@ -1287,8 +1305,6 @@ private fun LeitorDeTexto(
                 modifier = Modifier.padding(16.dp),
                 paraFavoritar = marcados.sorted().mapNotNull { trechos.getOrNull(it)?.inicio }
                     .map { com.allan.imagineer.rede.AlvoDeFavorito.Paragrafo(capitulo.id, it) },
-                // PN1: um pin é um ponto, então só com um parágrafo marcado.
-                aoMarcarPin = marcados.singleOrNull()?.let { indice -> trechos.getOrNull(indice)?.inicio }?.let { inicio -> { posicaoDoPin = inicio } },
             )
         }
     }

@@ -150,9 +150,11 @@ fun TelaLivro(
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
     aoAbrirFavoritos: (() -> Unit)? = null,
-    aoAbrirPins: (() -> Unit)? = null,
+    aoAbrirModelos: (() -> Unit)? = null,
     /** LE3: abre o capítulo onde a pessoa parou (a posição nula abre do começo). */
     aoContinuarLendo: (capituloId: Int, posicao: Int?) -> Unit = { _, _ -> },
+    /** BL5: o "Editar" do ⋮ da lista da biblioteca abre o livro já com o diálogo de edição (uma vez só). */
+    abrirEdicaoAoEntrar: Boolean = false,
     viewModel: LivroViewModel = livroViewModel(livroId),
 ) {
     // CP5: "Definir capa…" abre o seletor de arquivos (uma imagem ou o EPUB do livro).
@@ -161,6 +163,14 @@ fun TelaLivro(
         if (uri != null) viewModel.definirCapa(aplicacaoDaCapa.leitorDeArquivos.descrever(uri.toString()))
     }
     val estado by viewModel.estado.collectAsState()
+    // BL5: só abre depois de o livro carregar (o diálogo precisa dele) e só uma vez, mesmo girando o aparelho.
+    var edicaoPedidaJaAberta by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(estado) {
+        if (abrirEdicaoAoEntrar && !edicaoPedidaJaAberta && estado is EstadoDoLivro.Pronto) {
+            edicaoPedidaJaAberta = true
+            viewModel.abrirEdicao()
+        }
+    }
     val edicao by viewModel.edicao.collectAsState()
     val escolhaDePerfil by viewModel.escolhaDePerfil.collectAsState()
     val remocao by viewModel.remocao.collectAsState()
@@ -213,7 +223,7 @@ fun TelaLivro(
         aoAbrirLixeira = aoAbrirLixeira,
         aoAbrirDestaques = aoAbrirDestaques,
         aoAbrirFavoritos = aoAbrirFavoritos,
-        aoAbrirPins = aoAbrirPins,
+        aoAbrirModelos = aoAbrirModelos,
         aoApagarCopiaLocal = { viewModel.apagarCopiaLocal(); scopeDaCopia.launch { baixador.remover(livroId) } },
         aoAlternarLido = viewModel::alternarLido,
         marcador = marcador,
@@ -225,7 +235,9 @@ fun TelaLivro(
     )
     }
 
-    if (dialogoDeDownload) DialogoDeDownload(livroId, baixador, download, aoFechar = { dialogoDeDownload = false })
+    if (dialogoDeDownload) {
+        DialogoDeDownload(livroId, baixador, download, aoFechar = { dialogoDeDownload = false }, revisaoDoServidor = (estado as? EstadoDoLivro.Pronto)?.livro?.revisao)
+    }
 
     val livro = (estado as? EstadoDoLivro.Pronto)?.livro
     if (livro != null && edicao is EstadoDaEdicao.Editando) {
@@ -267,7 +279,7 @@ fun ConteudoDoLivro(
     aoAbrirLixeira: (() -> Unit)? = null,
     aoAbrirDestaques: (() -> Unit)? = null,
     aoAbrirFavoritos: (() -> Unit)? = null,
-    aoAbrirPins: (() -> Unit)? = null,
+    aoAbrirModelos: (() -> Unit)? = null,
     aoApagarCopiaLocal: () -> Unit = {},
     aoAlternarLido: (capituloId: Int) -> Unit = {},
     marcador: com.allan.imagineer.rede.Marcador? = null,
@@ -279,6 +291,7 @@ fun ConteudoDoLivro(
 ) {
     var metadadosAbertos by remember { mutableStateOf(false) }
     val pronto = estado as? EstadoDoLivro.Pronto
+    val revisaoDoLivro = pronto?.livro?.revisao // DL2: com ela o menu sabe se o download está desatualizado
     if (metadadosAbertos && pronto != null) {
         DialogoDosMetadados(
             livro = pronto.livro,
@@ -328,18 +341,19 @@ fun ConteudoDoLivro(
                             // LY2, LY5: no topo, só o ⋮. Elementos, Cenas, Pendências e Arquivados são a barra de baixo (LY1);
                             // os metadados estão no cabeçalho (LY4); pesquisar mora aqui (LY3).
                             // As informações ficam junto do ⋮, na cor neutra da barra (como os outros ícones dela).
-                            com.allan.imagineer.telas.favoritos.BotaoDeFavorito(com.allan.imagineer.rede.AlvoDeFavorito.Livro, cor = LocalContentColor.current)
                             BotaoDeIcone(IconesDaTelaDoLivro.metadados, "Informações", { metadadosAbertos = true }, cor = LocalContentColor.current)
                             // Capa e perfil de renderização moram dentro de "Editar" (DialogoDeEdicao), não mais neste menu.
                             MenuDoLivro(
                                 aoPesquisar = aoAbrirPesquisa,
                                 aoAbrirOffline = aoAbrirOffline,
-                                rotuloDoOffline = rotuloDoOffline(estadoDoDownload),
+                                rotuloDoOffline = ROTULO_DO_DOWNLOAD,
+                                detalheDoOffline = detalheDoDownload(situacaoDoDownload(estadoDoDownload, revisaoDoLivro)),
+                                offlineValeSemRede = downloadValeSemRede(situacaoDoDownload(estadoDoDownload, revisaoDoLivro)),
                                 aoEditar = aoEditar,
                                 aoAbrirLixeira = aoAbrirLixeira,
                                 aoAbrirDestaques = aoAbrirDestaques,
                                 aoAbrirFavoritos = aoAbrirFavoritos,
-                                aoAbrirPins = aoAbrirPins,
+                                aoAbrirModelos = aoAbrirModelos,
                                 aoApagar = aoApagar,
                             )
                         }

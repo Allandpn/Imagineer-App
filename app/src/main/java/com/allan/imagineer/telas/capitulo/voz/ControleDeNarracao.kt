@@ -56,37 +56,29 @@ fun ControleDeNarracao(
     velocidade: Float,
     aoMudarVelocidade: (Float) -> Unit,
     aoSeguirParagrafo: (Int?) -> Unit,
+    /** O que a pessoa escolheu na folha do fone (AU2); só vale para o capítulo dele. `null` = nada tocando. */
+    pedido: PedidoDeOuvir? = null,
+    /** Acabou, a pessoa parou ou o capítulo saiu da frente: o pedido deve ser limpo. */
+    aoTerminar: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // AN2: com o motor `IA`, o botão é o da voz de IA (o servidor gera o MP3); senão, o de sempre (a voz do aparelho, bloco E).
-    val aplicacao = LocalContext.current.applicationContext as ImagineerApp
-    val configuracao by produceState<com.allan.imagineer.rede.ConfiguracaoAtual?>(initialValue = null) {
-        value = (aplicacao.repositorioDeModelos.configuracao() as? ResultadoDaChamada.Sucesso)?.dado
-    }
-    val atual = configuracao
-    when {
-        atual == null || atual.narracao_motor != "IA" ->
-            ControleDeNarracaoDoAparelho(livroId, paragrafos, ativa, posicaoAtual, velocidade, aoMudarVelocidade, aoSeguirParagrafo, modifier)
-        com.allan.imagineer.rede.narracaoPorIaDisponivel(atual.modelo_narracao, atual.tem_chave_api) ->
-            ControleDeNarracaoPorIa(capituloId, ativa, velocidade, aoMudarVelocidade, modifier)
-        else -> ControleDeNarracaoSemModelo(modifier)
-    }
-}
-
-/** Motor `IA` escolhido, mas sem modelo de voz (ou sem chave): o botão diz o que falta (AN1). */
-@Composable
-private fun ControleDeNarracaoSemModelo(modifier: Modifier) {
-    val contexto = LocalContext.current
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 3.dp, shadowElevation = 3.dp, modifier = Modifier.padding(16.dp)) {
-            BotaoDeIcone(Icons.Filled.VolumeUp, "Ouvir o capítulo", aoTocar = {
-                Toast.makeText(contexto, "Escolha um modelo de voz em Configurações → Narração (e confira a chave).", Toast.LENGTH_LONG).show()
-            })
-        }
+    val vale = pedidoValeParaOCapitulo(pedido, capituloId)
+    // A parte da voz de IA fica sempre montada: é ela que mostra "Gerando a narração…" e avisa quando termina, mesmo com a folha fechada.
+    ControleDeNarracaoPorIa(
+        capituloId = capituloId,
+        audioId = (pedido as? PedidoDeOuvir.Narracao)?.takeIf { vale }?.audioId,
+        ativa = ativa,
+        velocidade = velocidade,
+        aoMudarVelocidade = aoMudarVelocidade,
+        aoTerminar = aoTerminar,
+        modifier = modifier,
+    )
+    if (vale && pedido is PedidoDeOuvir.Aparelho) {
+        ControleDeNarracaoDoAparelho(livroId, paragrafos, ativa, posicaoAtual, velocidade, aoMudarVelocidade, aoSeguirParagrafo, aoTerminar, modifier)
     }
 }
 
-/** O botão Ouvir com a **voz do aparelho** (RL18, bloco E). */
+/** A leitura com a **voz do aparelho** (RL18, bloco E). Começa sozinha quando a pessoa a escolhe na folha do fone (AU2). */
 @Composable
 private fun ControleDeNarracaoDoAparelho(
     livroId: Int,
@@ -96,13 +88,16 @@ private fun ControleDeNarracaoDoAparelho(
     velocidade: Float,
     aoMudarVelocidade: (Float) -> Unit,
     aoSeguirParagrafo: (Int?) -> Unit,
+    aoTerminar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val contexto = LocalContext.current
     val aplicacao = contexto.applicationContext as ImagineerApp
-    val idioma by produceState<String?>(initialValue = null, livroId) {
-        value = (aplicacao.repositorioDeLivros.abrirLivro(livroId) as? ResultadoDaChamada.Sucesso)?.dado?.idioma
+    // O idioma do livro escolhe a voz; só se começa a falar depois de lê-lo (acerte ou falhe a leitura), para não falar na voz errada.
+    val idiomaLido by produceState(initialValue = false to (null as String?), livroId) {
+        value = true to (aplicacao.repositorioDeLivros.abrirLivro(livroId) as? ResultadoDaChamada.Sucesso)?.dado?.idioma
     }
+    val idioma = idiomaLido.second
     var narrador by remember { mutableStateOf<NarradorDoCapitulo?>(null) }
     var motor by remember { mutableStateOf<MotorDeVozDoAndroid?>(null) }
     val seguir by rememberUpdatedState(aoSeguirParagrafo)
@@ -112,6 +107,7 @@ private fun ControleDeNarracaoDoAparelho(
         narrador = null
         motor = null
         seguir(null)
+        aoTerminar()
     }
 
     // Saiu da frente (outro capítulo, outra tela): a voz para e é liberada.
@@ -138,6 +134,9 @@ private fun ControleDeNarracaoDoAparelho(
         novo.iniciarEm(posicaoAtual())
     }
 
+    // AU2: o pedido já veio da folha do fone; começa assim que o idioma do livro foi lido.
+    LaunchedEffect(idiomaLido.first) { if (idiomaLido.first && narrador == null) comecar() }
+
     val atual = narrador
     val estado by (atual?.estado ?: remember { kotlinx.coroutines.flow.MutableStateFlow(EstadoDaNarracao()) }).collectAsState()
 
@@ -148,17 +147,7 @@ private fun ControleDeNarracaoDoAparelho(
     }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
-        if (atual == null) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 3.dp,
-                shadowElevation = 3.dp,
-                modifier = Modifier.padding(16.dp),
-            ) {
-                BotaoDeIcone(Icons.Filled.VolumeUp, "Ouvir o capítulo", aoTocar = { comecar() })
-            }
-        } else {
+        if (atual != null) {
             Surface(
                 shape = RoundedCornerShape(28.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,

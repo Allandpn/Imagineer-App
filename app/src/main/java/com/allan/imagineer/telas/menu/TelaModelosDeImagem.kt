@@ -63,6 +63,7 @@ fun TelaModelosDeImagem(aoVoltar: () -> Unit) {
     var filtro by rememberSaveable { mutableStateOf(FiltroDeFornecedor.TODOS) }
     var mostrando by rememberSaveable { mutableStateOf(TAMANHO_DA_PAGINA_DO_CATALOGO) }
     var precificando by remember { mutableStateOf<ModeloDeImagem?>(null) }
+    val favoritos = rememberFavoritosDeModelos(CategoriaDeModelo.IMAGEM)
 
     TelaDoMenu("Modelo de imagem", aoVoltar) {
         when (val carga = estado.carga) {
@@ -85,9 +86,16 @@ fun TelaModelosDeImagem(aoVoltar: () -> Unit) {
                         FilterChip(selected = filtro == opcao, onClick = { filtro = opcao; mostrando = TAMANHO_DA_PAGINA_DO_CATALOGO }, label = { Text(opcao.rotulo) })
                     }
                 }
-                val lista = filtrarCatalogo(filtrarPorFornecedor(carga.modelos, filtro), busca)
-                lista.take(mostrando).forEach { modelo ->
-                    CartaoDoModeloDeImagem(modelo, ocupado = modelo.id in estado.ocupados, viewModel = viewModel, aoInformarPreco = { precificando = modelo })
+                // CF3: os favoritos (a estrela) primeiro, sob o título "Favoritos".
+                val lista = ordenarComFavoritos(filtrarCatalogo(filtrarPorFornecedor(carga.modelos, filtro), busca), favoritos.conjunto) { it.id }
+                val quantosFavoritos = quantosSaoFavoritos(lista, favoritos.conjunto) { it.id }
+                lista.take(mostrando).forEachIndexed { indice, modelo ->
+                    if (indice == 0 && quantosFavoritos > 0) TituloDeGrupoDeModelos("Favoritos")
+                    if (indice == quantosFavoritos && quantosFavoritos > 0) TituloDeGrupoDeModelos("Outros modelos")
+                    CartaoDoModeloDeImagem(
+                        modelo, ocupado = modelo.id in estado.ocupados, viewModel = viewModel, aoInformarPreco = { precificando = modelo },
+                        favorito = favoritos.ehFavorito(modelo.id), aoAlternarFavorito = { favoritos.alternar(modelo.id) },
+                    )
                 }
                 if (lista.size > mostrando) {
                     OutlinedButton(onClick = { mostrando += TAMANHO_DA_PAGINA_DO_CATALOGO }) { Text("Mostrar mais (${lista.size - mostrando})") }
@@ -106,10 +114,23 @@ fun TelaModelosDeImagem(aoVoltar: () -> Unit) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CartaoDoModeloDeImagem(modelo: ModeloDeImagem, ocupado: Boolean, viewModel: ModelosDeImagemViewModel, aoInformarPreco: () -> Unit) {
+private fun CartaoDoModeloDeImagem(
+    modelo: ModeloDeImagem,
+    ocupado: Boolean,
+    viewModel: ModelosDeImagemViewModel,
+    aoInformarPreco: () -> Unit,
+    favorito: Boolean,
+    aoAlternarFavorito: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(modelo.nome + if (modelo.em_uso) " · padrão" else "", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    modelo.nome + if (modelo.em_uso) " · padrão" else "",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
+                )
+                EstrelaDeModelo(favorito, aoAlternarFavorito)
+            }
             Text("${modelo.id} · ${modelo.fornecedor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(precoDaImagem(modelo), style = MaterialTheme.typography.bodyMedium)
             precoPorTokenDeImagem(modelo)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }

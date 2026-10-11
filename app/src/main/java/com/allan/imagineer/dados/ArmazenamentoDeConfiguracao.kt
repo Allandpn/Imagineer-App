@@ -43,6 +43,11 @@ interface ArmazenamentoDeConfiguracao {
     val tempoPendente: Flow<String?> get() = flowOf(null)
 
     suspend fun salvarTempoPendente(texto: String) {}
+
+    /** Os modelos que a pessoa marcou com a estrela numa [categoria] (`texto`, `imagem` ou `narracao`, CF3), em texto: um id por linha. */
+    fun modelosFavoritos(categoria: String): Flow<String?> = flowOf(null)
+
+    suspend fun salvarModelosFavoritos(categoria: String, texto: String) {}
 }
 
 private val Context.armazenamento: DataStore<Preferences> by preferencesDataStore(name = "configuracao")
@@ -83,6 +88,13 @@ class ArmazenamentoNoDataStore(private val contexto: Context) : ArmazenamentoDeC
 
     override suspend fun salvarTempoPendente(texto: String) {
         contexto.armazenamento.edit { it[CHAVE_TEMPO_PENDENTE] = texto }
+    }
+
+    override fun modelosFavoritos(categoria: String): Flow<String?> =
+        contexto.armazenamento.data.map { preferencias -> preferencias[stringPreferencesKey("modelos_favoritos_$categoria")] }
+
+    override suspend fun salvarModelosFavoritos(categoria: String, texto: String) {
+        contexto.armazenamento.edit { it[stringPreferencesKey("modelos_favoritos_$categoria")] = texto }
     }
 
     private companion object {

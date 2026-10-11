@@ -92,11 +92,12 @@ class FavoritosDoLivroTest {
 
     @Test
     fun o_favorito_de_um_tipo_que_o_app_nao_conhece_nao_quebra() {
-        val futuro = favorito(1, "CAPITULO")
+        val futuro = favorito(1, "VIDEO")  // um tipo de um servidor mais novo
 
         assertNull(futuro.tipoDoFavorito)
         assertEquals(TipoDeFavorito.CENA, favorito(2, "CENA").tipoDoFavorito)
-        assertEquals(listOf("Livros", "Parágrafos", "Elementos", "Cenas", "Imagens"), TipoDeFavorito.entries.map { it.plural })
+        assertEquals(TipoDeFavorito.CAPITULO, favorito(3, "CAPITULO").tipoDoFavorito)
+        assertEquals(listOf("Livros", "Capítulos", "Parágrafos", "Elementos", "Cenas", "Imagens"), TipoDeFavorito.entries.map { it.plural })
     }
 
     @Test
@@ -118,7 +119,7 @@ class FavoritosDoLivroTest {
             favorito(1, "PARAGRAFO", capitulo = 5, posicao = 0),
             favorito(2, "ELEMENTO", elemento = 7),
             favorito(3, "LIVRO"),
-            favorito(4, "CAPITULO"),  // um tipo de um servidor mais novo
+            favorito(4, "VIDEO"),  // um tipo de um servidor mais novo
             favorito(5, "CENA", frame = 8),
         )
 
@@ -231,5 +232,36 @@ class FavoritosDoLivroTest {
 
         assertEquals(1, vm.estado.value.favoritos.size)
         assertEquals("LIVRO", vm.estado.value.favoritos.single().tipo)
+    }
+
+    // ---- Item 7.5g, FV2: favoritar o capítulo
+
+    @Test
+    fun FV2_o_alvo_capitulo_manda_so_o_tipo_e_o_capitulo() {
+        val corpo = AlvoDeFavorito.Capitulo(12).corpo()
+
+        assertEquals(setOf("tipo", "capitulo_id"), corpo.keys)
+        assertEquals("CAPITULO", corpo["tipo"]!!.jsonPrimitive.content)
+        assertEquals(12, corpo["capitulo_id"]!!.jsonPrimitive.int)
+    }
+
+    @Test
+    fun FV2_o_favorito_de_capitulo_so_combina_com_o_mesmo_capitulo_e_nao_com_um_paragrafo_dele() {
+        val lista = listOf(favorito(1, "CAPITULO", capitulo = 5), favorito(2, "PARAGRAFO", capitulo = 5, posicao = 0))
+
+        assertEquals(1, favoritoDe(lista, AlvoDeFavorito.Capitulo(5))?.id)
+        assertNull(favoritoDe(lista, AlvoDeFavorito.Capitulo(6)))
+        assertEquals(2, favoritoDe(lista, AlvoDeFavorito.Paragrafo(5, 0))?.id)
+    }
+
+    @Test
+    fun FV2_a_tela_de_favoritos_lista_os_capitulos_e_abre_pelo_capitulo() {
+        val lista = listOf(favorito(1, "CAPITULO", capitulo = 5), favorito(2, "PARAGRAFO", capitulo = 5, posicao = 0), favorito(3, "LIVRO"))
+
+        assertEquals(listOf(1), favoritosParaMostrar(lista, TipoDeFavorito.CAPITULO).map { it.id })
+        assertEquals(listOf(1, 2), favoritosParaMostrar(lista, null).map { it.id })
+        assertEquals(TipoDeFavorito.CAPITULO, TIPOS_NA_TELA_DE_FAVORITOS.first())
+        assertTrue(podeAbrirOFavorito(favorito(1, "CAPITULO", capitulo = 5)))
+        assertFalse("sem o capítulo não há para onde ir", podeAbrirOFavorito(favorito(1, "CAPITULO")))
     }
 }

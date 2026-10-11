@@ -2,7 +2,11 @@ package com.allan.imagineer.telas.menu
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.allan.imagineer.rede.AmostraDeVoz
 import com.allan.imagineer.rede.ConfiguracaoAtual
+import com.allan.imagineer.rede.EstimativaDoTesteDeVoz
+import com.allan.imagineer.rede.decimalOuNulo
+import com.allan.imagineer.rede.dolares
 import com.allan.imagineer.rede.ModeloDeNarracao
 import com.allan.imagineer.rede.RepositorioDeModelos
 import com.allan.imagineer.rede.RepositorioDeNarracao
@@ -56,7 +60,36 @@ data class EstadoDaNarracaoConfigurada(
     val erroDosModelos: String? = null,
     /** Um recado curto ("Salvo", ou o motivo da falha); nulo quando não há nada a dizer. */
     val aviso: String? = null,
+    /** O teste de voz (item 7.5g, AU4): fechado, lendo a estimativa, esperando o "Ouvir", gerando ou tocando. */
+    val teste: TesteDeVoz = TesteDeVoz.Fechado,
 )
+
+/** Em que passo está o teste de voz da tela de Narração (item 7.5g, AU4). */
+sealed interface TesteDeVoz {
+    data object Fechado : TesteDeVoz
+
+    /** Lendo a frase e o custo no servidor (não gasta). */
+    data object Lendo : TesteDeVoz
+
+    /** A frase e o custo à vista, esperando a pessoa tocar em Ouvir (aí sim gasta uma fração de centavo). */
+    data class Confirmar(val estimativa: EstimativaDoTesteDeVoz) : TesteDeVoz
+
+    data class Gerando(val estimativa: EstimativaDoTesteDeVoz) : TesteDeVoz
+
+    /** O MP3 chegou: a tela o toca. [custo] é o estimado que o servidor mandou, se mandou. */
+    class Tocando(val estimativa: EstimativaDoTesteDeVoz, val amostra: AmostraDeVoz) : TesteDeVoz
+
+    data class Falhou(val motivo: String) : TesteDeVoz
+}
+
+/** Dá para testar a voz? Só com a voz de IA escolhida e um modelo de voz escolhido (AU4). */
+fun podeTestarAVoz(edicao: NarracaoEdicao): Boolean = edicao.motor == "IA" && edicao.modelo.isNotBlank()
+
+/** O que o diálogo diz do custo do teste, antes de gastar (AU4): "grátis", "custa ≈ US$ 0,0016" ou "sem estimativa de custo". */
+fun descreverCustoDoTesteDeVoz(estimativa: EstimativaDoTesteDeVoz): String {
+    val valor = decimalOuNulo(estimativa.custo_estimado) ?: return "Sem estimativa de custo (este modelo cobra por token ou por segundo)."
+    return if (valor <= 0.0) "Grátis: este modelo não cobra." else "Custa cerca de ${dolares(valor)}."
+}
 
 class NarracaoViewModel(
     private val repositorio: RepositorioDeModelos,
@@ -122,5 +155,48 @@ class NarracaoViewModel(
 
     fun avisoLido() {
         _estado.value = _estado.value.copy(aviso = null)
+    }
+
+    /**
+     * "Testar voz" (AU4): lê a frase e o custo do teste com o modelo e a voz que estão **no formulário** (mesmo sem salvar). Não gasta nada;
+     * o gasto só vem em [gerarTesteDeVoz].
+     */
+    fun abrirTesteDeVoz() {
+        val repositorioDeVozes = narracao ?: return
+        val edicao = _estado.value.edicao
+        if (!podeTestarAVoz(edicao)) return
+        _estado.value = _estado.value.copy(teste = TesteDeVoz.Lendo)
+        viewModelScope.launch {
+            val teste = when (val r = repositorioDeVozes.estimativaDoTeste(edicao.modelo.trim(), edicao.voz.trim())) {
+                is ResultadoDaChamada.Sucesso -> TesteDeVoz.Confirmar(r.dado)
+                is ResultadoDaChamada.Falha -> TesteDeVoz.Falhou(r.motivo)
+            }
+            _estado.value = _estado.value.copy(teste = teste)
+        }
+    }
+
+    /** "Ouvir" no diálogo do teste: pede o MP3 ao servidor (gasta uma fração de centavo, nada num modelo gratuito) e o entrega para tocar. */
+    fun gerarTesteDeVoz() {
+        val repositorioDeVozes = narracao ?: return
+        val atual = _estado.value.teste
+        val estimativa = when (atual) {
+            is TesteDeVoz.Confirmar -> atual.estimativa
+            is TesteDeVoz.Tocando -> atual.estimativa // "Ouvir de novo"
+            else -> return
+        }
+        val edicao = _estado.value.edicao
+        _estado.value = _estado.value.copy(teste = TesteDeVoz.Gerando(estimativa))
+        viewModelScope.launch {
+            val teste = when (val r = repositorioDeVozes.testarVoz(edicao.modelo.trim(), edicao.voz.trim())) {
+                is ResultadoDaChamada.Sucesso -> if (r.dado.mp3.isEmpty()) TesteDeVoz.Falhou("O servidor não mandou áudio.") else TesteDeVoz.Tocando(estimativa, r.dado)
+                is ResultadoDaChamada.Falha -> TesteDeVoz.Falhou(r.motivo)
+            }
+            _estado.value = _estado.value.copy(teste = teste)
+        }
+    }
+
+    fun fecharTesteDeVoz() {
+        if (_estado.value.teste is TesteDeVoz.Gerando) return // gastou; espera o resultado
+        _estado.value = _estado.value.copy(teste = TesteDeVoz.Fechado)
     }
 }

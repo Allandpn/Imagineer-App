@@ -98,29 +98,6 @@ private fun AvisoDeEmBreve(texto: String) {
 }
 
 // --------------------------------------------------------------------------- //
-// MN3 — Perfil
-// --------------------------------------------------------------------------- //
-
-/** O perfil da conta (MN3): só a interface. Nome e e-mail vazios; entrar/criar conta desligado. */
-@Composable
-fun TelaPerfil(aoVoltar: () -> Unit) {
-    TelaDoMenu("Perfil", aoVoltar) {
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Box(
-                modifier = Modifier.size(96.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("?", style = MaterialTheme.typography.displayMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            }
-        }
-        OutlinedTextField(value = "", onValueChange = {}, label = { Text("Nome") }, enabled = false, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = "", onValueChange = {}, label = { Text("E-mail") }, enabled = false, modifier = Modifier.fillMaxWidth())
-        Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Entrar ou criar conta") }
-        AvisoDeEmBreve("A conta chega em breve. Por enquanto o Imagineer vale para este aparelho e para o servidor configurado.")
-    }
-}
-
-// --------------------------------------------------------------------------- //
 // MN4 — Configurações
 // --------------------------------------------------------------------------- //
 
@@ -263,13 +240,13 @@ fun TelaModelos(aoVoltar: () -> Unit, aoEscolherModeloDeImagem: () -> Unit = {})
                         }
                     }
                 }
-                Card(modifier = Modifier.fillMaxWidth()) {
+                // CF1: o cartão da imagem é tocável como os das tarefas de texto, sem o texto solto de antes. MI6: o preço por imagem, a
+                // moderação e o teste de resolução moram na tela do catálogo, que é para onde o toque leva.
+                Card(modifier = Modifier.fillMaxWidth().clickable(onClick = aoEscolherModeloDeImagem)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Imagem", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Gera a imagem do prompt (OpenRouter, fal.ai ou Replicate).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Modelo atual: ${carga.configuracao.modelo_imagem ?: "—"}", style = MaterialTheme.typography.bodyMedium)
-                        // MI6: o preço por imagem, a moderação e o teste de resolução moram na tela do catálogo.
-                        TextButton(onClick = aoEscolherModeloDeImagem) { Text("Escolher o modelo de imagem") }
+                        Text(descricaoDoModeloDeImagem(carga.configuracao), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 estado.escolhendo?.let { tarefa ->
@@ -299,20 +276,30 @@ private fun DialogoDeEscolhaDeModelo(tarefa: TarefaDeTexto, config: com.allan.im
                         TextButton(onClick = viewModel::carregarLista) { Text("Tentar de novo") }
                     }
                     is ListaDeModelos.Pronta -> {
-                        val modelos = filtrarModelos(lista.modelos, busca)
+                        // CF3: os favoritos (a estrela) primeiro, sob o título "Favoritos"; o resto sob "Outros modelos".
+                        val favoritos = rememberFavoritosDeModelos(CategoriaDeModelo.TEXTO)
+                        val modelos = ordenarComFavoritos(filtrarModelos(lista.modelos, busca), favoritos.conjunto) { it.id }
+                        val quantosFavoritos = quantosSaoFavoritos(modelos, favoritos.conjunto) { it.id }
                         LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
-                            items(modelos, key = { it.id }) { modelo ->
-                                Column(
-                                    modifier = Modifier.fillMaxWidth().clickable(enabled = !estado.salvando) { viewModel.escolher(tarefa, modelo.id) }.padding(vertical = 8.dp),
-                                ) {
-                                    Text(modelo.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = if (modelo.id == atual) FontWeight.Bold else FontWeight.Normal)
-                                    Text(
-                                        listOfNotNull(modelo.id, precoDoModelo(modelo), if (modelo.moderado) "moderado" else null, if (modelo.id == atual) "em uso" else null).joinToString(" · "),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                            if (quantosFavoritos > 0) item(key = "titulo-favoritos") { TituloDeGrupoDeModelos("Favoritos") }
+                            modelos.forEachIndexed { indice, modelo ->
+                                if (indice == quantosFavoritos && quantosFavoritos > 0) item(key = "titulo-outros") { TituloDeGrupoDeModelos("Outros modelos") }
+                                item(key = modelo.id) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(
+                                            modifier = Modifier.weight(1f).clickable(enabled = !estado.salvando) { viewModel.escolher(tarefa, modelo.id) }.padding(vertical = 8.dp),
+                                        ) {
+                                            Text(modelo.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = if (modelo.id == atual) FontWeight.Bold else FontWeight.Normal)
+                                            Text(
+                                                listOfNotNull(modelo.id, precoDoModelo(modelo), if (modelo.moderado) "moderado" else null, if (modelo.id == atual) "em uso" else null).joinToString(" · "),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        EstrelaDeModelo(favoritos.ehFavorito(modelo.id), { favoritos.alternar(modelo.id) })
+                                    }
+                                    HorizontalDivider()
                                 }
-                                HorizontalDivider()
                             }
                         }
                         if (modelos.isEmpty()) Text("Nenhum modelo combina com a busca.", style = MaterialTheme.typography.bodySmall)

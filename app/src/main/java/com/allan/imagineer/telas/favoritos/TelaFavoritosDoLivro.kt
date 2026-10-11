@@ -46,10 +46,11 @@ import com.allan.imagineer.rede.Favorito
 import com.allan.imagineer.rede.TipoDeFavorito
 
 // A tela "Favoritos" de um livro (RL36): o filtro dentro do livro, aberto pelo menu ⋮. Mostra o que se favoritou *dentro* do livro
-// (parágrafos, elementos, cenas, imagens); o próprio livro favorito aparece na biblioteca, não aqui.
+// (capítulos, parágrafos, elementos, cenas, imagens); o próprio livro favorito aparece na biblioteca, não aqui.
 
 /** Os tipos que a tela lista, na ordem dos filtros. */
-val TIPOS_NA_TELA_DE_FAVORITOS: List<TipoDeFavorito> = listOf(TipoDeFavorito.PARAGRAFO, TipoDeFavorito.ELEMENTO, TipoDeFavorito.CENA, TipoDeFavorito.IMAGEM)
+val TIPOS_NA_TELA_DE_FAVORITOS: List<TipoDeFavorito> =
+    listOf(TipoDeFavorito.CAPITULO, TipoDeFavorito.PARAGRAFO, TipoDeFavorito.ELEMENTO, TipoDeFavorito.CENA, TipoDeFavorito.IMAGEM)
 
 /**
  * O que a lista mostra: só os tipos de dentro do livro (nem o livro, nem um tipo que o app não conhece) e, se [tipo] não for nulo,
@@ -73,6 +74,7 @@ fun localDoFavorito(favorito: Favorito): String? {
 
 /** Onde tocar num favorito leva: `null` = não dá para abrir (o capítulo ou o frame não vieram do servidor). */
 fun podeAbrirOFavorito(favorito: Favorito): Boolean = when (favorito.tipoDoFavorito) {
+    TipoDeFavorito.CAPITULO -> favorito.capitulo_id != null
     TipoDeFavorito.PARAGRAFO -> favorito.capitulo_id != null && favorito.posicao != null
     TipoDeFavorito.ELEMENTO -> favorito.elemento_id != null
     TipoDeFavorito.CENA, TipoDeFavorito.IMAGEM -> favorito.capitulo_id != null && favorito.frame_id != null
@@ -116,7 +118,7 @@ fun TelaFavoritosDoLivro(livroId: Int, aoVoltar: () -> Unit, aoAbrir: (Favorito)
                 !estado.carregados -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 lista.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        if (tipo == null) "Nada favoritado neste livro ainda. Toque no coração de um parágrafo, elemento, cena ou imagem."
+                        if (tipo == null) "Nada favoritado neste livro ainda. Toque no coração de um capítulo, parágrafo, elemento, cena ou imagem."
                         else "Nenhum favorito de ${tipo.plural.lowercase()}.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
