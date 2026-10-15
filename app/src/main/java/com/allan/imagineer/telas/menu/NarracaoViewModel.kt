@@ -41,6 +41,25 @@ fun mudouANarracao(edicao: NarracaoEdicao, configuracao: ConfiguracaoAtual): Boo
 /** O motor como a pessoa lê. */
 fun rotuloDoMotor(motor: String) = if (motor == "IA") "Voz de IA" else "Voz do aparelho"
 
+/**
+ * Os modelos de voz que combinam com o que a pessoa digitou (PD12): o nome ou o id contém o texto, sem ligar para maiúsculas nem acentos.
+ * Busca vazia devolve todos, na mesma ordem.
+ */
+fun filtrarModelosDeVoz(modelos: List<ModeloDeNarracao>, busca: String): List<ModeloDeNarracao> {
+    val termo = com.allan.imagineer.telas.elementos.semAcentos(busca.trim())
+    if (termo.isEmpty()) return modelos
+    return modelos.filter {
+        com.allan.imagineer.telas.elementos.semAcentos(it.nome).contains(termo) || com.allan.imagineer.telas.elementos.semAcentos(it.id).contains(termo)
+    }
+}
+
+/** O que a lista diz do idioma do modelo (PD12): o servidor só afirma o que sabe; o resto é "idioma não informado". */
+fun rotuloDoIdiomaDoModelo(modelo: ModeloDeNarracao): String = when (modelo.fala_portugues) {
+    true -> "fala português"
+    false -> "só inglês"
+    null -> "idioma não informado"
+}
+
 /** Trocar de modelo desfaz a voz (cada modelo tem as suas), a menos que a voz de antes também exista no novo. */
 fun edicaoComOModelo(edicao: NarracaoEdicao, modelo: ModeloDeNarracao): NarracaoEdicao =
     edicao.copy(modelo = modelo.id, voz = edicao.voz.takeIf { it in modelo.vozes }.orEmpty())

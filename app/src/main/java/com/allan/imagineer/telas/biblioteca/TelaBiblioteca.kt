@@ -373,7 +373,7 @@ private fun ListaDeLivros(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            if (secoes.cabecalhoDosFavoritos) item(key = "cabecalho-favoritos") { CabecalhoDaSecao(tituloDosFavoritos(secoes.favoritos.size)) }
+            if (secoes.cabecalhoDosFavoritos) item(key = "cabecalho-favoritos") { CabecalhoDaSecao(TITULO_DOS_FAVORITOS) }
             items(secoes.favoritos, key = { it.id }) { livro -> CartaoDeLivro(livro, aoTocar = { aoAbrirLivro(livro.id) }, menu = menuDe(livro)) }
             if (secoes.cabecalhoDosOutros) item(key = "cabecalho-outros") { CabecalhoDaSecao(TITULO_DOS_OUTROS_LIVROS) }
             items(secoes.outros, key = { it.id }) { livro -> CartaoDeLivro(livro, aoTocar = { aoAbrirLivro(livro.id) }, menu = menuDe(livro)) }

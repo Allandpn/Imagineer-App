@@ -21,10 +21,14 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Edit
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.rede.ResultadoDaChamada
@@ -657,7 +661,7 @@ private fun ListaDeSugestoes(
                 }
 
                 if (cenas.isNotEmpty()) {
-                    item { Text("Cenas (${cenas.size})", style = MaterialTheme.typography.titleSmall) }
+                    item { Text("Cenas", style = MaterialTheme.typography.titleSmall) }
                     items(cenas, key = { "c${it.id}" }) { cena ->
                         val chaveDaCena = "cena:${cena.id}"
                         LinhaSelecionavel(itemPorChave[chaveDaFilaDaCena(cena)], fila, acoes) {
@@ -668,7 +672,7 @@ private fun ListaDeSugestoes(
 
                 // As cenas criadas de um texto selecionado não vêm da análise da IA: sem esta seção, só se chegava a elas pelo ícone no texto.
                 if (adicionais.isNotEmpty()) {
-                    item { Text("Cenas adicionais (${adicionais.size})", style = MaterialTheme.typography.titleSmall) }
+                    item { Text("Cenas adicionais", style = MaterialTheme.typography.titleSmall) }
                     items(adicionais, key = { "t${it.frame_id}" }) { cena ->
                         val chaveDaCena = "adicional:${cena.frame_id}"
                         LinhaSelecionavel(cena.frame_id?.let { itemPorChave[chaveDoFluxoDoFrame(it)] }, fila, acoes) {
@@ -798,7 +802,8 @@ internal fun CartaoDeElemento(
             }
             // PC3: a decisão à vista, sem abrir o cartão (aberto, a lista completa de ações já está lá).
             if (!aberto) acaoPrincipalDoElemento(elemento)?.let { acao ->
-                FilledTonalButton(onClick = { acoes.aoExecutar(acao, elemento) }, enabled = !ocupado) { Text(acao.rotulo, maxLines = 1, softWrap = false) }
+                if (ehAcaoDeIcone(acao)) BotaoDeIconeComDica(iconeDaAcao(acao), dicaDaAcao(acao), { acoes.aoExecutar(acao, elemento) }, habilitado = !ocupado, cheio = acao == AcaoDoElemento.CRIAR)
+                else FilledTonalButton(onClick = { acoes.aoExecutar(acao, elemento) }, enabled = !ocupado) { Text(acao.rotulo, maxLines = 1, softWrap = false) }
             }
             if (!elemento.achado_no_texto) {
                 Text(
@@ -830,8 +835,8 @@ internal fun CartaoDeElemento(
                             }
                         }
                         when {
-                            // LP2: ver a ficha, trocar e desfazer são ícones; a dica (segurar o dedo) diz o que cada um faz.
-                            ehAcaoDeIcone(acao) -> BotaoDeIconeComDica(iconeDaAcao(acao), dicaDaAcao(acao), aoTocar, habilitado = !ocupado)
+                            // LP2, LP8: as ações de ícone; a dica (segurar o dedo) diz o que cada uma faz. Criar é a principal (cheio).
+                            ehAcaoDeIcone(acao) -> BotaoDeIconeComDica(iconeDaAcao(acao), dicaDaAcao(acao), aoTocar, habilitado = !ocupado, cheio = acao == AcaoDoElemento.CRIAR)
                             indice == 0 -> Button(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
                             else -> OutlinedButton(onClick = aoTocar, enabled = !ocupado) { Text(acao.rotulo) }
                         }
@@ -864,10 +869,16 @@ private fun DetalhesDoElemento(elemento: ElementoSugerido, situacao: SituacaoDoE
     }
 }
 
-/** O ícone de cada ação que é desenhada como ícone (LP2): ver *ficha* = documento, *trocar* = setas de troca, *desfazer* = elo quebrado. */
+/**
+ * O ícone de cada ação que é desenhada como ícone (LP2, LP8): *ficha* = documento, *trocar* = setas de troca, *desfazer* = elo quebrado,
+ * *criar* = mais, *vincular* = elo, *descartar* = lixeira de contorno.
+ */
 private fun iconeDaAcao(acao: AcaoDoElemento): ImageVector = when (acao) {
     AcaoDoElemento.ABRIR_FICHA -> Icons.Filled.Description
     AcaoDoElemento.TROCAR -> Icons.Filled.SwapHoriz
+    AcaoDoElemento.CRIAR -> Icons.Filled.Add
+    AcaoDoElemento.VINCULAR -> Icons.Filled.Link
+    AcaoDoElemento.DESCARTAR -> Icons.Filled.DeleteOutline
     else -> Icons.Filled.LinkOff
 }
 
@@ -1224,7 +1235,7 @@ internal fun BlocoDePrompts(
     var aberto by rememberSaveable(frameId) { mutableStateOf(false) }
 
     // PM1: o corpo do frame tem seções com título. Q1: a imagem em destaque, com o botão que faz o que falta.
-    TituloDeSecao(TITULO_DA_SECAO_DE_IMAGENS)
+    TituloDeSecao(TITULO_DA_SECAO_DE_IMAGENS, icone = Icons.Filled.Image)
     SecaoDaImagemDoFrame(frameId, lista, estado, acoes, chaveDoFluxo, rotulo, rotuloDoBotao, ehCena, aoUsarImagemExistente)
 
     // Item 4.9 (FL9): a lista do que vai aparecer na cena, recolhida por padrão; o retrato não tem (a imagem dele é neutra).
@@ -1237,7 +1248,8 @@ internal fun BlocoDePrompts(
     estado.mensagensDePrompt[frameId]?.let { RecadoDaCena(it) }
 
     // Q7, PM1, PX1: os prompts recolhidos, numa linha de seção (título com a quantidade e a seta), tocável na linha inteira.
-    LinhaDeSecao(tituloDaSecaoDePrompts(lista.size), aberta = aberto, aoAlternar = { aberto = !aberto })
+    // PD5: o ícone de imagem distingue estes prompts dos de vídeo.
+    LinhaDeSecao(tituloDaSecaoDePrompts(lista.size), aberta = aberto, aoAlternar = { aberto = !aberto }, icone = Icons.Filled.Image)
     if (aberto) {
         when (conteudo) {
             null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -1348,8 +1360,9 @@ private fun CartaoDePrompt(
             ModeloDeImagemEmUso(estado, acoes, ocupado)
             // As imagens de referência são do frame, mas valem para qualquer prompt: a escolha também fica à vista aqui.
             aoEscolherElementos?.let { LinhaDoSeletorDeElementos(frameId, ehCena, estado, acoes, aoEscolher = it, ocupado = ocupado) }
-            // PM2: Gerar imagem é a ação principal (botão cheio); Copiar fica contornado, à vista; o resto mora no ⋮.
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // PM2, PD6: Gerar imagem é a ação principal (cheia); depois copiar, compartilhar, editar e ver em português, todos à vista, na mesma
+            // fila do cartão de prompt de vídeo.
+            FlowRow(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // K1: gera de verdade, sem confirmação (a imagem custa cerca de US$ 0,01). K2: um pedido por prompt.
                 // LP5: os dois são ícones; o número do prompt vai na dica (o título do cartão já o traz).
                 BotaoDeIconeComDica(
@@ -1360,20 +1373,11 @@ private fun CartaoDePrompt(
                     cheio = true,
                 )
                 BotaoDeIconeComDica(Icons.Filled.ContentCopy, "Copiar o prompt", { aoCopiar(); copiado = true })
-                MenuMais(
-                    itens = ItemDoMenuDoPrompt.entries.map { item ->
-                        ItemDeMenu(item.rotulo) {
-                            when (item) {
-                                ItemDoMenuDoPrompt.COMPARTILHAR -> aoCompartilhar()
-                                // R1: editar o texto antes de gerar.
-                                ItemDoMenuDoPrompt.EDITAR -> acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto)
-                                // VD14: ver o prompt em português (o mesmo diálogo da edição, já na aba Português).
-                                ItemDoMenuDoPrompt.VER_EM_PORTUGUES -> acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto)
-                            }
-                        }
-                    },
-                    descricao = "Mais ações do prompt $numero",
-                )
+                BotaoDeIconeComDica(Icons.Filled.Share, "Compartilhar o prompt", aoCompartilhar)
+                // R1: editar o texto antes de gerar.
+                BotaoDeIconeComDica(Icons.Filled.Edit, "Editar o prompt", { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) })
+                // VD14: ver o prompt em português (o mesmo diálogo da edição, já na aba Português).
+                BotaoDeIconeComDica(Icons.Filled.Translate, "Ver em português", { acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto) })
             }
             ImagensDoPrompt(prompt, acoes)
             if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)

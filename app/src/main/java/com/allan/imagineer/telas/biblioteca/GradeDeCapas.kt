@@ -73,7 +73,7 @@ fun GradeDeLivros(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             if (secoes.cabecalhoDosFavoritos) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "cabecalho-favoritos") { CabecalhoDaSecao(tituloDosFavoritos(secoes.favoritos.size)) }
+                item(span = { GridItemSpan(maxLineSpan) }, key = "cabecalho-favoritos") { CabecalhoDaSecao(TITULO_DOS_FAVORITOS) }
             }
             items(secoes.favoritos, key = { it.id }) { livro -> CapaNaGrade(livro, urlBase, { aoAbrirLivro(livro.id) }, menuDe(livro)) }
             if (secoes.cabecalhoDosOutros) {

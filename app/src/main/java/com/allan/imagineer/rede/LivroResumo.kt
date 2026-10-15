@@ -31,6 +31,8 @@ data class LivroResumo(
     val revisao: Int = 0,
     /** O id do favorito deste livro (RL34); nulo = não é favorito. Muda sem subir a [revisao]. */
     val favorito_id: Int? = null,
+    /** Quando o livro foi aberto por último (PD10), em texto ISO: a hora do marcador de leitura; nulo = nunca lido. */
+    val ultima_abertura: String? = null,
 )
 
 /** O endereço da capa de um livro (CP3); a [revisao] na URL faz a capa nova aparecer quando é trocada. */

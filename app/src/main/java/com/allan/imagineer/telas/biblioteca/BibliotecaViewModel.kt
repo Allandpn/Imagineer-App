@@ -170,8 +170,8 @@ fun resumoDoLivroNaLista(livro: com.allan.imagineer.rede.LivroResumo): String {
 // ---------------------------------------------------------------------------------------------------------------- //
 
 /**
- * Os livros em **duas seções** (BL1): os favoritos no topo e os outros logo abaixo, cada livro em **um lugar só**, na ordem em que o
- * servidor mandou. Os cabeçalhos só aparecem quando ajudam (BL2): sem nenhum favorito a tela é a de sempre, sem cabeçalho.
+ * Os livros em **duas seções** (BL1): os favoritos no topo e os outros logo abaixo, cada livro em **um lugar só**, do aberto por último para o
+ * mais antigo (PD10). Os cabeçalhos só aparecem quando ajudam (BL2): sem nenhum favorito a tela é a de sempre, sem cabeçalho.
  */
 data class SecoesDaBiblioteca(val favoritos: List<LivroResumo>, val outros: List<LivroResumo>) {
     /** O cabeçalho "Favoritos (N)": só quando há favoritos. */
@@ -181,14 +181,39 @@ data class SecoesDaBiblioteca(val favoritos: List<LivroResumo>, val outros: List
     val cabecalhoDosOutros: Boolean get() = favoritos.isNotEmpty() && outros.isNotEmpty()
 }
 
-/** Divide a lista do servidor nas seções (BL1). */
+/**
+ * O instante, em milissegundos, de um texto ISO 8601 do servidor (PD10), **com ou sem fuso** (o servidor de testes manda sem; o PostgreSQL,
+ * com). `null` se o texto não é uma data.
+ */
+fun milissegundosDe(textoIso: String?): Long? {
+    if (textoIso.isNullOrBlank()) return null
+    return try {
+        java.time.OffsetDateTime.parse(textoIso).toInstant().toEpochMilli()
+    } catch (erro: java.time.format.DateTimeParseException) {
+        try {
+            java.time.LocalDateTime.parse(textoIso).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+        } catch (outro: java.time.format.DateTimeParseException) {
+            null
+        }
+    }
+}
+
+/**
+ * Os livros do **aberto por último** para o mais antigo (PD10). Quem nunca foi lido entra pela data de importação, então um livro
+ * recém-importado aparece no alto junto dos que se está lendo. Empates e datas ilegíveis mantêm a ordem em que o servidor mandou
+ * (alfabética): a ordenação é estável.
+ */
+fun ordenarPeloAbertoPorUltimo(livros: List<LivroResumo>): List<LivroResumo> =
+    livros.sortedByDescending { milissegundosDe(it.ultima_abertura) ?: milissegundosDe(it.data_importacao) ?: 0L }
+
+/** Divide a lista do servidor nas seções (BL1), cada uma do livro aberto por último para o mais antigo (PD10). */
 fun dividirEmSecoes(livros: List<LivroResumo>): SecoesDaBiblioteca {
-    val (favoritos, outros) = livros.partition { it.favorito_id != null }
+    val (favoritos, outros) = ordenarPeloAbertoPorUltimo(livros).partition { it.favorito_id != null }
     return SecoesDaBiblioteca(favoritos, outros)
 }
 
-/** O título da seção dos favoritos: "Favoritos (3)". */
-fun tituloDosFavoritos(quantos: Int): String = "Favoritos ($quantos)"
+/** O título da seção dos favoritos (PD11: sem a quantidade de livros). */
+const val TITULO_DOS_FAVORITOS = "Favoritos"
 
 const val TITULO_DOS_OUTROS_LIVROS = "Outros livros"
 

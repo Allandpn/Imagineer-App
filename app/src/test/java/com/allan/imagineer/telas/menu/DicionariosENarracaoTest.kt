@@ -2,6 +2,7 @@ package com.allan.imagineer.telas.menu
 
 import com.allan.imagineer.rede.ConfiguracaoAtual
 import com.allan.imagineer.rede.DicionarioDoServidor
+import com.allan.imagineer.rede.ModeloDeNarracao
 import com.allan.imagineer.rede.PreferenciasDosDicionarios
 import com.allan.imagineer.rede.RepositorioDeDicionario
 import com.allan.imagineer.rede.RepositorioDeModelos
@@ -286,5 +287,28 @@ class DicionariosENarracaoTest {
         assertEquals("meu tom", vm.estado.value.edicao.instrucoes)
         assertTrue(vm.estado.value.aviso!!.contains("fora do ar"))
         assertFalse(vm.estado.value.salvando)
+    }
+
+    @Test
+    fun PD12_a_busca_acha_o_modelo_pelo_nome_ou_pelo_id_sem_ligar_para_acento_nem_caixa() {
+        val modelos = listOf(
+            ModeloDeNarracao("google/gemini-3.8-flash-tts", "Gemini TTS"),
+            ModeloDeNarracao("microsoft/mai-voice-2.1-flash", "Microsoft: MAI-Voice 2.1 Flash"),
+            ModeloDeNarracao("canopylabs/orpheus-3b-0.1-ft", "Orpheus 3B"),
+        )
+
+        assertEquals(3, filtrarModelosDeVoz(modelos, "").size)
+        assertEquals(3, filtrarModelosDeVoz(modelos, "   ").size)
+        assertEquals(listOf("google/gemini-3.8-flash-tts"), filtrarModelosDeVoz(modelos, "GEMINI").map { it.id })
+        assertEquals(listOf("microsoft/mai-voice-2.1-flash"), filtrarModelosDeVoz(modelos, "mai-voice").map { it.id })
+        assertEquals(listOf("canopylabs/orpheus-3b-0.1-ft"), filtrarModelosDeVoz(modelos, "canopylabs").map { it.id })
+        assertEquals(emptyList<ModeloDeNarracao>(), filtrarModelosDeVoz(modelos, "inexistente"))
+    }
+
+    @Test
+    fun PD12_a_lista_diz_o_idioma_so_quando_o_servidor_sabe() {
+        assertEquals("fala português", rotuloDoIdiomaDoModelo(ModeloDeNarracao("a", "A", fala_portugues = true)))
+        assertEquals("só inglês", rotuloDoIdiomaDoModelo(ModeloDeNarracao("b", "B", fala_portugues = false)))
+        assertEquals("idioma não informado", rotuloDoIdiomaDoModelo(ModeloDeNarracao("c", "C")))
     }
 }

@@ -121,11 +121,14 @@ fun acoesDoElemento(situacao: SituacaoDoElemento): List<AcaoDoElemento> {
 }
 
 /**
- * Se a ação do cartão aparece como **ícone** em vez de botão com texto (LP2): só as três que mexem no casamento já feito (ver a ficha,
- * trocar de elemento, desfazer). As **decisões** (criar, vincular, descartar, confirmar, registrar estado) ficam com texto.
+ * Se a ação do cartão aparece como **ícone** em vez de botão com texto (LP2, LP8): as que mexem no casamento (ver a ficha, trocar de
+ * elemento, desfazer) e as da sugestão **nova** (criar, vincular, descartar). *Confirmar* e *Registrar estado* ficam com texto: são o
+ * "sim" de quem revisa e dizem o que vão gravar.
  */
-fun ehAcaoDeIcone(acao: AcaoDoElemento): Boolean =
-    acao == AcaoDoElemento.ABRIR_FICHA || acao == AcaoDoElemento.TROCAR || acao == AcaoDoElemento.DESFAZER
+fun ehAcaoDeIcone(acao: AcaoDoElemento): Boolean = acao in setOf(
+    AcaoDoElemento.ABRIR_FICHA, AcaoDoElemento.TROCAR, AcaoDoElemento.DESFAZER,
+    AcaoDoElemento.CRIAR, AcaoDoElemento.VINCULAR, AcaoDoElemento.DESCARTAR,
+)
 
 /**
  * A dica do ícone (LP2), que aparece ao segurar o dedo nele e é o que o leitor de tela fala: diz **o que a ação faz**, já que o ícone
@@ -135,6 +138,7 @@ fun dicaDaAcao(acao: AcaoDoElemento): String = when (acao) {
     AcaoDoElemento.ABRIR_FICHA -> "Ver a ficha do elemento"
     AcaoDoElemento.TROCAR -> "Trocar por outro elemento"
     AcaoDoElemento.DESFAZER -> "Desfazer a confirmação (desliga do elemento)"
+    AcaoDoElemento.DESCARTAR -> "Descartar a sugestão (dá para restaurar)"
     else -> acao.rotulo
 }
 

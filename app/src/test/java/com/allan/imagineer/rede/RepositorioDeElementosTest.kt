@@ -221,6 +221,29 @@ class RepositorioDeElementosTest {
         assertEquals("""{"tipo":"CRIATURA","descricao":"Um lobo."}""", servidor.takeRequest().body.readUtf8())
     }
 
+    @Test
+    fun `PD9 ajustar a vestimenta manda o texto e vazio manda null para apagar`() = runTest {
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(detalheJson))
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(detalheJson))
+
+        repositorio().ajustarElemento(30, vestimenta = "  túnica cinza com capuz ")
+        repositorio().ajustarElemento(30, vestimenta = "   ")
+
+        assertEquals("""{"vestimenta":"túnica cinza com capuz"}""", servidor.takeRequest().body.readUtf8())
+        assertEquals("""{"vestimenta":null}""", servidor.takeRequest().body.readUtf8())
+    }
+
+    @Test
+    fun `PD9 o detalhe do elemento traz a vestimenta e o servidor antigo sem o campo vira nula`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+        val com = json.decodeFromString<DetalheDoElemento>("""{"id":1,"tipo":"PERSONAGEM","nome":"Sedotia","vestimenta":"túnica cinza"}""")
+        val sem = json.decodeFromString<DetalheDoElemento>("""{"id":1,"tipo":"PERSONAGEM","nome":"Sedotia"}""")
+
+        assertEquals("túnica cinza", com.vestimenta)
+        assertEquals(null, sem.vestimenta)
+    }
+
     private val estadoJson = """{"id":71,"elemento_id":30,"capitulo_id":14,"descricao":"x","imagem_ancora_id":null,"data_criacao":"2026-09-30T20:00:00"}"""
 
     @Test

@@ -109,8 +109,6 @@ class RegrasDoVideoImportadoTest {
 
     @Test
     fun os_rotulos_dizem_quantos_ha_e_o_que_o_toque_faz() {
-        assertEquals("Ver prompts de vídeo (3)", rotuloDeVerPromptsDeVideo(aberto = false, total = 3))
-        assertEquals("Esconder prompts de vídeo", rotuloDeVerPromptsDeVideo(aberto = true, total = 3))
         assertEquals("Ocultos (2)", rotuloDosPromptsOcultos(aberto = false, total = 2))
         assertEquals("Esconder os ocultos", rotuloDosPromptsOcultos(aberto = true, total = 2))
     }

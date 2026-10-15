@@ -122,6 +122,8 @@ data class DetalheDoElemento(
     val nome: String,
     /** A identidade inicial; a vigente soma a ela o [historico_identidade]. */
     val descricao: String? = null,
+    /** A roupa característica do personagem neste livro (PD9): a IA a preenche ao gerar o retrato e a pessoa a corrige. Nula = ainda não se sabe. */
+    val vestimenta: String? = null,
     val estados: List<EstadoDoElemento> = emptyList(),
     val historico_identidade: List<IdentidadeDoCapitulo> = emptyList(),
 )
@@ -196,6 +198,8 @@ interface RepositorioDeElementos {
         nome: String? = null,
         identidade: String? = null,
         ancoraPadraoId: Int? = null,
+        /** A roupa característica (PD9); **vazia** apaga a que estava. Nula = não mexe. */
+        vestimenta: String? = null,
     ): ResultadoDaChamada<Unit>
 
     /**
@@ -306,6 +310,7 @@ class RepositorioDeElementosPeloRetrofit(
         nome: String?,
         identidade: String?,
         ancoraPadraoId: Int?,
+        vestimenta: String?,
     ): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         val corpo = buildJsonObject {
@@ -314,6 +319,8 @@ class RepositorioDeElementosPeloRetrofit(
             identidade?.let { put("descricao", it) }
             // FI6: a referência principal do elemento (item 4.5).
             ancoraPadraoId?.let { put("imagem_ancora_padrao_id", it) }
+            // PD9: vazia apaga a roupa guardada (o servidor entende `null`); com texto, grava.
+            vestimenta?.let { if (it.isBlank()) put("vestimenta", kotlinx.serialization.json.JsonNull) else put("vestimenta", it.trim()) }
         }
         return chamarApi { api.ajustarElemento(elementoId, corpo); Unit }
     }

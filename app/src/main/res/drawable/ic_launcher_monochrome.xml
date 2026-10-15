@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A versão de uma cor só da arte (ícone temático do Android 13 e dos launchers que pintam o ícone com a paleta do aparelho).
+     Sem esta camada, esses launchers colocam o ícone dentro de uma moldura colorida. O sistema pinta o desenho; só a forma importa. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_mono"
+    android:inset="16%" />

@@ -428,4 +428,14 @@ class NarracaoPorIaViewModelTest {
         assertEquals("Gerar nova narração", rotuloDeGerarNarracao(jaTemDeAgora = false))
         assertEquals("Refazer com o modelo e a voz de agora", rotuloDeGerarNarracao(jaTemDeAgora = true))
     }
+
+    @Test
+    fun PD13_a_folha_diz_o_modelo_e_a_voz_que_valem() {
+        assertEquals("Modelo: google/gemini-tts · voz: Zephyr", descreverModeloEmUso("google/gemini-tts", "Zephyr"))
+        // Sem voz escolhida o servidor usa a padrão do modelo: a folha diz isso em vez de deixar um buraco.
+        assertEquals("Modelo: google/gemini-tts · voz: padrão do modelo", descreverModeloEmUso("google/gemini-tts", null))
+        assertEquals("Modelo: google/gemini-tts · voz: padrão do modelo", descreverModeloEmUso("google/gemini-tts", "  "))
+        assertNull(descreverModeloEmUso(null, "Zephyr"))
+        assertNull(descreverModeloEmUso("", null))
+    }
 }

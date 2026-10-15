@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MovieCreation
+import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
@@ -82,6 +85,12 @@ const val ROTULO_PROMPT_DE_VIDEO = "Prompt de vídeo"
 
 const val ROTULO_IMPORTAR_VIDEO = "Importar vídeo"
 
+/** O que a seção Vídeo diz enquanto a IA monta o prompt (PD4): a pessoa não precisa esperar parada. */
+const val AVISO_GERANDO_PROMPT_DE_VIDEO = "Gerando o prompt de vídeo… pode levar um minuto. Você pode continuar lendo."
+
+/** O recado de quando o prompt de vídeo chegou (PD4). */
+const val AVISO_PROMPT_DE_VIDEO_GERADO = "Prompt de vídeo gerado."
+
 /** Sem imagem, não há quadro inicial: o servidor faria o modo texto para vídeo, que é o de reserva (VD1) e o app não oferece. */
 const val AVISO_SEM_IMAGEM_PARA_VIDEO = "Gere ou importe uma imagem da cena para criar o prompt de vídeo a partir dela."
 
@@ -97,8 +106,6 @@ fun promptsDeVideoVisiveis(lista: List<PromptDeFrame>): List<PromptDeFrame> = vi
 /** Os que a pessoa escondeu (VD12): não foram apagados e voltam por **Mostrar**. */
 fun promptsDeVideoOcultos(lista: List<PromptDeFrame>): List<PromptDeFrame> = videosDoMaisNovoParaOMaisAntigo(lista).filter { it.oculto }
 
-/** O botão que recolhe e abre a lista de prompts de vídeo (VD12). */
-fun rotuloDeVerPromptsDeVideo(aberto: Boolean, total: Int): String = if (aberto) "Esconder prompts de vídeo" else "Ver prompts de vídeo ($total)"
 
 /** O botão que abre os prompts de vídeo ocultos (VD12). */
 fun rotuloDosPromptsOcultos(aberto: Boolean, total: Int): String = if (aberto) "Esconder os ocultos" else "Ocultos ($total)"
@@ -124,18 +131,26 @@ internal fun SecaoDeVideo(frameId: Int, rotulo: String, imagens: List<ImagemDoPr
     // O seletor de vídeos mora na tela do capítulo (o modal some enquanto ele está aberto); aqui só se pede.
     fun importar(deUmPrompt: Int?) = acoes.aoEscolherVideo(frameId, deUmPrompt)
 
-    Text("Vídeo", style = MaterialTheme.typography.titleSmall)
+    val gerandoOPrompt = frameId in estado.gerandoPromptDeVideo
+    // PD5: o título da seção leva o ícone de vídeo, como "Prompts de vídeo" abaixo, para não se confundir com as imagens.
+    TituloDeSecao("Vídeo", icone = Icons.Filled.Movie)
+    // PD6: as duas ações são ícones (a dica diz o nome); gerar o prompt é a principal e fica cheia.
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (imagens.isNotEmpty()) {
-            OutlinedButton(onClick = { acoes.aoAbrirDialogoDeVideo(frameId, rotulo, imagens) }) { Text(ROTULO_PROMPT_DE_VIDEO, maxLines = 1, softWrap = false) }
+            BotaoDeIconeComDica(
+                Icons.Filled.MovieCreation, ROTULO_PROMPT_DE_VIDEO, { acoes.aoAbrirDialogoDeVideo(frameId, rotulo, imagens) },
+                habilitado = !gerandoOPrompt, cheio = true,
+            )
         }
-        OutlinedButton(onClick = { importar(null) }, enabled = frameId !in estado.importandoVideo) {
-            androidx.compose.material3.Icon(Icons.Filled.Upload, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("  $ROTULO_IMPORTAR_VIDEO", maxLines = 1, softWrap = false)
-        }
+        BotaoDeIconeComDica(Icons.Filled.VideoFile, ROTULO_IMPORTAR_VIDEO, { importar(null) }, habilitado = frameId !in estado.importandoVideo)
     }
     if (imagens.isEmpty()) {
         Text(AVISO_SEM_IMAGEM_PARA_VIDEO, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (gerandoOPrompt) {
+        // PD4: a espera mora aqui, e não num diálogo que prende a tela.
+        Text(AVISO_GERANDO_PROMPT_DE_VIDEO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
     if (frameId in estado.importandoVideo) {
         val fracao = estado.importandoVideo[frameId]
@@ -164,7 +179,13 @@ internal fun SecaoDeVideo(frameId: Int, rotulo: String, imagens: List<ImagemDoPr
         is VideosDoFrame.Pronto -> {
             val visiveis = promptsDeVideoVisiveis(videos.lista)
             val ocultos = promptsDeVideoOcultos(videos.lista)
-            if (visiveis.isNotEmpty()) TextButton(onClick = { verPrompts = !verPrompts }) { Text(rotuloDeVerPromptsDeVideo(verPrompts, visiveis.size)) }
+            // Chegou um prompt novo (PD4): a lista abre sozinha para a pessoa vê-lo.
+            var jaVistos by remember(frameId) { mutableStateOf(visiveis.size) }
+            LaunchedEffect(visiveis.size) {
+                if (visiveis.size > jaVistos) verPrompts = true
+                jaVistos = visiveis.size
+            }
+            if (visiveis.isNotEmpty()) LinhaDeSecao(tituloDaSecaoDePromptsDeVideo(visiveis.size), aberta = verPrompts, aoAlternar = { verPrompts = !verPrompts }, icone = Icons.Filled.Movie)
             if (verPrompts) visiveis.forEach { prompt -> CartaoDeVideo(prompt, frameId, acoes, aoImportarDeste = { importar(prompt.id) }) }
             if (ocultos.isNotEmpty()) {
                 TextButton(onClick = { verOcultos = !verOcultos }) { Text(rotuloDosPromptsOcultos(verOcultos, ocultos.size)) }
@@ -219,6 +240,7 @@ private fun CartaoDeVideo(video: PromptDeFrame, frameId: Int, acoes: AcoesDoPain
     val escopo = rememberCoroutineScope()
     val area = LocalClipboardManager.current
     var abrindo by remember { mutableStateOf(false) }
+    var copiado by remember(video.id) { mutableStateOf(false) }
     // Editando; e se o diálogo abre já na aba Português (o ícone Traduzir).
     var editando by remember(video.id) { mutableStateOf(false) }
     var emPortugues by remember(video.id) { mutableStateOf(false) }
@@ -227,12 +249,14 @@ private fun CartaoDeVideo(video: PromptDeFrame, frameId: Int, acoes: AcoesDoPain
             Text(if (video.oculto) "$ROTULO_PROMPT_DE_VIDEO (oculto)" else ROTULO_PROMPT_DE_VIDEO, style = MaterialTheme.typography.titleSmall)
             video.imagem_partida_id?.let { MiniaturaDoQuadroInicial(it) }
             SelectionContainer { Text(video.texto, style = MaterialTheme.typography.bodyMedium) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BotaoDeIcone(Icons.Filled.ContentCopy, "Copiar o prompt de vídeo", {
+            // PD6: a mesma fila do cartão de prompt de imagem (a ação principal cheia, depois copiar, compartilhar, editar e ver em português).
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                BotaoDeIconeComDica(Icons.Filled.VideoFile, "Importar o vídeo deste prompt", aoImportarDeste, cheio = true)
+                BotaoDeIconeComDica(Icons.Filled.ContentCopy, "Copiar o prompt de vídeo", {
                     area.setText(AnnotatedString(video.texto))
-                    Toast.makeText(contexto, "Prompt de vídeo copiado.", Toast.LENGTH_SHORT).show()
+                    copiado = true
                 })
-                BotaoDeIcone(Icons.Filled.Share, "Compartilhar o prompt de vídeo", {
+                BotaoDeIconeComDica(Icons.Filled.Share, "Compartilhar o prompt de vídeo", {
                     if (!abrindo) {
                         abrindo = true
                         escopo.launch {
@@ -246,13 +270,13 @@ private fun CartaoDeVideo(video: PromptDeFrame, frameId: Int, acoes: AcoesDoPain
                         }
                     }
                 })
-                BotaoDeIcone(Icons.Filled.Edit, "Editar o prompt de vídeo", { emPortugues = false; editando = true })
-                BotaoDeIcone(Icons.Filled.Translate, "Ver em português", { emPortugues = true; editando = true })
-                BotaoDeIcone(Icons.Filled.Upload, "Importar o vídeo deste prompt", aoImportarDeste)
-                if (video.oculto) BotaoDeIcone(Icons.Filled.Visibility, "Mostrar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, false) })
-                else BotaoDeIcone(Icons.Filled.VisibilityOff, "Ocultar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, true) })
+                BotaoDeIconeComDica(Icons.Filled.Edit, "Editar o prompt de vídeo", { emPortugues = false; editando = true })
+                BotaoDeIconeComDica(Icons.Filled.Translate, "Ver em português", { emPortugues = true; editando = true })
+                if (video.oculto) BotaoDeIconeComDica(Icons.Filled.Visibility, "Mostrar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, false) })
+                else BotaoDeIconeComDica(Icons.Filled.VisibilityOff, "Ocultar o prompt de vídeo", { acoes.aoOcultarPromptDeVideo(frameId, video.id, true) })
             }
             if (abrindo) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (copiado) Text(AVISO_PROMPT_COPIADO, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
         }
     }
     if (editando) {
@@ -371,7 +395,7 @@ private suspend fun compartilharPromptDeVideo(contexto: Context, aplicacao: Imag
 internal fun DialogoDeVideo(alvo: DialogoDeVideo, acoes: AcoesDoPainel) {
     val urlBase = urlDoServidorEmUso()
     AlertDialog(
-        onDismissRequest = { if (!alvo.gerando) acoes.aoFecharDialogoDeVideo() },
+        onDismissRequest = acoes.aoFecharDialogoDeVideo,
         title = { Text(ROTULO_PROMPT_DE_VIDEO) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -391,7 +415,7 @@ internal fun DialogoDeVideo(alvo: DialogoDeVideo, acoes: AcoesDoPainel) {
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(Color.Black)
                                         .border(if (marcada) 3.dp else 0.dp, if (marcada) MaterialTheme.colorScheme.primary else Color.Transparent, RoundedCornerShape(8.dp))
-                                        .clickable(enabled = !alvo.gerando) { acoes.aoEscolherImagemDoVideo(imagem.id) },
+                                        .clickable { acoes.aoEscolherImagemDoVideo(imagem.id) },
                                 )
                                 if (imagem.canonica) Text("Canônica", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
@@ -404,14 +428,12 @@ internal fun DialogoDeVideo(alvo: DialogoDeVideo, acoes: AcoesDoPainel) {
                     label = { Text("Comentário (opcional)") },
                     placeholder = { Text("Ex.: só um movimento lento de câmera") },
                     minLines = 2,
-                    enabled = !alvo.gerando,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                alvo.erro?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
-                if (alvo.gerando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
         },
-        confirmButton = { TextButton(onClick = acoes.aoGerarVideo, enabled = !alvo.gerando && alvo.escolhida != null) { Text(if (alvo.gerando) "Gerando…" else "Gerar") } },
-        dismissButton = { TextButton(onClick = acoes.aoFecharDialogoDeVideo, enabled = !alvo.gerando) { Text("Cancelar") } },
+        // PD4: gerar fecha o diálogo na hora; a espera aparece na seção Vídeo do frame.
+        confirmButton = { TextButton(onClick = acoes.aoGerarVideo, enabled = alvo.escolhida != null) { Text("Gerar") } },
+        dismissButton = { TextButton(onClick = acoes.aoFecharDialogoDeVideo) { Text("Cancelar") } },
     )
 }

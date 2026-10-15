@@ -124,15 +124,13 @@ sealed interface VideosImportadosDoFrame {
 /** O frame (e o prompt de vídeo de origem, se foi dele que a pessoa tocou em importar) do vídeo que o seletor está escolhendo. */
 data class AlvoDaImportacaoDeVideo(val frameId: Int, val promptId: Int?)
 
-/** O diálogo "Prompt de vídeo" (VD9): as [imagens] do frame, qual é o primeiro quadro ([escolhida]), o comentário e o andamento. */
+/** O diálogo "Prompt de vídeo" (VD9): as [imagens] do frame, qual é o primeiro quadro ([escolhida]) e o comentário. A geração não prende o diálogo (PD4). */
 data class DialogoDeVideo(
     val frameId: Int,
     val rotulo: String,
     val imagens: List<ImagemDoPrompt>,
     val escolhida: Int?,
     val comentario: String = "",
-    val gerando: Boolean = false,
-    val erro: String? = null,
 )
 
 /** O livro por capítulo, dentro do seletor de "usar uma imagem que já existe" (VM3). */
@@ -250,6 +248,8 @@ data class EstadoDoPainel(
     val videos: Map<Int, VideosDoFrame> = emptyMap(),
     /** O diálogo de gerar o prompt de vídeo; `null` = fechado. */
     val dialogoDeVideo: DialogoDeVideo? = null,
+    /** Os frames cujo prompt de vídeo está sendo gerado (PD4): a espera mora na seção Vídeo do frame, e não num diálogo que prende a tela. */
+    val gerandoPromptDeVideo: Set<Int> = emptySet(),
     /** Para onde vai o vídeo que o seletor do Android está escolhendo (VD18); `null` = nenhum seletor aberto. */
     val alvoDoVideo: AlvoDaImportacaoDeVideo? = null,
     /** Os vídeos importados de cada frame, por id do frame (VD16). Só existe a entrada de quem já foi aberto. */
@@ -2434,7 +2434,7 @@ class PainelDeIaViewModel(
     }
 
     fun escolherImagemDoVideo(imagemId: Int) {
-        _estado.update { atual -> atual.dialogoDeVideo?.let { atual.copy(dialogoDeVideo = it.copy(escolhida = imagemId, erro = null)) } ?: atual }
+        _estado.update { atual -> atual.dialogoDeVideo?.let { atual.copy(dialogoDeVideo = it.copy(escolhida = imagemId)) } ?: atual }
     }
 
     fun mudarComentarioDoVideo(texto: String) {
@@ -2442,26 +2442,40 @@ class PainelDeIaViewModel(
     }
 
     fun fecharDialogoDeVideo() {
-        if (_estado.value.dialogoDeVideo?.gerando == true) return
         _estado.update { it.copy(dialogoDeVideo = null) }
     }
 
     /**
-     * **Gera** o prompt de vídeo (uma chamada de IA). Sucesso: fecha o diálogo e o prompt novo entra na seção Vídeo. Falha (a imagem não
-     * é do frame, sem chave, IA fora): a mensagem do servidor no próprio diálogo, que continua aberto.
+     * **Gera** o prompt de vídeo (uma chamada de IA que leva um bom tempo). O diálogo **fecha na hora** (PD4): a espera vira um cartão
+     * "Gerando…" na seção Vídeo do frame, e a pessoa segue lendo, ou fecha o painel. Sucesso: o prompt novo entra na frente da lista e o frame
+     * avisa. Falha (a imagem não é do frame, sem chave, IA fora): a mensagem do servidor fica no recado de vídeo do frame, onde se vê.
      */
     fun gerarVideo() {
         val dialogo = _estado.value.dialogoDeVideo ?: return
-        if (dialogo.gerando || dialogo.escolhida == null) return
-        _estado.update { it.copy(dialogoDeVideo = dialogo.copy(gerando = true, erro = null)) }
+        val imagemDePartida = dialogo.escolhida ?: return
+        if (dialogo.frameId in _estado.value.gerandoPromptDeVideo) return
+        _estado.update {
+            it.copy(
+                dialogoDeVideo = null,
+                gerandoPromptDeVideo = it.gerandoPromptDeVideo + dialogo.frameId,
+                mensagensDeVideo = it.mensagensDeVideo - dialogo.frameId,
+            )
+        }
         viewModelScope.launch {
-            when (val r = prompts.gerarVideo(dialogo.frameId, dialogo.escolhida, dialogo.comentario)) {
+            when (val r = prompts.gerarVideo(dialogo.frameId, imagemDePartida, dialogo.comentario)) {
                 is ResultadoDaChamada.Sucesso -> _estado.update { atual ->
                     val antes = (atual.videos[dialogo.frameId] as? VideosDoFrame.Pronto)?.lista.orEmpty()
-                    atual.copy(dialogoDeVideo = null, videos = atual.videos + (dialogo.frameId to VideosDoFrame.Pronto(antes + r.dado)))
+                    atual.copy(
+                        gerandoPromptDeVideo = atual.gerandoPromptDeVideo - dialogo.frameId,
+                        videos = atual.videos + (dialogo.frameId to VideosDoFrame.Pronto(antes + r.dado)),
+                        mensagensDeVideo = atual.mensagensDeVideo + (dialogo.frameId to MensagemDoElemento(AVISO_PROMPT_DE_VIDEO_GERADO, false)),
+                    )
                 }
                 is ResultadoDaChamada.Falha -> _estado.update { atual ->
-                    atual.copy(dialogoDeVideo = atual.dialogoDeVideo?.copy(gerando = false, erro = r.motivo))
+                    atual.copy(
+                        gerandoPromptDeVideo = atual.gerandoPromptDeVideo - dialogo.frameId,
+                        mensagensDeVideo = atual.mensagensDeVideo + (dialogo.frameId to MensagemDoElemento(r.motivo, true)),
+                    )
                 }
             }
         }

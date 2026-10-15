@@ -21,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -75,13 +78,27 @@ fun TelaNarracao(aoVoltar: () -> Unit) {
                     if (estado.modelos.isEmpty() && estado.erroDosModelos == null) CircularProgressIndicator()
                     // CF3: os favoritos (a estrela) primeiro, sob o título "Favoritos".
                     val favoritos = rememberFavoritosDeModelos(CategoriaDeModelo.NARRACAO)
-                    val modelosEmOrdem = ordenarComFavoritos(estado.modelos, favoritos.conjunto) { it.id }
+                    // PD12: a busca por nome ou id; a lista de modelos de voz é longa.
+                    var busca by rememberSaveable { mutableStateOf("") }
+                    if (estado.modelos.isNotEmpty()) {
+                        OutlinedTextField(
+                            value = busca,
+                            onValueChange = { busca = it },
+                            label = { Text("Buscar modelo") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    val modelosEmOrdem = ordenarComFavoritos(filtrarModelosDeVoz(estado.modelos, busca), favoritos.conjunto) { it.id }
+                    if (busca.isNotBlank() && modelosEmOrdem.isEmpty() && estado.modelos.isNotEmpty()) {
+                        Text("Nenhum modelo com \"${busca.trim()}\".", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     val quantosFavoritos = quantosSaoFavoritos(modelosEmOrdem, favoritos.conjunto) { it.id }
                     modelosEmOrdem.forEachIndexed { indice, modelo ->
                         if (indice == 0 && quantosFavoritos > 0) TituloDeGrupoDeModelos("Favoritos")
                         if (indice == quantosFavoritos && quantosFavoritos > 0) TituloDeGrupoDeModelos("Outros modelos")
                         OpcaoDaNarracao(
-                            modelo.nome, "${modelo.id} · ${descreverPrecoDoModelo(modelo)}", marcada = modelo.id == estado.edicao.modelo, disponivel = true,
+                            modelo.nome, "${modelo.id} · ${descreverPrecoDoModelo(modelo)} · ${rotuloDoIdiomaDoModelo(modelo)}", marcada = modelo.id == estado.edicao.modelo, disponivel = true,
                             estrela = { EstrelaDeModelo(favoritos.ehFavorito(modelo.id), { favoritos.alternar(modelo.id) }) },
                         ) { viewModel.escolherModelo(modelo) }
                     }

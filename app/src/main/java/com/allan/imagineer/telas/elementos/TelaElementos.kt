@@ -156,7 +156,7 @@ private fun ConteudoDaLista(
                         FilterChip(
                             selected = estado.tipo == tipo,
                             onClick = { viewModel.filtrarPorTipo(tipo) },
-                            label = { Text("${rotuloDoTipo(tipo)} (${todos.count { it.tipo == tipo }})") },
+                            label = { Text(rotuloDoTipo(tipo)) }, // PD11: sem a quantidade de itens do tipo
                         )
                     }
                     FiltroPorCapitulo(estado.capitulosDosElementos, estado.capituloId, viewModel::filtrarPorCapitulo)

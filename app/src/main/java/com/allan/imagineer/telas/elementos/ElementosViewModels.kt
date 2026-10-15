@@ -275,7 +275,7 @@ class FichaDoElementoViewModel(
     // --- editar o elemento -------------------------------------------------------------------
 
     /** Salva **só o que mudou** do elemento (nome, tipo, identidade). */
-    fun salvarElemento(tipo: String, nome: String, identidade: String) {
+    fun salvarElemento(tipo: String, nome: String, identidade: String, vestimenta: String? = null) {
         val ficha = fichaPronta() ?: return
         if (nome.isBlank()) return comErro(ERRO_FICHA_NOME_VAZIO)
         val novoNome = nome.trim()
@@ -283,7 +283,9 @@ class FichaDoElementoViewModel(
         val mudouTipo = tipo != ficha.tipo
         val mudouNome = novoNome != ficha.nome
         val mudouIdentidade = novaIdentidade != ficha.descricao.orEmpty()
-        if (!mudouTipo && !mudouNome && !mudouIdentidade) {
+        // PD9: nulo = o diálogo não edita a roupa (não é personagem); com texto (ou vazio, que apaga), só vai se mudou.
+        val mudouVestimenta = vestimenta != null && vestimenta.trim() != ficha.vestimenta.orEmpty().trim()
+        if (!mudouTipo && !mudouNome && !mudouIdentidade && !mudouVestimenta) {
             cancelarDialogo()
             return
         }
@@ -293,6 +295,7 @@ class FichaDoElementoViewModel(
                 tipo = tipo.takeIf { mudouTipo },
                 nome = novoNome.takeIf { mudouNome },
                 identidade = novaIdentidade.takeIf { mudouIdentidade },
+                vestimenta = vestimenta.takeIf { mudouVestimenta },
             )
         }
     }

@@ -135,11 +135,12 @@ internal class ElementosFalso : RepositorioDeElementos {
         nome: String?,
         identidade: String?,
         ancoraPadraoId: Int?,
+        vestimenta: String?,
     ): ResultadoDaChamada<Unit> {
         if (ancoraPadraoId != null) {
             ancorasPedidas += ancoraPadraoId
         } else {
-            chamadas += "ajustarElemento($elementoId,$tipo,$nome,$identidade)"
+            chamadas += "ajustarElemento($elementoId,$tipo,$nome,$identidade)" + (vestimenta?.let { ",vestimenta=$it" } ?: "")
         }
         return respostaAoAjustarElemento
     }
@@ -253,13 +254,17 @@ class SituacoesDoElementoTest {
     }
 
     @Test
-    fun `LP2 so ver ficha, trocar e desfazer viram icone e as decisoes continuam com texto`() {
+    fun `LP2 e LP8 so confirmar e registrar estado continuam com texto`() {
         val deIcone = AcaoDoElemento.entries.filter(::ehAcaoDeIcone).toSet()
-        assertEquals(setOf(AcaoDoElemento.ABRIR_FICHA, AcaoDoElemento.TROCAR, AcaoDoElemento.DESFAZER), deIcone)
-        // Em nenhuma situação a decisão principal (a primeira da lista, com texto) é um ícone — exceto na confirmada, que não tem decisão.
-        listOf(SituacaoDoElemento.NOVA, SituacaoDoElemento.CASADA_AUTOMATICAMENTE, SituacaoDoElemento.CASADA_SEM_ESTADO).forEach {
-            assertEquals(false, ehAcaoDeIcone(acoesDoElemento(it).first()))
-        }
+        assertEquals(
+            setOf(
+                AcaoDoElemento.ABRIR_FICHA, AcaoDoElemento.TROCAR, AcaoDoElemento.DESFAZER,
+                AcaoDoElemento.CRIAR, AcaoDoElemento.VINCULAR, AcaoDoElemento.DESCARTAR,
+            ),
+            deIcone,
+        )
+        assertEquals(false, ehAcaoDeIcone(AcaoDoElemento.CONFIRMAR))
+        assertEquals(false, ehAcaoDeIcone(AcaoDoElemento.REGISTRAR_ESTADO))
     }
 
     @Test
@@ -269,6 +274,8 @@ class SituacoesDoElementoTest {
         assertEquals("Desfazer a confirmação (desliga do elemento)", dicaDaAcao(AcaoDoElemento.DESFAZER))
         assertEquals("Confirmar", dicaDaAcao(AcaoDoElemento.CONFIRMAR))
         assertEquals("Criar elemento", dicaDaAcao(AcaoDoElemento.CRIAR))
+        assertEquals("Vincular a um existente", dicaDaAcao(AcaoDoElemento.VINCULAR))
+        assertEquals("Descartar a sugestão (dá para restaurar)", dicaDaAcao(AcaoDoElemento.DESCARTAR))
     }
 
     @Test

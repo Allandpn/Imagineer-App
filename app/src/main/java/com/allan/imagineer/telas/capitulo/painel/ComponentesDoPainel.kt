@@ -77,7 +77,7 @@ fun MenuMais(itens: List<ItemDeMenu>, modifier: Modifier = Modifier, descricao: 
  * [aberta] escolhe a seta.
  */
 @Composable
-fun LinhaDeSecao(titulo: String, aberta: Boolean, aoAlternar: () -> Unit, modifier: Modifier = Modifier) {
+fun LinhaDeSecao(titulo: String, aberta: Boolean, aoAlternar: () -> Unit, modifier: Modifier = Modifier, icone: ImageVector? = null) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -86,7 +86,11 @@ fun LinhaDeSecao(titulo: String, aberta: Boolean, aoAlternar: () -> Unit, modifi
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(titulo, style = MaterialTheme.typography.titleSmall)
+        // PD5: o ícone de imagem ou de vídeo à esquerda do título, para distinguir as duas seções de prompts.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            icone?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+            Text(titulo, style = MaterialTheme.typography.titleSmall)
+        }
         Icon(
             if (aberta) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
             contentDescription = null,
@@ -97,8 +101,11 @@ fun LinhaDeSecao(titulo: String, aberta: Boolean, aoAlternar: () -> Unit, modifi
 
 /** O título pequeno de uma seção que não recolhe (PM1): "Imagens". */
 @Composable
-fun TituloDeSecao(titulo: String, modifier: Modifier = Modifier) {
-    Text(titulo, style = MaterialTheme.typography.titleSmall, modifier = modifier.padding(top = 4.dp).semantics { contentDescription = titulo })
+fun TituloDeSecao(titulo: String, modifier: Modifier = Modifier, icone: ImageVector? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.padding(top = 4.dp)) {
+        icone?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(titulo, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { contentDescription = titulo })
+    }
 }
 
 /** O botão de **escolher algo** (PX1): contornado, com o lápis, para não parecer um texto solto. */

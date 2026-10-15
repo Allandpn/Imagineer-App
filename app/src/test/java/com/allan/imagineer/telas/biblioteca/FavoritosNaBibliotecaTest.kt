@@ -104,7 +104,7 @@ class SecoesDaBibliotecaTest {
 
     @Test
     fun `BL1 os titulos das secoes`() {
-        assertEquals("Favoritos (3)", tituloDosFavoritos(3))
+        assertEquals("Favoritos", TITULO_DOS_FAVORITOS) // PD11: sem a quantidade de livros
         assertEquals("Outros livros", TITULO_DOS_OUTROS_LIVROS)
     }
 

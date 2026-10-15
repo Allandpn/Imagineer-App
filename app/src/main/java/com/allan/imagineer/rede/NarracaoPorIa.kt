@@ -22,6 +22,8 @@ data class ModeloDeNarracao(
     /** Dólares por caractere; zero = grátis; nulo = o modelo cobra por token ou por segundo (sem estimativa). */
     val preco_por_caractere: JsonPrimitive? = null,
     val gratuito: Boolean = false,
+    /** Se o modelo fala português (PD12): `true` sim, `false` só inglês, nulo = o catálogo não informa. Um aviso, não uma trava. */
+    val fala_portugues: Boolean? = null,
 )
 
 /** Quanto custa narrar o capítulo, antes de gerar (`GET /capitulos/{id}/audio/estimativa`, NA3). */

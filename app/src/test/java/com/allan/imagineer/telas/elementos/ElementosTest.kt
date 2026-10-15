@@ -290,6 +290,29 @@ class FichaDoElementoViewModelTest {
     }
 
     @Test
+    fun `PD9 editar so a roupa manda so a roupa e rele a ficha`() = runTest {
+        val (vm, falso) = abrir()
+        vm.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ELEMENTO)
+
+        vm.salvarElemento("PERSONAGEM", "Jon", "Bastardo de Winterfell.", vestimenta = " capa de lã preta ")
+        advanceUntilIdle()
+
+        assertEquals(listOf("ajustarElemento(30,null,null,null),vestimenta= capa de lã preta ", "detalhar(30)"), falso.chamadas)
+    }
+
+    @Test
+    fun `PD9 a roupa igual a que ja esta guardada nao manda nada`() = runTest {
+        val (vm, falso) = abrir()
+        vm.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ELEMENTO)
+
+        // o diálogo de um elemento que não é personagem manda `null`: nem mexe na roupa
+        vm.salvarElemento("PERSONAGEM", "Jon", "Bastardo de Winterfell.", vestimenta = null)
+        advanceUntilIdle()
+
+        assertTrue(falso.chamadas.isEmpty())
+    }
+
+    @Test
     fun `editar sem mudar nada so fecha o dialogo`() = runTest {
         val (vm, falso) = abrir()
         vm.abrirDialogo(TipoDeDialogoDaFicha.EDITAR_ELEMENTO)

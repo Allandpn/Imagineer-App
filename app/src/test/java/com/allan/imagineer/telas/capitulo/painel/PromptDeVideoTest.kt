@@ -122,29 +122,56 @@ class PromptDeVideoNoPainelTest {
     }
 
     @Test
-    fun a_recusa_do_servidor_fica_no_dialogo_que_continua_aberto() = runTest {
+    fun a_recusa_do_servidor_aparece_no_recado_do_frame_e_nao_prende_o_dialogo() = runTest {
         val prompts = PromptsFalso().also { it.geracaoDeVideo = ResultadoDaChamada.Falha("A imagem de partida tem de ser uma imagem deste frame.") }
         val vm = vm(prompts)
         vm.abrirDialogoDeVideo(80, "A partida", imagens)
 
         vm.gerarVideo(); advanceUntilIdle()
 
-        val dialogo = vm.estado.value.dialogoDeVideo
-        assertNotNull(dialogo)
-        assertEquals("A imagem de partida tem de ser uma imagem deste frame.", dialogo!!.erro)
-        assertFalse(dialogo.gerando)
+        // PD4: o diálogo já fechou; o erro vai para o recado de vídeo do frame, onde a pessoa o vê, e a espera acabou.
+        assertNull(vm.estado.value.dialogoDeVideo)
+        val recado = vm.estado.value.mensagensDeVideo[80]
+        assertEquals("A imagem de partida tem de ser uma imagem deste frame.", recado?.texto)
+        assertTrue(recado!!.ehErro)
+        assertFalse(80 in vm.estado.value.gerandoPromptDeVideo)
     }
 
     @Test
-    fun nao_gera_duas_vezes_e_nao_fecha_enquanto_gera() = runTest {
+    fun gerar_fecha_o_dialogo_na_hora_e_a_espera_fica_no_frame() = runTest {
+        val vm = vm(PromptsFalso())
+        vm.abrirDialogoDeVideo(80, "A partida", imagens)
+
+        vm.gerarVideo()  // ainda sem a resposta da IA
+
+        // PD4: nada de diálogo preso; a seção Vídeo do frame mostra "Gerando…".
+        assertNull(vm.estado.value.dialogoDeVideo)
+        assertTrue(80 in vm.estado.value.gerandoPromptDeVideo)
+        advanceUntilIdle()
+        assertFalse(80 in vm.estado.value.gerandoPromptDeVideo)
+    }
+
+    @Test
+    fun o_sucesso_avisa_no_frame_e_tira_a_espera() = runTest {
+        val vm = vm(PromptsFalso())
+        vm.abrirDialogoDeVideo(80, "A partida", imagens)
+
+        vm.gerarVideo(); advanceUntilIdle()
+
+        assertEquals(AVISO_PROMPT_DE_VIDEO_GERADO, vm.estado.value.mensagensDeVideo[80]?.texto)
+        assertFalse(vm.estado.value.mensagensDeVideo[80]!!.ehErro)
+    }
+
+    @Test
+    fun nao_gera_duas_vezes_para_o_mesmo_frame() = runTest {
         val prompts = PromptsFalso()
         val vm = vm(prompts)
         vm.abrirDialogoDeVideo(80, "A partida", imagens)
 
         vm.gerarVideo()
-        vm.gerarVideo()
-        vm.fecharDialogoDeVideo()  // gerando: não fecha
-        assertTrue(vm.estado.value.dialogoDeVideo?.gerando == true)
+        vm.gerarVideo()  // o diálogo já fechou: nada a fazer
+        vm.abrirDialogoDeVideo(80, "A partida", imagens)
+        vm.gerarVideo()  // o frame já está gerando: não pede de novo
         advanceUntilIdle()
 
         assertEquals(1, prompts.videosPedidos.size)

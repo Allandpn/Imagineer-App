@@ -148,7 +148,13 @@ fun BotaoDeFavoritoDosAlvos(alvos: List<AlvoDeFavorito>, modifier: Modifier = Mo
  * estrela, porque a estrela do app já é a da imagem canônica.
  */
 @Composable
-fun BotaoDeFavorito(alvo: AlvoDeFavorito, modifier: Modifier = Modifier, cor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary) {
+fun BotaoDeFavorito(
+    alvo: AlvoDeFavorito,
+    modifier: Modifier = Modifier,
+    cor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
+    /** Se informada, é a cor do coração **quando já é favorito** (a barra do capítulo usa a cor do app, pois [cor] ali é a dos outros ícones). */
+    corDeFavorito: androidx.compose.ui.graphics.Color? = null,
+) {
     val controle = LocalFavoritos.current ?: return
     val favorito = controle.de(alvo) != null
     BotaoDeIcone(
@@ -156,6 +162,6 @@ fun BotaoDeFavorito(alvo: AlvoDeFavorito, modifier: Modifier = Modifier, cor: an
         descricao = if (favorito) "Desfavoritar" else "Favoritar",
         aoTocar = { controle.alternar(alvo) },
         modifier = modifier,
-        cor = cor,
+        cor = if (favorito && corDeFavorito != null) corDeFavorito else cor,
     )
 }

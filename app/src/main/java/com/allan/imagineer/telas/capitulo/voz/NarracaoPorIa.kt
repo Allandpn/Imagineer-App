@@ -343,6 +343,10 @@ private fun ConteudoDaVozDeIa(
 ) {
     val gerando = estado.audio?.situacao == SituacaoDoAudio.GERANDO
     val audios = estado.audios
+    // PD13: qual modelo e qual voz estão valendo (e que a próxima narração vai usar), à vista no topo.
+    descreverModeloEmUso(estado.audio?.modelo, estado.audio?.voz)?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     when {
         audios == null && estado.erroDosAudios == null -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         audios == null -> {
@@ -376,6 +380,15 @@ private fun ConteudoDaVozDeIa(
         Text(rotuloDeGerarNarracao(jaTemDeAgora))
     }
     TextButton(onClick = aoConfigurar) { Text("Configurar modelo e voz") }
+}
+
+/**
+ * O modelo e a voz que **valem para este capítulo** (PD13), na folha de ouvir: o que o servidor diz que vale agora (o do livro, se ele trocou, ou
+ * o de Configurações → Narração). `null` sem modelo. Sem voz escolhida, diz "voz padrão do modelo": é a que o servidor usa.
+ */
+fun descreverModeloEmUso(modelo: String?, voz: String?): String? {
+    if (modelo.isNullOrBlank()) return null
+    return "Modelo: $modelo · voz: ${voz?.takeIf { it.isNotBlank() } ?: "padrão do modelo"}"
 }
 
 /** O botão de gerar da folha (AU2): já existindo uma feita com o modelo e a voz de agora, gerar é **refazer** (gasta de novo). */

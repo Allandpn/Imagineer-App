@@ -63,7 +63,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -93,6 +96,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -303,6 +307,37 @@ fun TelaCapitulo(
             rotuloDoFramePendente = abrirRotulo,
             aoAtenderFramePendente = { framePendente = null },
         )
+    }
+}
+
+/**
+ * A barra de cima do capítulo, em **duas linhas** (BC1): em cima, a seta de voltar e o título à esquerda, com a largura toda (até duas
+ * linhas de texto); embaixo, os ícones à direita. Antes o título dividia a linha com seis ícones e, se era grande, quebrava mal.
+ * Respeita a barra de status do aparelho, como a `TopAppBar` fazia.
+ */
+@Composable
+private fun BarraDoCapitulo(titulo: String, aoVoltar: () -> Unit, acoes: @Composable RowScope.() -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = aoVoltar) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                }
+                Text(
+                    titulo,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 16.dp),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+                content = acoes,
+            )
+        }
     }
 }
 
@@ -668,14 +703,10 @@ private fun LeitorPaginado(
         topBar = {
             // Como o botão de IA: some ao rolar para baixo e volta ao rolar para cima (e no topo e no fim do texto).
             AnimatedVisibility(visible = barraVisivel, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                TopAppBar(
-                    title = { Text(titulo) },
-                    navigationIcon = {
-                        IconButton(onClick = aoVoltar) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                        }
-                    },
-                    actions = {
+                BarraDoCapitulo(
+                    titulo = titulo,
+                    aoVoltar = aoVoltar,
+                    acoes = {
                         // AU1: ouvir o capítulo (voz do aparelho ou narrações de IA guardadas).
                         if (capituloDaTela != null) {
                             IconButton(onClick = { folhaDeOuvir = true }) {
@@ -688,6 +719,8 @@ private fun LeitorPaginado(
                                 com.allan.imagineer.telas.favoritos.BotaoDeFavorito(
                                     com.allan.imagineer.rede.AlvoDeFavorito.Capitulo(idDaTela),
                                     cor = androidx.compose.material3.LocalContentColor.current,
+                                    // Favoritado, o coração ganha a cor do app, para se distinguir dos outros ícones da barra.
+                                    corDeFavorito = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }

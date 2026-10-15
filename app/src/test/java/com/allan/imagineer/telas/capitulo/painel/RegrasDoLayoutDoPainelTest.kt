@@ -105,24 +105,16 @@ class RegrasDoLayoutDoPainelTest {
     // PM1 -----------------------------------------------------------------------------------------------------------
 
     @Test
-    fun `PM1 o titulo da secao de prompts diz quantos ha`() {
-        assertEquals("Prompts", tituloDaSecaoDePrompts(0))
-        assertEquals("Prompts (1)", tituloDaSecaoDePrompts(1))
-        assertEquals("Prompts (3)", tituloDaSecaoDePrompts(3))
+    fun `PM1 e PD5 os titulos das secoes de prompt dizem o tipo e quantos ha`() {
+        assertEquals("Prompts de imagem", tituloDaSecaoDePrompts(0))
+        assertEquals("Prompts de imagem (1)", tituloDaSecaoDePrompts(1))
+        assertEquals("Prompts de imagem (3)", tituloDaSecaoDePrompts(3))
+        assertEquals("Prompts de vídeo", tituloDaSecaoDePromptsDeVideo(0))
+        assertEquals("Prompts de vídeo (2)", tituloDaSecaoDePromptsDeVideo(2))
     }
 
     @Test
     fun `PM1 as secoes do frame tem titulo`() {
         assertEquals("Imagens", TITULO_DA_SECAO_DE_IMAGENS)
-    }
-
-    // PM2 -----------------------------------------------------------------------------------------------------------
-
-    @Test
-    fun `PM2 o menu do prompt tem compartilhar, editar e ver em portugues, e nao tem Gerar nem Copiar`() {
-        val rotulos = ItemDoMenuDoPrompt.entries.map { it.rotulo }
-
-        assertEquals(listOf("Compartilhar", "Editar o prompt", "Ver em português"), rotulos)
-        assertFalse("Gerar imagem e Copiar ficam à vista, fora do menu", rotulos.any { it.startsWith("Gerar") || it == "Copiar" })
     }
 }

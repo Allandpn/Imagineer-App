@@ -131,3 +131,7 @@ fun capitulosPorElemento(porCapitulo: List<com.allan.imagineer.rede.CapituloComE
     }
     return resultado
 }
+
+/** A ajuda do campo da roupa na edição do elemento (PD9). */
+const val AJUDA_DA_VESTIMENTA =
+    "A IA a preenche ao gerar o retrato. Vale nas cenas em que o capítulo não diz a roupa. Deixe vazio para apagar."

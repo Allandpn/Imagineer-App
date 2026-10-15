@@ -194,6 +194,11 @@ private fun ConteudoDaFicha(
                         Text("Sem identidade registrada.", style = MaterialTheme.typography.bodyMedium)
                     }
                     inicial?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                    // PD9: a roupa característica (a IA a achou ao gerar o retrato; "Editar" a corrige).
+                    detalhe.vestimenta?.takeIf { it.isNotBlank() }?.let {
+                        Text("Roupa característica", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                        Text(it, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
         }
@@ -385,6 +390,7 @@ private fun DialogoEditarElemento(dialogo: DialogoDaFicha, detalhe: DetalheDoEle
     var tipo by rememberSaveable { mutableStateOf(detalhe.tipo) }
     var nome by rememberSaveable { mutableStateOf(detalhe.nome) }
     var identidade by rememberSaveable { mutableStateOf(detalhe.descricao.orEmpty()) }
+    var vestimenta by rememberSaveable { mutableStateOf(detalhe.vestimenta.orEmpty()) }
     var menuAberto by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -426,11 +432,21 @@ private fun DialogoEditarElemento(dialogo: DialogoDaFicha, detalhe: DetalheDoEle
                     label = { Text("Identidade inicial (quem ou o que é)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // PD9: só personagem veste roupa. A IA preenche ao gerar o retrato; aqui a pessoa corrige (vazio apaga).
+                if (tipo == "PERSONAGEM") {
+                    OutlinedTextField(
+                        value = vestimenta,
+                        onValueChange = { vestimenta = it },
+                        label = { Text("Roupa característica neste livro") },
+                        supportingText = { Text(AJUDA_DA_VESTIMENTA) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 ErroEProgresso(dialogo)
             }
         },
         confirmButton = {
-            TextButton(onClick = { viewModel.salvarElemento(tipo, nome, identidade) }, enabled = !dialogo.salvando) { Text("Salvar") }
+            TextButton(onClick = { viewModel.salvarElemento(tipo, nome, identidade, vestimenta.takeIf { tipo == "PERSONAGEM" }) }, enabled = !dialogo.salvando) { Text("Salvar") }
         },
         dismissButton = {
             TextButton(onClick = viewModel::cancelarDialogo, enabled = !dialogo.salvando) { Text("Cancelar") }

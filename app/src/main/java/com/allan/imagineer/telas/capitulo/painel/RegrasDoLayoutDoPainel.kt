@@ -61,15 +61,11 @@ fun acaoPrincipalDaCena(cena: CenaSugerida): AcaoDaCena? =
 // O cartão de prompt e as seções (PM1, PM2, PX1)
 // ---------------------------------------------------------------------------------------------------------------- //
 
-/** Os itens do ⋮ do cartão de prompt (PM2). Gerar imagem e Copiar ficam à vista. */
-enum class ItemDoMenuDoPrompt(val rotulo: String) {
-    COMPARTILHAR("Compartilhar"),
-    EDITAR("Editar o prompt"),
-    VER_EM_PORTUGUES("Ver em português"),
-}
+/** O título da seção dos prompts de **imagem** (PM1, PD5): "Prompts de imagem" sem nenhum, "Prompts de imagem (3)" com três. */
+fun tituloDaSecaoDePrompts(quantos: Int): String = if (quantos <= 0) "Prompts de imagem" else "Prompts de imagem ($quantos)"
 
-/** O título da seção dos prompts (PM1): "Prompts" sem nenhum, "Prompts (3)" com três. */
-fun tituloDaSecaoDePrompts(quantos: Int): String = if (quantos <= 0) "Prompts" else "Prompts ($quantos)"
+/** O título da seção dos prompts de **vídeo** (PD5), no mesmo formato da dos de imagem. */
+fun tituloDaSecaoDePromptsDeVideo(quantos: Int): String = if (quantos <= 0) "Prompts de vídeo" else "Prompts de vídeo ($quantos)"
 
 /** Os títulos das seções do corpo de um frame (PM1). */
 const val TITULO_DA_SECAO_DE_IMAGENS = "Imagens"

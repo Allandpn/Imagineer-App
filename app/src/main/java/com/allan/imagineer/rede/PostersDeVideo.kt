@@ -17,35 +17,56 @@ import java.io.IOException
 fun proporcaoDoQuadro(largura: Int, altura: Int): Float? = if (largura > 0 && altura > 0) largura.toFloat() / altura else null
 
 /**
+ * O nome do arquivo do primeiro quadro de um vídeo (PD7). O número do vídeo vale **por servidor**: o PC e o Raspberry Pi, por exemplo,
+ * têm cada um o seu "vídeo 1". Guardar só pelo número devolvia o quadro de **outro** vídeo para quem já falou com mais de um servidor, e a
+ * miniatura do vídeo novo saía igual à do primeiro importado em outro lugar. Por isso o nome leva o identificador do servidor.
+ */
+fun nomeDoPoster(identificadorDoServidor: String, videoId: Int): String = "poster_${identificadorDoServidor}_$videoId.jpg"
+
+/** Um arquivo `poster_{número}.jpg`, do tempo em que o nome não dizia o servidor: não dá para saber de qual vídeo ele é, então se descarta (PD7). */
+fun ehPosterSemServidor(nomeDoArquivo: String): Boolean = Regex("poster_\\d+\\.jpg").matches(nomeDoArquivo)
+
+/**
  * Tira, guarda e entrega o **primeiro quadro** de cada vídeo. O servidor não gera miniatura de vídeo (não há `ffmpeg` no contêiner), então
- * o aparelho baixa o vídeo **uma vez**, tira o quadro, guarda como `poster_{id}.jpg` no cache e apaga o vídeo baixado: da segunda vez em
+ * o aparelho baixa o vídeo **uma vez**, tira o quadro, guarda como `poster_{servidor}_{id}.jpg` no cache e apaga o vídeo baixado: da segunda vez em
  * diante lê só o JPEG. Os que acabaram de ser lidos ficam também na memória.
  */
 class PostersDeVideo(
     private val provedor: ProvedorDeApi,
     private val pasta: File,
 ) {
-    private val memoria = LruCache<Int, Bitmap>(12)
+    private val memoria = LruCache<String, Bitmap>(12)
 
     /** Uma extração por vez: dois quadros do mesmo vídeo (ou vários vídeos) não baixam ao mesmo tempo. */
     private val trava = Mutex()
 
+    /** Os quadros do tempo em que o nome não dizia o servidor só são apagados uma vez por abertura do app (PD7). */
+    private var limpouOsAntigos = false
+
     /** O primeiro quadro do vídeo [videoId], ou `null` se não deu (sem conexão, vídeo sem imagem legível...). */
     suspend fun obter(videoId: Int): Bitmap? {
-        memoria.get(videoId)?.let { return it }
+        val servidor = provedor.emUso() ?: return null
+        val chave = nomeDoPoster(servidor.chave.identificador, videoId)
+        memoria.get(chave)?.let { return it }
         return trava.withLock {
-            memoria.get(videoId)?.let { return@withLock it }
+            memoria.get(chave)?.let { return@withLock it }
             withContext(Dispatchers.IO) {
-                val guardado = File(pasta, "poster_$videoId.jpg")
-                lerDoDisco(guardado) ?: extrair(videoId, guardado)
-            }?.also { memoria.put(videoId, it) }
+                limparOsAntigosUmaVez()
+                val guardado = File(pasta, chave)
+                lerDoDisco(guardado) ?: extrair(servidor.api, videoId, guardado)
+            }?.also { memoria.put(chave, it) }
         }
+    }
+
+    private fun limparOsAntigosUmaVez() {
+        if (limpouOsAntigos) return
+        limpouOsAntigos = true
+        pasta.listFiles()?.filter { ehPosterSemServidor(it.name) }?.forEach { it.delete() }
     }
 
     private fun lerDoDisco(arquivo: File): Bitmap? = if (arquivo.isFile) BitmapFactory.decodeFile(arquivo.path) else null
 
-    private suspend fun extrair(videoId: Int, destino: File): Bitmap? {
-        val api = provedor.obter() ?: return null
+    private suspend fun extrair(api: ApiImagineer, videoId: Int, destino: File): Bitmap? {
         pasta.mkdirs()
         val baixado = File(pasta, "baixando_$videoId.mp4")
         return try {
