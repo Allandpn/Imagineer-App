@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.livro
 
+import androidx.compose.material3.LocalContentColor
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.telas.comum.MarcaDeLido
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -25,11 +27,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -140,9 +140,7 @@ fun BarraDeSelecao(
         // Só o número, numa linha: "Nenhum selecionado" quebrava o texto.
         title = { Text(selecao.ids.size.toString(), maxLines = 1) },
         navigationIcon = {
-            IconButton(onClick = aoCancelar, enabled = !selecao.executando) {
-                Icon(Icons.Filled.Close, contentDescription = "Cancelar seleção")
-            }
+            BotaoDeIcone(Icons.Filled.Close, "Cancelar seleção", aoCancelar, habilitado = !selecao.executando, cor = LocalContentColor.current)
         },
         actions = {
             if (selecao.executando) {
@@ -151,18 +149,8 @@ fun BarraDeSelecao(
                 }
             } else {
                 // Ícones: o que cada um faz fica na descrição (leitor de tela).
-                IconButton(onClick = aoAlternarTodos) {
-                    Icon(
-                        if (todosMarcados) Icons.Filled.Deselect else Icons.Filled.SelectAll,
-                        contentDescription = if (todosMarcados) "Desmarcar todos" else "Selecionar todos",
-                    )
-                }
-                IconButton(onClick = aoConfirmar, enabled = selecao.ids.isNotEmpty()) {
-                    Icon(
-                        if (rotuloDaAcao == "Arquivar") Icons.Filled.Archive else Icons.Filled.Unarchive,
-                        contentDescription = "$rotuloDaAcao (${selecao.ids.size})",
-                    )
-                }
+                BotaoDeIcone(if (todosMarcados) Icons.Filled.Deselect else Icons.Filled.SelectAll, if (todosMarcados) "Desmarcar todos" else "Selecionar todos", aoAlternarTodos, cor = LocalContentColor.current)
+                BotaoDeIcone(if (rotuloDaAcao == "Arquivar") Icons.Filled.Archive else Icons.Filled.Unarchive, "$rotuloDaAcao (${selecao.ids.size})", aoConfirmar, habilitado = selecao.ids.isNotEmpty(), cor = LocalContentColor.current)
             }
         },
     )

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.LocalContentColor
 import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.rede.ResultadoDaChamada
 import com.allan.imagineer.rede.Traducao
@@ -66,7 +67,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -1255,7 +1255,7 @@ internal fun BlocoDePrompts(
             null, PromptsDoFrame.Lendo -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             is PromptsDoFrame.Erro -> {
                 Text(conteudo.motivo, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                OutlinedButton(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
+                Button(onClick = { acoes.aoRecarregarPrompts(frameId) }) { Text("Tentar de novo") }
             }
             is PromptsDoFrame.Pronto -> {
                 if (conteudo.lista.isEmpty()) {
@@ -1816,9 +1816,7 @@ private fun ResultadoDoLote(estado: EstadoDoPainel, acoes: AcoesDoPainel) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(resumo, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = acoes.aoDispensarResultadoDoLote) {
-                    Icon(Icons.Filled.Close, contentDescription = "Dispensar o resumo")
-                }
+                BotaoDeIcone(Icons.Filled.Close, "Dispensar o resumo", acoes.aoDispensarResultadoDoLote, cor = LocalContentColor.current)
             }
         }
     }

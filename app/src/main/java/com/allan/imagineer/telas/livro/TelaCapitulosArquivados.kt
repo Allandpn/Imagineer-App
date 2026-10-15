@@ -1,6 +1,8 @@
 package com.allan.imagineer.telas.livro
 
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material3.LocalContentColor
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 import com.allan.imagineer.telas.comum.HostDeAvisos
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -22,11 +24,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -114,20 +113,14 @@ fun ConteudoDosArquivados(
                 TopAppBar(
                     title = { Text("Arquivados") },
                     navigationIcon = {
-                        IconButton(onClick = aoVoltar) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
-                        }
+                        BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current)
                     },
                     actions = {
                         // Arquivar mais capítulos: volta à lista do livro já no modo de seleção para arquivar.
-                        IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }) {
-                            Icon(Icons.Filled.Archive, contentDescription = "Arquivar capítulos")
-                        }
+                        BotaoDeIcone(Icons.Filled.Archive, "Arquivar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }, cor = LocalContentColor.current)
                         // O botão só faz sentido se há capítulos arquivados para restaurar.
                         if (estado is EstadoDoLivro.Pronto && estado.livro.capitulos.any { it.ignorado }) {
-                            IconButton(onClick = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }) {
-                                Icon(Icons.Filled.Unarchive, contentDescription = "Restaurar capítulos")
-                            }
+                            BotaoDeIcone(Icons.Filled.Unarchive, "Restaurar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }, cor = LocalContentColor.current)
                         }
                     },
                 )

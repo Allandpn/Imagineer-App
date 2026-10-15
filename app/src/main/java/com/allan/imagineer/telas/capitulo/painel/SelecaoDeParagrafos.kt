@@ -1,6 +1,7 @@
 package com.allan.imagineer.telas.capitulo.painel
 
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -22,8 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Deselect
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -34,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.allan.imagineer.telas.capitulo.BlocoDoTexto
 import com.allan.imagineer.telas.capitulo.ParagrafoDoTexto
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 // A seleção por parágrafo (LV4): o item "Marcar parágrafo" do menu da seleção de texto liga o modo; no modo, o toque simples soma ou tira,
 // e uma barra de ícones aparece embaixo. (Antes era o toque longo, que disputava com a seleção de texto e a fazia sumir.)
@@ -120,10 +120,10 @@ internal fun BarraDeParagrafos(
         modifier = modifier,
     ) {
         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
-            IconButton(onClick = aoCopiar) { Icon(IconesDaSelecao.copiar, contentDescription = "Copiar texto") }
-            IconButton(onClick = aoGerarPrompt) { Icon(IconesDaSelecao.gerarPrompt, contentDescription = ROTULO_GERAR_IMAGEM_DO_TRECHO) }
+            BotaoDeIcone(IconesDaSelecao.copiar, "Copiar texto", aoCopiar, cor = LocalContentColor.current)
+            BotaoDeIcone(IconesDaSelecao.gerarPrompt, ROTULO_GERAR_IMAGEM_DO_TRECHO, aoGerarPrompt, cor = LocalContentColor.current)
             com.allan.imagineer.telas.favoritos.BotaoDeFavoritoDosAlvos(paraFavoritar, cor = MaterialTheme.colorScheme.inverseOnSurface)
-            IconButton(onClick = aoVoltarAoNormal) { Icon(IconesDaSelecao.voltarAoNormal, contentDescription = "Voltar ao normal") }
+            BotaoDeIcone(IconesDaSelecao.voltarAoNormal, "Voltar ao normal", aoVoltarAoNormal, cor = LocalContentColor.current)
         }
     }
 }

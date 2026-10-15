@@ -1,5 +1,7 @@
 package com.allan.imagineer.telas.menu
 
+import com.allan.imagineer.telas.comum.BotaoDeIcone
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,7 +79,7 @@ fun TelaDicionarios(aoVoltar: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text("Dicionários") },
-                navigationIcon = { IconButton(onClick = aoVoltar) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar") } },
+                navigationIcon = { BotaoDeIcone(Icons.AutoMirrored.Filled.ArrowBack, "Voltar", aoVoltar, cor = LocalContentColor.current) },
             )
         },
     ) { margens ->

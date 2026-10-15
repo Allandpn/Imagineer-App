@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.TextDecrease
+import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +37,7 @@ import com.allan.imagineer.dados.MargemDeLeitura
 import com.allan.imagineer.dados.PreferenciasDeLeitura
 import com.allan.imagineer.dados.TemaDeLeitura
 import com.allan.imagineer.dados.esquemaDeLeitura
+import com.allan.imagineer.telas.comum.BotaoDeIcone
 
 // A folha "Aa" do capítulo (RL1 a RL8): cada mudança vale na hora e fica guardada.
 
@@ -89,9 +95,9 @@ fun FolhaDeLeitura(preferencias: PreferenciasDeLeitura, aoMudar: (PreferenciasDe
             Text("Leitura", style = MaterialTheme.typography.titleLarge)
 
             Linha("Letra") {
-                TextButton(onClick = { aoMudar(preferencias.menosLetra()) }, enabled = preferencias.tamanho > PreferenciasDeLeitura.TAMANHO_MINIMO) { Text("A−") }
+                BotaoDeIcone(Icons.Filled.TextDecrease, "Diminuir a letra", { aoMudar(preferencias.menosLetra()) }, habilitado = preferencias.tamanho > PreferenciasDeLeitura.TAMANHO_MINIMO)
                 Text("${preferencias.tamanho}%", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = { aoMudar(preferencias.maisLetra()) }, enabled = preferencias.tamanho < PreferenciasDeLeitura.TAMANHO_MAXIMO) { Text("A+") }
+                BotaoDeIcone(Icons.Filled.TextIncrease, "Aumentar a letra", { aoMudar(preferencias.maisLetra()) }, habilitado = preferencias.tamanho < PreferenciasDeLeitura.TAMANHO_MAXIMO)
             }
             Linha("Família") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -101,9 +107,9 @@ fun FolhaDeLeitura(preferencias: PreferenciasDeLeitura, aoMudar: (PreferenciasDe
                 }
             }
             Linha("Entrelinha") {
-                TextButton(onClick = { aoMudar(preferencias.menosEntrelinha()) }, enabled = preferencias.entrelinha > PreferenciasDeLeitura.ENTRELINHA_MINIMA) { Text("−") }
+                BotaoDeIcone(Icons.Filled.Remove, "Diminuir a entrelinha", { aoMudar(preferencias.menosEntrelinha()) }, habilitado = preferencias.entrelinha > PreferenciasDeLeitura.ENTRELINHA_MINIMA)
                 Text(String.format(java.util.Locale.forLanguageTag("pt-BR"), "%.1f", preferencias.entrelinha), style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = { aoMudar(preferencias.maisEntrelinha()) }, enabled = preferencias.entrelinha < PreferenciasDeLeitura.ENTRELINHA_MAXIMA) { Text("+") }
+                BotaoDeIcone(Icons.Filled.Add, "Aumentar a entrelinha", { aoMudar(preferencias.maisEntrelinha()) }, habilitado = preferencias.entrelinha < PreferenciasDeLeitura.ENTRELINHA_MAXIMA)
             }
             Linha("Margens") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
