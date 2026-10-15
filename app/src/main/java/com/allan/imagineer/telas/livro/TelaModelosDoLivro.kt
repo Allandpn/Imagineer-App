@@ -43,6 +43,8 @@ import com.allan.imagineer.telas.menu.EstrelaDeModelo
 import com.allan.imagineer.telas.menu.TelaDoMenu
 import com.allan.imagineer.telas.menu.TituloDeGrupoDeModelos
 import com.allan.imagineer.telas.menu.ordenarComFavoritos
+import com.allan.imagineer.telas.menu.ehModeloEmLote
+import androidx.compose.ui.draw.alpha
 import com.allan.imagineer.telas.menu.quantosSaoFavoritos
 import com.allan.imagineer.telas.menu.rememberFavoritosDeModelos
 
@@ -143,11 +145,12 @@ private fun ListaDeOpcoes(tarefa: TarefaDoLivro, opcoes: List<OpcaoDeEscolha>, a
         ordenadas.forEachIndexed { indice, opcao ->
             if (indice == quantosFavoritos && quantosFavoritos > 0) item(key = "titulo-outros") { TituloDeGrupoDeModelos("Outros") }
             item(key = opcao.id) {
+                val emLote = ehModeloEmLote(opcao.id)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f).clickable(enabled = !salvando) { aoEscolher(opcao.id) }.padding(vertical = 8.dp)) {
+                    Column(modifier = Modifier.weight(1f).clickable(enabled = !salvando && !emLote) { aoEscolher(opcao.id) }.alpha(if (emLote) 0.38f else 1f).padding(vertical = 8.dp)) {
                         Text(opcao.titulo, style = MaterialTheme.typography.bodyMedium, fontWeight = if (opcao.id == atual) FontWeight.Bold else FontWeight.Normal)
                         Text(
-                            listOf(opcao.detalhe, if (opcao.id == atual) "neste livro" else null).filterNotNull().filter { it.isNotBlank() }.joinToString(" · "),
+                            listOf(opcao.detalhe, if (emLote) "em lote: indisponível" else null, if (opcao.id == atual) "neste livro" else null).filterNotNull().filter { it.isNotBlank() }.joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -40,15 +40,24 @@ fun alternarFavorito(favoritos: Set<String>, id: String): Set<String> =
 
 /**
  * Os [itens] com os **favoritos primeiro** (CF3), cada grupo na ordem em que já estava. Um modelo aparece em um lugar só. [id] diz o
- * id de cada item.
+ * id de cada item. Os modelos **em lote** ([ehModeloEmLote]) vão sempre **no fim**, mesmo favoritados: não servem para as chamadas
+ * do app e aparecem desabilitados.
  */
 fun <T> ordenarComFavoritos(itens: List<T>, favoritos: Set<String>, id: (T) -> String): List<T> {
-    val (dosFavoritos, outros) = itens.partition { id(it) in favoritos }
-    return dosFavoritos + outros
+    val (emLote, usaveis) = itens.partition { ehModeloEmLote(id(it)) }
+    val (dosFavoritos, outros) = usaveis.partition { id(it) in favoritos }
+    return dosFavoritos + outros + emLote
 }
 
-/** Quantos dos [itens] são favoritos: onde a lista vira "Outros". */
-fun <T> quantosSaoFavoritos(itens: List<T>, favoritos: Set<String>, id: (T) -> String): Int = itens.count { id(it) in favoritos }
+/** Quantos dos [itens] são favoritos (e usáveis): onde a lista vira "Outros". */
+fun <T> quantosSaoFavoritos(itens: List<T>, favoritos: Set<String>, id: (T) -> String): Int =
+    itens.count { id(it) in favoritos && !ehModeloEmLote(id(it)) }
+
+/**
+ * O modelo em lote (`…:batch`, na metade do preço) responde só depois, por outra rota: o OpenRouter recusa com 404 na rota de chat que
+ * o app usa. Por isso a lista o mostra, mas desabilitado.
+ */
+fun ehModeloEmLote(id: String): Boolean = id.endsWith(":batch", ignoreCase = true)
 
 /** Os favoritos de uma categoria, para a tela: o conjunto e como marcar ou desmarcar um modelo. */
 class FavoritosDeModelos(val conjunto: Set<String>, val alternar: (String) -> Unit) {

@@ -52,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -286,13 +287,15 @@ private fun DialogoDeEscolhaDeModelo(tarefa: TarefaDeTexto, config: com.allan.im
                             modelos.forEachIndexed { indice, modelo ->
                                 if (indice == quantosFavoritos && quantosFavoritos > 0) item(key = "titulo-outros") { TituloDeGrupoDeModelos("Outros modelos") }
                                 item(key = modelo.id) {
+                                    val emLote = ehModeloEmLote(modelo.id)
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Column(
-                                            modifier = Modifier.weight(1f).clickable(enabled = !estado.salvando) { viewModel.escolher(tarefa, modelo.id) }.padding(vertical = 8.dp),
+                                            modifier = Modifier.weight(1f).clickable(enabled = !estado.salvando && !emLote) { viewModel.escolher(tarefa, modelo.id) }
+                                                .alpha(if (emLote) 0.38f else 1f).padding(vertical = 8.dp),
                                         ) {
                                             Text(modelo.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = if (modelo.id == atual) FontWeight.Bold else FontWeight.Normal)
                                             Text(
-                                                listOfNotNull(modelo.id, precoDoModelo(modelo), if (modelo.moderado) "moderado" else null, if (modelo.id == atual) "em uso" else null).joinToString(" · "),
+                                                listOfNotNull(modelo.id, precoDoModelo(modelo), if (modelo.moderado) "moderado" else null, if (emLote) "em lote: indisponível" else null, if (modelo.id == atual) "em uso" else null).joinToString(" · "),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
