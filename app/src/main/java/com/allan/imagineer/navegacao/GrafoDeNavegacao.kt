@@ -286,7 +286,7 @@ fun GrafoDeNavegacao() {
                 abrirRotulo = destino.abrirRotulo,
                 abrirPainel = destino.abrirPainel,
                 aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
-                aoAbrirModelosDeIa = { if (entrada.estaNaFrente()) controle.navigate(ModelosDeIa) },
+                aoAbrirModelosDeIa = { livroId -> if (entrada.estaNaFrente()) controle.navigate(ModelosDoLivro(livroId)) },
                 aoAbrirNarracao = { if (entrada.estaNaFrente()) controle.navigate(Narracao) },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->

@@ -259,7 +259,7 @@ fun TelaCapitulo(
     /** Abre a pesquisa (LV5): o livro e o capítulo de onde se pesquisa. */
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit = { _, _ -> },
     /** Abre a tela de Modelos de IA (botão do painel de IA). */
-    aoAbrirModelosDeIa: () -> Unit = {},
+    aoAbrirModelosDeIa: (livroId: Int) -> Unit = {},
     /** Abre Configurações → Narração (a folha do fone, item 7.5g, AU2). */
     aoAbrirNarracao: () -> Unit = {},
 ) {
@@ -353,7 +353,7 @@ private fun LeitorPaginado(
     posicaoPendente: Int?,
     aoAtenderPosicao: () -> Unit,
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
-    aoAbrirModelosDeIa: () -> Unit,
+    aoAbrirModelosDeIa: (livroId: Int) -> Unit,
     aoAbrirNarracao: () -> Unit,
     /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
     modoDireto: Boolean,
@@ -638,7 +638,7 @@ private fun LeitorPaginado(
         aoAbrirImagemExistente = painel::abrirImagemExistente,
         aoFecharImagemExistente = painel::fecharImagemExistente,
         aoUsarImagemExistente = painel::usarImagemExistente,
-        aoAbrirModelosDeIa = aoAbrirModelosDeIa,
+        aoAbrirModelosDeIa = { livroDoCapitulo?.let(aoAbrirModelosDeIa) },
         aoAbrirCenaDeTrecho = painel::abrirModalDeFrame,
         aoCarregarVideos = painel::carregarVideos,
         aoAbrirDialogoDeVideo = painel::abrirDialogoDeVideo,
