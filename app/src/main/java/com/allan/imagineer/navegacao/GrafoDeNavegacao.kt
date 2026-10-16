@@ -48,8 +48,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.allan.imagineer.ImagineerApp
-import com.allan.imagineer.telas.AcaoProvisoria
-import com.allan.imagineer.telas.TelaProvisoria
 import com.allan.imagineer.telas.biblioteca.DestinoNoLivro
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
@@ -309,26 +307,6 @@ fun GrafoDeNavegacao() {
                         controle.navigate(Capitulo(ocorrencia.capitulo_id, irParaPosicao = ocorrencia.inicio_do_paragrafo))
                     }
                 },
-            )
-        }
-        composable<Frame> { entrada ->
-            val destino = entrada.toRoute<Frame>()
-            TelaProvisoria(
-                titulo = "Frame ${destino.frameId}",
-                descricao = "Retrato ou cena, com os elementos ligados (item 7.6).",
-                acoes = listOf(
-                    AcaoProvisoria("Gerar um prompt") { controle.navigate(Prompt(frameId = destino.frameId)) },
-                ),
-                aoVoltar = { controle.popBackStack() },
-            )
-        }
-        composable<Prompt> { entrada ->
-            val destino = entrada.toRoute<Prompt>()
-            val qual = destino.promptId?.let { "prompt existente $it" } ?: "prompt novo"
-            TelaProvisoria(
-                titulo = "Prompt",
-                descricao = "Frame ${destino.frameId}, $qual (item 7.7).",
-                aoVoltar = { controle.popBackStack() },
             )
         }
         composable<ElementosDoLivro> { entrada ->

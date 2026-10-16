@@ -42,17 +42,6 @@ data class Capitulo(
 @Serializable
 data class Pesquisa(val livroId: Int, val capituloId: Int? = null)
 
-/** Um frame, retrato ou cena (item 7.6). */
-@Serializable
-data class Frame(val frameId: Int)
-
-/**
- * O prompt de um frame (item 7.7). [promptId] é nulo ao gerar um prompt novo e
- * preenchido ao abrir um prompt já existente do histórico.
- */
-@Serializable
-data class Prompt(val frameId: Int, val promptId: Int? = null)
-
 /** As cenas de um livro, por capítulo (LY8). */
 @Serializable
 data class CenasDoLivro(val livroId: Int)
