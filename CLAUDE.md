@@ -51,6 +51,19 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - Mensagens de erro para o usuário ficam escritas na camada que as cria.
 - Não há mais telas provisórias. O que o item 7.6 (Frame) e o 7.7 (Prompt) previam vive no painel de IA do capítulo (7.5b a 7.5h).
 
+## Versão final (APK assinado)
+- Instalada no tablet em 15/10/2026 (versão 1.0, `versionCode` 1), assinada com keystore própria.
+- A keystore e a senha ficam **fora do repositório**: arquivo em `C:\Users\allan\ImagineerChaves\imagineer.jks` e as
+  propriedades `IMAGINEER_KEYSTORE_ARQUIVO`, `_ALIAS` e `_SENHA` em `~/.gradle/gradle.properties`. O `app/build.gradle.kts`
+  só lê essas propriedades; sem elas o release sai sem assinar. Nunca ler nem exibir a senha. Allan guarda a cópia no cofre.
+- **Nova versão:** (1) suba `versionCode` (+1) e `versionName` em `app/build.gradle.kts`; (2) `./gradlew testDebugUnitTest`;
+  (3) `./gradlew assembleRelease`; (4) o APK sai em `app/build/outputs/apk/release/app-release.apk`; (5) instale com
+  `adb -s <serial> install -r <apk>` (o `-r` mantém os dados; **não desinstalar**); (6) commit da mudança de versão, e push só se
+  o Allan pedir. O `adb` fica em `%LOCALAPPDATA%\Android\Sdk\platform-tools`.
+- Se `adb install -r` recusar por assinatura diferente, é sinal de chave errada (ou do APK de depuração antigo): parar e avisar,
+  porque desinstalar apaga os livros baixados para ler offline.
+- `./gradlew installDebug` segue servindo para testes, mas **não instala por cima** do release (chaves diferentes).
+
 ## Testes
 - Unitários em `app/src/test`, espelhando os pacotes (JUnit4, coroutines-test, MockWebServer).
 - Todo ViewModel novo ou alterado precisa de teste. `androidTest` ainda só tem o exemplo padrão.
