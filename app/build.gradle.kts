@@ -21,8 +21,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // A assinatura da versão final: o arquivo e a senha ficam FORA do repositório (em ~/.gradle/gradle.properties).
+    // Sem essas propriedades, o release sai sem assinar e o build continua funcionando.
+    val arquivoDaChave = providers.gradleProperty("IMAGINEER_KEYSTORE_ARQUIVO").orNull
+    signingConfigs {
+        if (arquivoDaChave != null) {
+            create("final") {
+                storeFile = file(arquivoDaChave)
+                storePassword = providers.gradleProperty("IMAGINEER_KEYSTORE_SENHA").get()
+                keyAlias = providers.gradleProperty("IMAGINEER_KEYSTORE_ALIAS").get()
+                keyPassword = providers.gradleProperty("IMAGINEER_KEYSTORE_SENHA").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("final")
             optimization {
                 enable = false
             }
