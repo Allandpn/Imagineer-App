@@ -1210,6 +1210,7 @@ private fun LeitorDeTexto(
                 if (bloco != null) marcados = marcados + indicesDoBloco(bloco)
                 else android.widget.Toast.makeText(contextoDoDestaque, "Não achei esse parágrafo no texto.", android.widget.Toast.LENGTH_SHORT).show()
             },
+            aoSelecionarTudo = { marcados = blocos.flatMap { indicesDoBloco(it) }.toSet() },
             aoDestacarTrecho = { trecho ->
                 val lugar = localizarTrecho(trechos, trecho)
                 if (lugar != null) aoDestacar(lugar)

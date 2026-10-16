@@ -22,7 +22,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.data.TextContextMenuKeys
 import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
+import androidx.compose.foundation.text.contextmenu.modifier.filterTextContextMenuComponents
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -59,19 +61,26 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, aoSelecionarTudo: () -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
     val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
     val aoConsultar by rememberUpdatedState(aoConsultarDicionario)
     val aoMarcar by rememberUpdatedState(aoMarcarParagrafo)
+    val aoSelecionarTodos by rememberUpdatedState(aoSelecionarTudo)
     Box(
-        modifier = Modifier.appendTextContextMenuComponents {
+        // O "Selecionar tudo" nativo só alcança os parágrafos que a lista mantém na tela (o parágrafo e uns poucos vizinhos): sai do menu
+        // e entra o nosso, que marca o capítulo inteiro (LV4).
+        modifier = Modifier.filterTextContextMenuComponents { it.key != TextContextMenuKeys.SelectAllKey }.appendTextContextMenuComponents {
             separator()
             item(key = ChaveDeGerarImagemDoTrecho, label = ROTULO_GERAR_IMAGEM_DO_TRECHO) {
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoGerar(trecho) }
+            }
+            item(key = ChaveDeSelecionarTudo, label = ROTULO_SELECIONAR_TUDO) {
+                close()
+                aoSelecionarTodos()
             }
             // RL9: o mesmo caminho (copiar e ler o trecho), agora para grifar o trecho no texto.
             item(key = ChaveDeDestacarTrecho, label = ROTULO_DESTACAR_TRECHO) {
@@ -113,6 +122,11 @@ private object ChaveDeDestacarTrecho
 private object ChaveDeConsultarDicionario
 
 private object ChaveDeMarcarParagrafo
+
+private object ChaveDeSelecionarTudo
+
+/** O item do menu da seleção que marca todos os parágrafos do capítulo. */
+const val ROTULO_SELECIONAR_TUDO = "Selecionar tudo"
 
 /** O item do menu da seleção que entra no modo de marcar parágrafos (LV4). */
 const val ROTULO_MARCAR_PARAGRAFO = "Marcar parágrafo"
