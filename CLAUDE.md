@@ -49,7 +49,7 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - "Arquivado" é só o vocabulário da tela para o campo `ignorado` da API.
 - Toda dependência de rede ou dados nova ganha interface, para testar com um falso.
 - Mensagens de erro para o usuário ficam escritas na camada que as cria.
-- Telas ainda provisórias (`TelaProvisoria`): Frame, Prompt, Elementos, Perfis.
+- Telas ainda provisórias (`TelaProvisoria`): Frame e Prompt.
 
 ## Testes
 - Unitários em `app/src/test`, espelhando os pacotes (JUnit4, coroutines-test, MockWebServer).
