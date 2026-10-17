@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.FactCheck
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -353,6 +354,8 @@ internal fun ImagemEmTelaCheia(
     cenaParaFavoritar: Int? = null,
     /** "Conferir com a lista" (item 4.9, AP7): só numa imagem de cena cujo prompt tem a lista do que deveria aparecer; `null` = sem o botão. */
     aoConferir: (() -> Unit)? = null,
+    /** "Posicionar no texto" (item 7.5b, I14): só na imagem ampliada a partir do capítulo; `null` = sem o botão. */
+    aoPosicionar: (() -> Unit)? = null,
 ) {
     var escala by remember { mutableFloatStateOf(1f) }
     var deslocamento by remember { mutableStateOf(Offset.Zero) }
@@ -456,6 +459,7 @@ internal fun ImagemEmTelaCheia(
                 aoConferir?.let { IconeDaBarra(Icons.Filled.FactCheck, ROTULO_CONFERIR_COM_A_LISTA, "Conferir", onClick = it) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
                 aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
+                aoPosicionar?.let { IconeDaBarra(Icons.Filled.Place, ROTULO_POSICIONAR, "Posicionar", onClick = it) }
                 // RL36: favoritar a imagem (só onde há favoritos do livro). Coração, porque a estrela daqui é a da canônica.
                 com.allan.imagineer.telas.favoritos.LocalFavoritos.current?.let { favoritos ->
                     val alvo = com.allan.imagineer.rede.AlvoDeFavorito.Imagem(imagem.id)

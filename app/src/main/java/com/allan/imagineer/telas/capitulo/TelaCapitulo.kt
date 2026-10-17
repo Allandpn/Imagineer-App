@@ -1394,6 +1394,8 @@ private fun LeitorDeTexto(
                 // O perfil de quem a imagem ilustra: o elemento (ficha) ou a cena (o modal dela).
                 aoVerPerfil = if (artefato.sugestao_id != null || artefato.frame_id != null) ({ aoVerPerfilDoArtefato(artefato); ampliada = null }) else null,
                 cenaParaFavoritar = artefato.frame_id.takeIf { artefato.tipo == "CENA" },
+                // I14: posicionar a imagem no texto (o mesmo modo "toque no parágrafo" do ícone de localização).
+                aoPosicionar = if (artefato.sugestao_id != null || artefato.frame_id != null) ({ aoIniciarPosicionamento(artefato); ampliada = null }) else null,
             )
         }
     }
