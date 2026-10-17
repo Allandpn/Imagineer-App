@@ -50,6 +50,7 @@ import androidx.navigation.toRoute
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.telas.biblioteca.DestinoNoLivro
 import com.allan.imagineer.telas.biblioteca.TelaBiblioteca
+import com.allan.imagineer.telas.capitulo.DestinoDaBarraDoCapitulo
 import com.allan.imagineer.telas.capitulo.TelaCapitulo
 import com.allan.imagineer.telas.configuracao.TelaConfiguracao
 import com.allan.imagineer.telas.lixeira.TelaLixeira
@@ -286,6 +287,20 @@ fun GrafoDeNavegacao() {
                 aoPesquisar = { livroId, capituloId -> if (entrada.estaNaFrente()) controle.navigate(Pesquisa(livroId, capituloId)) },
                 aoAbrirModelosDeIa = { livroId -> if (entrada.estaNaFrente()) controle.navigate(ModelosDoLivro(livroId)) },
                 aoAbrirNarracao = { if (entrada.estaNaFrente()) controle.navigate(Narracao) },
+                // BC4: a barra de baixo do capítulo. Elementos e Cenas empilham sobre o capítulo (voltar traz a leitura de volta).
+                aoIrPelaBarra = { destinoDaBarra, livroId ->
+                    if (entrada.estaNaFrente()) {
+                        when (destinoDaBarra) {
+                            DestinoDaBarraDoCapitulo.BIBLIOTECA -> controle.navigate(Biblioteca) {
+                                popUpTo<Biblioteca> { inclusive = false }
+                                launchSingleTop = true
+                            }
+                            DestinoDaBarraDoCapitulo.CONFIGURACOES -> controle.navigate(Configuracoes) { launchSingleTop = true }
+                            DestinoDaBarraDoCapitulo.ELEMENTOS -> livroId?.let { controle.navigate(ElementosDoLivro(it)) { launchSingleTop = true } }
+                            DestinoDaBarraDoCapitulo.CENAS -> livroId?.let { controle.navigate(CenasDoLivro(it)) { launchSingleTop = true } }
+                        }
+                    }
+                },
                 aoVoltar = { controle.popBackStack() },
                 aoAbrirFicha = { elementoId, livroId, capituloId ->
                     // Só navega com esta tela na frente: um segundo toque durante a transição (ou um toque numa

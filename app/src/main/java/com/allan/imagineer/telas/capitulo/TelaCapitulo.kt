@@ -77,6 +77,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -262,6 +263,8 @@ fun TelaCapitulo(
     aoAbrirModelosDeIa: (livroId: Int) -> Unit = {},
     /** Abre Configurações → Narração (a folha do fone, item 7.5g, AU2). */
     aoAbrirNarracao: () -> Unit = {},
+    /** BC4: um ícone da barra de baixo; [livroId] é o livro do capítulo (nulo enquanto não se sabe). */
+    aoIrPelaBarra: (destino: DestinoDaBarraDoCapitulo, livroId: Int?) -> Unit = { _, _ -> },
 ) {
     val aplicacao = LocalContext.current.applicationContext as ImagineerApp
 
@@ -302,6 +305,7 @@ fun TelaCapitulo(
             aoPesquisar = aoPesquisar,
             aoAbrirModelosDeIa = aoAbrirModelosDeIa,
             aoAbrirNarracao = aoAbrirNarracao,
+            aoIrPelaBarra = aoIrPelaBarra,
             modoDireto = abrirElementoId != null || abrirFrameId != null,
             framePendente = framePendente,
             rotuloDoFramePendente = abrirRotulo,
@@ -355,6 +359,7 @@ private fun LeitorPaginado(
     aoPesquisar: (livroId: Int, capituloId: Int) -> Unit,
     aoAbrirModelosDeIa: (livroId: Int) -> Unit,
     aoAbrirNarracao: () -> Unit,
+    aoIrPelaBarra: (destino: DestinoDaBarraDoCapitulo, livroId: Int?) -> Unit,
     /** Veio dos chips da lista de elementos (LV3): só o modal do elemento aparece, e fechá-lo volta direto à lista. */
     modoDireto: Boolean,
     framePendente: Int?,
@@ -402,6 +407,8 @@ private fun LeitorPaginado(
     var botaoVisivel by remember { mutableStateOf(true) }
     var barraVisivel by remember { mutableStateOf(true) }
     LaunchedEffect(idDaTela) { botaoVisivel = true; barraVisivel = true }
+    // BC3: a barra de baixo cede lugar à barra dos parágrafos marcados (a página atual avisa).
+    var marcandoParagrafos by remember { mutableStateOf(false) }
 
     // Nada do painel é pedido ao servidor até ele ser aberto (P1); trocar de página com ele aberto lê o do novo capítulo.
     LaunchedEffect(painelAberto, idDaTela) { if (painelAberto) painel.aoAbrirPainel() }
@@ -739,6 +746,16 @@ private fun LeitorPaginado(
                 )
             }
         },
+        bottomBar = {
+            // BC1 a BC3: a mesma regra de rolagem da barra do topo.
+            AnimatedVisibility(
+                visible = barraDeBaixoVisivel(barraVisivel, painelCheio, marcandoParagrafos, estadoDoPainel.posicionando != null),
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut(),
+            ) {
+                BarraDeBaixoDoCapitulo(livroConhecido = livroDoCapitulo != null, aoIr = { aoIrPelaBarra(it, livroDoCapitulo) })
+            }
+        },
         floatingActionButton = {
             // O botão de IA, no canto inferior direito (P3). Só com o texto na tela.
             if (textoProntoDaTela) {
@@ -806,6 +823,7 @@ private fun LeitorPaginado(
                             aoAtenderPosicao = aoAtenderPosicao,
                             aoCancelarPosicionamento = painel::cancelarPosicionamento,
                             aoAbrirElemento = { elementoId, livroId -> aoAbrirFicha(elementoId, livroId, idDaPagina) },
+                            aoMarcarParagrafos = { marcandoParagrafos = it },
                             aoRolar = { delta, noTopo, noFim ->
                                 visibilidade.aoRolar(delta, noTopo, noFim)
                                 botaoVisivel = visibilidade.visivel
@@ -892,6 +910,8 @@ private fun PaginaDoCapitulo(
     irParaPosicao: Int?,
     aoAtenderPosicao: () -> Unit,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
+    /** BC3: há parágrafos marcados nesta página (a barra de baixo some enquanto isso). */
+    aoMarcarParagrafos: (Boolean) -> Unit,
     /** Tocou no nome de um elemento no texto (RL14): abre a ficha dele, do livro dado. */
     aoAbrirElemento: (elementoId: Int, livroId: Int) -> Unit = { _, _ -> },
 ) {
@@ -1005,6 +1025,7 @@ private fun PaginaDoCapitulo(
                 listaDeParagrafos = posicaoDeLeitura,
                 // Só a página em foco manda no botão de IA; a vizinha, rolando por baixo, não.
                 aoRolar = if (ehAtual) aoRolar else { _, _, _ -> },
+                aoMarcarParagrafos = if (ehAtual) aoMarcarParagrafos else { _ -> },
             )
             // Depois do texto, e não antes: o que vem por último fica por cima, e o botão Ouvir tem de receber o toque (o texto cobre a tela toda).
             ControleDeNarracao(
@@ -1063,6 +1084,7 @@ private fun LeitorDeTexto(
     aoLerAte: (posicao: Int) -> Unit,
     listaDeParagrafos: LazyListState,
     aoRolar: (delta: Float, noTopo: Boolean, noFim: Boolean) -> Unit,
+    aoMarcarParagrafos: (Boolean) -> Unit,
 ) {
     val capitulo = estado.capitulo
     // Onde cada parágrafo começa (UTF-16, como o servidor conta) e quais ícones vão em cada um.
@@ -1073,6 +1095,10 @@ private fun LeitorDeTexto(
     var ampliada by remember { mutableStateOf<Artefato?>(null) }
     // LV4: os parágrafos marcados (índices em [trechos]); vazio = leitura normal, sem barra.
     var marcados by remember(capitulo.id) { mutableStateOf(emptySet<Int>()) }
+    // BC3: avisa a tela quando o modo de marcar liga e desliga; ao sair da página, a barra de baixo pode voltar.
+    val aoMarcar by rememberUpdatedState(aoMarcarParagrafos)
+    LaunchedEffect(marcados.isNotEmpty()) { aoMarcar(marcados.isNotEmpty()) }
+    DisposableEffect(Unit) { onDispose { aoMarcar(false) } }
     // O modo de posicionar tem prioridade: ao ligá-lo, a marcação some.
     LaunchedEffect(posicionando) { if (posicionando != null) marcados = emptySet() }
     // Voltar (do aparelho) desfaz a marcação antes de sair do capítulo.
