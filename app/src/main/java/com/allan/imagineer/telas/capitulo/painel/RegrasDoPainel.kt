@@ -723,6 +723,8 @@ fun avisoDaGeracao(suavizado: Boolean): String = if (suavizado) AVISO_IMAGEM_GER
  * antigo), fica **Recusado pelo provedor**. `NAO_TENTADO` não leva etiqueta.
  */
 fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
+    // ML1: quem escreveu o prompt. Só o prompt original: o suavizado já diz que foi o sistema, e o editado foi a pessoa.
+    if (prompt.prompt_original_id == null && !prompt.so_imagem) prompt.modelo_ia?.takeIf { it.isNotBlank() }?.let { add("Escrito por ${nomeCurtoDoModelo(it)}") }
     if (prompt.prompt_original_id != null) add(if (prompt.modelo_ia != null) "Versão suavizada" else "Versão editada")
     when (prompt.situacao_da_geracao) {
         "RECUSADO" -> add(prompt.modelo_imagem?.let { "Recusado por $it" } ?: "Recusado pelo provedor")
@@ -733,6 +735,19 @@ fun etiquetasDoPrompt(prompt: PromptDeFrame): List<String> = buildList {
     // W7: e com quantas imagens de referência.
     if (prompt.imagens_de_referencia.isNotEmpty()) add(etiquetaDeReferencias(prompt.imagens_de_referencia.size))
 }
+
+/**
+ * O nome de um modelo como cabe numa etiqueta (ML1): sem o fornecedor antes da barra (`google/gemini-3.1-flash-lite` → `gemini-3.1-flash-lite`)
+ * e, nos modelos da assinatura do Claude, o nome amigável (`claude-code/sonnet` → `Claude Sonnet (assinatura)`).
+ */
+fun nomeCurtoDoModelo(modelo: String): String = when {
+    modelo.startsWith("claude-code/") -> "Claude ${modelo.removePrefix("claude-code/").replaceFirstChar { it.uppercase() }} (assinatura)"
+    else -> modelo.substringAfterLast('/')
+}
+
+/** A legenda sob a miniatura de uma imagem (ML2): "Importada" ou "Gerada · <modelo>", para saber de onde veio sem abrir a imagem. */
+fun legendaDaMiniatura(imagem: ImagemDoPrompt): String =
+    imagem.modelo?.takeIf { it.isNotBlank() }?.let { "Gerada · ${nomeCurtoDoModelo(it)}" } ?: "Importada"
 
 /** "Com 1 referência" / "Com N referências" (W7). */
 fun etiquetaDeReferencias(quantidade: Int): String = if (quantidade == 1) "Com 1 referência" else "Com $quantidade referências"

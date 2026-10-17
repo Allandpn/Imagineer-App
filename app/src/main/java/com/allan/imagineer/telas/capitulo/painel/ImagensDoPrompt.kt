@@ -312,6 +312,13 @@ private fun Miniaturas(
                     )
                     // CAN6: o selo da imagem que o capítulo mostra.
                     if (imagem.canonica) Text("Canônica", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    // ML2: de onde veio, sem precisar abrir a imagem.
+                    Text(
+                        legendaDaMiniatura(imagem),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
                 }
             }
         }

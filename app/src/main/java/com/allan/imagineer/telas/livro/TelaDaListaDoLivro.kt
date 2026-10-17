@@ -41,9 +41,21 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import coil3.compose.AsyncImage
 import com.allan.imagineer.ImagineerApp
 import com.allan.imagineer.rede.Artefato
+import com.allan.imagineer.rede.ArtefatosDoLivro
 import com.allan.imagineer.rede.enderecoDaImagem
 import com.allan.imagineer.telas.capitulo.SeloDoArtefato
 import com.allan.imagineer.telas.capitulo.painel.urlDoServidorEmUso
@@ -68,6 +80,7 @@ fun TelaDaListaDoLivro(
         factory = viewModelFactory { initializer { ArtefatosDoLivroViewModel(livroId, tipo, aplicacao.repositorioDeArtefatosDoLivro) } },
     )
     val estado by viewModel.estado.collectAsState()
+    val filtro by viewModel.filtro.collectAsState()
     // Relê ao voltar para a tela: o que se confirmou ou gerou no capítulo muda a lista.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
     val urlBase = urlDoServidorEmUso()
@@ -104,9 +117,21 @@ fun TelaDaListaDoLivro(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp),
                     )
-                } else {
-                    LazyColumn(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
-                        atual.dados.capitulos.forEach { grupo ->
+                } else Column(modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth()) {
+                    // LF1 a LF3: só a lista de cenas tem filtros.
+                    val comFiltros = tipo == TipoDaListaDoLivro.CENAS
+                    val visiveis = if (comFiltros) filtrarCenas(atual.dados, filtro) else atual.dados
+                    if (comFiltros) BarraDeFiltrosDasCenas(atual.dados, visiveis.total, filtro, viewModel)
+                    if (visiveis.capitulos.isEmpty()) {
+                        Text(
+                            "Nenhuma cena com esses filtros.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(24.dp),
+                        )
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp)) {
+                        visiveis.capitulos.forEach { grupo ->
                             item(key = "cap-${grupo.capitulo_id}") {
                                 Text(
                                     tituloDoGrupo(grupo.ordem, grupo.titulo),
@@ -125,6 +150,81 @@ fun TelaDaListaDoLivro(
             }
         }
     }
+}
+
+/** Qual diálogo de filtro está aberto (LF1, LF2). */
+private enum class DialogoDeFiltro { CAPITULOS, ELEMENTOS }
+
+/**
+ * A linha de filtros da lista de cenas (LF1 a LF3): **Capítulos** e **Elementos** abrem uma lista para marcar, **Limpar** tira tudo e o texto diz
+ * quantas cenas sobraram. As opções vêm da lista **inteira** ([dados]), e não da filtrada, para a pessoa poder marcar mais de um.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BarraDeFiltrosDasCenas(dados: ArtefatosDoLivro, sobraram: Int, filtro: FiltroDasCenas, viewModel: ArtefatosDoLivroViewModel) {
+    var aberto by remember { mutableStateOf<DialogoDeFiltro?>(null) }
+    val nomes = remember(dados) { elementosDasCenas(dados) }
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = filtro.capitulos.isNotEmpty(),
+                onClick = { aberto = DialogoDeFiltro.CAPITULOS },
+                label = { Text(rotuloDoFiltro("Capítulos", filtro.capitulos.size)) },
+            )
+            // Um servidor antigo não manda os participantes: sem nomes, não há o que filtrar.
+            if (nomes.isNotEmpty()) {
+                FilterChip(
+                    selected = filtro.elementos.isNotEmpty(),
+                    onClick = { aberto = DialogoDeFiltro.ELEMENTOS },
+                    label = { Text(rotuloDoFiltro("Elementos", filtro.elementos.size)) },
+                )
+            }
+            if (!filtro.vazio) TextButton(onClick = viewModel::limparFiltro) { Text("Limpar") }
+        }
+        if (!filtro.vazio) {
+            Text(textoDasCenasQueSobraram(sobraram, dados.total), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    when (aberto) {
+        DialogoDeFiltro.CAPITULOS -> DialogoDeEscolhas(
+            titulo = "Filtrar por capítulo",
+            opcoes = dados.capitulos.map { it.capitulo_id to tituloDoGrupo(it.ordem, it.titulo) },
+            marcadas = filtro.capitulos,
+            aoAlternar = viewModel::alternarCapitulo,
+            aoFechar = { aberto = null },
+        )
+        DialogoDeFiltro.ELEMENTOS -> DialogoDeEscolhas(
+            titulo = "Filtrar por elemento",
+            opcoes = nomes.map { it to it },
+            marcadas = filtro.elementos,
+            aoAlternar = viewModel::alternarElemento,
+            aoFechar = { aberto = null },
+        )
+        null -> Unit
+    }
+}
+
+/** Uma lista de opções com caixa de marcar (LF1, LF2); [opcoes] são pares (chave, texto). Cada toque já vale: não há "Aplicar". */
+@Composable
+private fun <T> DialogoDeEscolhas(titulo: String, opcoes: List<Pair<T, String>>, marcadas: Set<T>, aoAlternar: (T) -> Unit, aoFechar: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = aoFechar,
+        title = { Text(titulo) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                opcoes.forEach { (chave, texto) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { aoAlternar(chave) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = chave in marcadas, onCheckedChange = null)
+                        Text(texto, modifier = Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = aoFechar) { Text("Pronto") } },
+    )
 }
 
 @Composable

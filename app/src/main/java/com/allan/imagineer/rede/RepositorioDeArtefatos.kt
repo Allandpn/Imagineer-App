@@ -39,6 +39,8 @@ data class Artefato(
     val video_orientacao: String? = null,
     val video_largura: Int? = null,
     val video_altura: Int? = null,
+    /** Só nas `CENA`: os nomes de quem participa dela (LF4). Vazia num servidor antigo, que ainda não manda o campo. */
+    val elementos: List<String> = emptyList(),
 )
 
 /**
