@@ -34,6 +34,8 @@ fun ehPosterSemServidor(nomeDoArquivo: String): Boolean = Regex("poster_\\d+\\.j
 class PostersDeVideo(
     private val provedor: ProvedorDeApi,
     private val pasta: File,
+    /** Os vídeos baixados com o livro (PL18): deles o quadro sai sem rede e sem gastar o vídeo. Nulo nos testes. */
+    private val baixados: com.allan.imagineer.local.ArmazemDeVideos? = null,
 ) {
     private val memoria = LruCache<String, Bitmap>(12)
 
@@ -53,7 +55,7 @@ class PostersDeVideo(
             withContext(Dispatchers.IO) {
                 limparOsAntigosUmaVez()
                 val guardado = File(pasta, chave)
-                lerDoDisco(guardado) ?: extrair(servidor.api, videoId, guardado)
+                lerDoDisco(guardado) ?: baixados?.arquivo(servidor.chave, videoId)?.let { extrairDe(it, guardado) } ?: extrair(servidor.api, videoId, guardado)
             }?.also { memoria.put(chave, it) }
         }
     }
@@ -65,6 +67,24 @@ class PostersDeVideo(
     }
 
     private fun lerDoDisco(arquivo: File): Bitmap? = if (arquivo.isFile) BitmapFactory.decodeFile(arquivo.path) else null
+
+    /** Tira o primeiro quadro de um vídeo que já está no aparelho (PL18); o vídeo fica onde está. */
+    private fun extrairDe(video: File, destino: File): Bitmap? {
+        pasta.mkdirs()
+        val leitor = MediaMetadataRetriever()
+        return try {
+            leitor.setDataSource(video.path)
+            val quadro = leitor.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
+            destino.outputStream().use { quadro.compress(Bitmap.CompressFormat.JPEG, 90, it) }
+            quadro
+        } catch (erro: IOException) {
+            null
+        } catch (erro: RuntimeException) {
+            null
+        } finally {
+            leitor.release()
+        }
+    }
 
     private suspend fun extrair(api: ApiImagineer, videoId: Int, destino: File): Bitmap? {
         pasta.mkdirs()

@@ -52,10 +52,13 @@ fun PlayerDeVideo(videoId: Int, aoFechar: () -> Unit) {
     // (Criá-lo antes deixava-o sem vídeo, e o toque no play dava erro.)
     var erro by remember(videoId) { mutableStateOf<String?>(null) }
 
+    val aplicacao = contexto.applicationContext as com.allan.imagineer.ImagineerApp
     val player = remember(videoId, urlBase) {
         if (urlBase == null) null
         else ExoPlayer.Builder(contexto).build().apply {
-            setMediaItem(MediaItem.fromUri(enderecoDoVideo(urlBase, videoId)))
+            // PL18: o vídeo baixado com o livro toca do aparelho (sem rede); senão, em fluxo do servidor.
+            val doAparelho = aplicacao.armazemDeVideos.arquivo(com.allan.imagineer.local.ChaveDoCache(servidor = urlBase), videoId)
+            setMediaItem(MediaItem.fromUri(doAparelho?.let { android.net.Uri.fromFile(it).toString() } ?: enderecoDoVideo(urlBase, videoId)))
             prepare()
             playWhenReady = true
             addListener(object : Player.Listener {

@@ -717,7 +717,7 @@ private fun LeitorPaginado(
                     acoes = {
                         // AU1: ouvir o capítulo (voz do aparelho ou narrações de IA guardadas).
                         if (capituloDaTela != null) {
-                            BotaoDeIcone(Icons.Filled.Headphones, "Ouvir o capítulo", aoTocar = { folhaDeOuvir = true }, cor = LocalContentColor.current)
+                            BotaoDeIcone(Icons.Filled.Headphones, "Ouvir o capítulo", aoTocar = { folhaDeOuvir = true }, cor = LocalContentColor.current, habilitado = servidor)
                         }
                         // FV2: favoritar o capítulo (o coração do livro mora na biblioteca).
                         if (capituloDaTela != null) {

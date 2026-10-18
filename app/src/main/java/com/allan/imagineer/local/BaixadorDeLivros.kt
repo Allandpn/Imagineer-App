@@ -44,6 +44,9 @@ interface FonteDoDownload {
     /** `GET /livros/{id}/capa`: grava a capa em [destino]. `Falha` se não deu (ou se o livro não tem capa: a capa é opcional, PL15). */
     suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Sem capa.")
 
+    /** `GET /videos/{id}/arquivo`: grava o vídeo em [destino] (PL18). `Falha` com `codigoHttp` 404 se o vídeo não existe mais. */
+    suspend fun baixarVideo(videoId: Int, destino: File): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Sem vídeo.")
+
     /** `GET /capitulos/{id}/artefatos`: a lista que diz onde pôr as imagens no texto (PL16); `null` se não deu. */
     suspend fun artefatos(capituloId: Int): List<com.allan.imagineer.rede.Artefato>? = null
 
@@ -91,6 +94,8 @@ class BaixadorDeLivros(
     private val agora: () -> Long = System::currentTimeMillis,
     /** Onde ficam as listas de artefatos dos capítulos (PL16). Nulo nos testes que não a usam. */
     private val artefatos: ArmazemDeArtefatos? = null,
+    /** Onde ficam os vídeos das cenas (PL18). Nulo nos testes que não o usam. */
+    private val videos: ArmazemDeVideos? = null,
 ) {
     private val _estados = MutableStateFlow<Map<Int, EstadoDoDownload>>(emptyMap())
     val estados: StateFlow<Map<Int, EstadoDoDownload>> = _estados.asStateFlow()
@@ -170,6 +175,7 @@ class BaixadorDeLivros(
             runCatching { imagens.apagar(chave, ids) }
             runCatching { imagens.apagarCapa(chave, livroId) }
             runCatching { textos.apagarLivro(chave, livroId) }
+            runCatching { videos?.apagarLivro(chave, livroId) }
             runCatching { artefatos?.apagarLivro(chave, livroId) }
             runCatching { registro.apagar(chave, livroId) }
         }
@@ -269,8 +275,41 @@ class BaixadorDeLivros(
             bytes += imagens.arquivo(chave, id, tamanho)?.length() ?: 0L
         }
 
+        // 2b. Os vídeos das cenas (PL18), tirados das listas de artefatos: mesmas regras de rede das imagens. Um vídeo que o servidor já apagou (404)
+        // é pulado; qualquer outra falha para o download, que se retoma pulando o que já está gravado.
+        val listasDeArtefatos = artefatos
+        val arquivosDeVideo = videos
+        if (listasDeArtefatos != null && arquivosDeVideo != null) {
+            val idsDosVideos = lidos
+                .flatMap { capitulo -> runCatching { listasDeArtefatos.ler(chave, capitulo.capitulo_id) }.getOrNull().orEmpty() }
+                .mapNotNull { it.video_id }.distinct()
+            for (videoId in idsDosVideos) {
+                currentCoroutineContext().ensureActive()
+                if (arquivosDeVideo.arquivo(chave, videoId) != null) continue
+                val progressoDosVideos = Progresso(feitos, tarefas.size, bytes)
+                when (rede.tipo()) {
+                    TipoDeRede.NENHUMA -> return if (silencioso) definir(livroId, anterior) else definir(livroId, EstadoDoDownload.Pausado(progressoDosVideos, "Sem conexão"))
+                    TipoDeRede.MOVEL -> if (somenteWifi) {
+                        return if (silencioso) definir(livroId, anterior) else definir(livroId, EstadoDoDownload.Pausado(progressoDosVideos, "Aguardando Wi-Fi"))
+                    }
+                    TipoDeRede.WIFI -> {}
+                }
+                if (!silencioso) definir(livroId, EstadoDoDownload.Baixando(progressoDosVideos))
+                var falha: ResultadoDaChamada.Falha? = null
+                arquivosDeVideo.gravar(chave, livroId, videoId) { temporario ->
+                    when (val r = fonte.baixarVideo(videoId, temporario)) {
+                        is ResultadoDaChamada.Sucesso -> true
+                        is ResultadoDaChamada.Falha -> { falha = r; false }
+                    }
+                }
+                val motivoDaFalha = falha
+                if (motivoDaFalha != null && motivoDaFalha.codigoHttp != 404) return falhou(motivoDaFalha.motivo)
+            }
+        }
+
         // 3. Pronto: marca o livro como Baixado.
-        val total = imagens.tamanhoEmBytes(chave, ids) + lidos.sumOf { it.texto.toByteArray(Charsets.UTF_8).size.toLong() }
+        val total = imagens.tamanhoEmBytes(chave, ids) + lidos.sumOf { it.texto.toByteArray(Charsets.UTF_8).size.toLong() } +
+            (runCatching { videos?.tamanhoDoLivro(chave, livroId) }.getOrNull() ?: 0L)
         val em = agora()
         // O completar silencioso (PL5) não regrava o texto, então não pode dizer que o livro está em dia: mantém a revisão de antes.
         val revisaoFinal = if (silencioso) (anterior as? EstadoDoDownload.Baixado)?.revisao ?: revisaoAgora else revisaoAgora

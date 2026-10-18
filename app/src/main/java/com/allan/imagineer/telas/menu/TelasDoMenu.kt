@@ -126,16 +126,18 @@ fun TelaConfiguracoes(
     val destaqueGuardado by aplicacao.armazenamento.corDeDestaque.collectAsState(initial = null)
     val atual = ModoDaBiblioteca.deTexto(modo)
     // AP7: a Administração só aparece para o dono; sem conexão ou com servidor antigo (sem /eu), não aparece.
-    val ehDono by androidx.compose.runtime.produceState(false) {
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
+    val ehDono by androidx.compose.runtime.produceState(false, servidor) {
+        if (!servidor) { value = false; return@produceState }
         value = (aplicacao.repositorioDeContas.eu() as? com.allan.imagineer.rede.ResultadoDaChamada.Sucesso)?.dado?.dono == true
     }
 
     TelaDoMenu("Configurações", aoVoltar) {
         LinhaDeConfiguracao("Servidor", url ?: "Não configurado", aoAbrirServidor)
         HorizontalDivider()
-        LinhaDeConfiguracao("Perfis de renderização", "O estilo visual das imagens de cada livro", aoAbrirPerfisDeRenderizacao)
+        LinhaDeConfiguracao("Perfis de renderização", "O estilo visual das imagens de cada livro", aoAbrirPerfisDeRenderizacao, habilitada = servidor)
         HorizontalDivider()
-        LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos)
+        LinhaDeConfiguracao("Modelos de IA", "Extração, prompt e imagem", aoAbrirModelos, habilitada = servidor)
         HorizontalDivider()
         LinhaDeConfiguracao("Chaves de IA", "A chave de cada provedor, guardada só neste aparelho", aoAbrirChavesDeIa)
         HorizontalDivider()
@@ -143,9 +145,9 @@ fun TelaConfiguracoes(
             LinhaDeConfiguracao("Administração", "Limites do servidor e contas", aoAbrirAdministracao)
             HorizontalDivider()
         }
-        LinhaDeConfiguracao("Dicionários", "Quais aparecem ao tocar numa palavra e em que ordem", aoAbrirDicionarios)
+        LinhaDeConfiguracao("Dicionários", "Quais aparecem ao tocar numa palavra e em que ordem", aoAbrirDicionarios, habilitada = servidor)
         HorizontalDivider()
-        LinhaDeConfiguracao("Narração", "A voz do botão Ouvir", aoAbrirNarracao)
+        LinhaDeConfiguracao("Narração", "A voz do botão Ouvir", aoAbrirNarracao, habilitada = servidor)
         HorizontalDivider()
         LinhaDeConfiguracao("Armazenamento", "O que cada livro ocupa no aparelho", aoAbrirArmazenamento)
         HorizontalDivider()
@@ -197,14 +199,15 @@ private fun AmostraDeCor(cor: androidx.compose.ui.graphics.Color, nome: String, 
 }
 
 @Composable
-private fun LinhaDeConfiguracao(titulo: String, descricao: String, aoTocar: () -> Unit) {
+private fun LinhaDeConfiguracao(titulo: String, descricao: String, aoTocar: () -> Unit, habilitada: Boolean = true) {
+    // PL17: o que depende do servidor fica apagado e diz por quê, em vez de abrir uma tela de erro.
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = aoTocar).padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().alpha(if (habilitada) 1f else 0.38f).clickable(enabled = habilitada, onClick = aoTocar).padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(titulo, style = MaterialTheme.typography.titleMedium)
-            Text(descricao, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(if (habilitada) descricao else "Precisa do servidor", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }

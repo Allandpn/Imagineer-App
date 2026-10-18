@@ -42,7 +42,7 @@ class ArtefatosBaixadosTest {
     @After
     fun derrubar() = servidor.shutdown()
 
-    private fun armazem() = ArmazemDeArtefatosEmArquivos(pasta.newFolder("artefatos"), kotlin.coroutines.EmptyCoroutineContext)
+    private fun armazem() = ArmazemDeArtefatosEmArquivos(pasta.newFolder(), kotlin.coroutines.EmptyCoroutineContext)
 
     // --- o armazém ---
 
@@ -71,6 +71,16 @@ class ArtefatosBaixadosTest {
         var listas: Map<Int, List<Artefato>> = mapOf(10 to listOf(cena("Um")), 11 to listOf(cena("Dois")))
         val pedidos = mutableListOf<Int>()
         var falharApartirDe: Int? = null
+        val videosPedidos = mutableListOf<Int>()
+        var videoApagadoNoServidor: Int? = null
+        var videoComFalha: Int? = null
+        override suspend fun baixarVideo(videoId: Int, destino: File): ResultadoDaChamada<Unit> {
+            videosPedidos += videoId
+            if (videoId == videoApagadoNoServidor) return ResultadoDaChamada.Falha("Não existe vídeo.", codigoHttp = 404)
+            if (videoId == videoComFalha) return ResultadoDaChamada.Falha("Servidor fora do ar.")
+            destino.writeBytes(ByteArray(20) { 5 })
+            return ResultadoDaChamada.Sucesso(Unit)
+        }
         override suspend fun chave() = CHAVE_DOS_ARTEFATOS
         override suspend fun textos(livroId: Int) =
             ResultadoDaChamada.Sucesso(listOf(TextoDoCapitulo(10, 1, "Primeiro."), TextoDoCapitulo(11, 2, "Segundo.")))
@@ -93,10 +103,17 @@ class ArtefatosBaixadosTest {
         escopo: kotlinx.coroutines.CoroutineScope,
         fonte: FonteComArtefatos,
         artefatos: ArmazemDeArtefatos,
+        videos: ArmazemDeVideos? = null,
+        rede: () -> TipoDeRede = { TipoDeRede.WIFI },
     ) = BaixadorDeLivros(
         fonte, TextosFalsos(), IndiceEmMemoria(), ArmazemDeImagensEmArquivos(pasta.newFolder(), kotlin.coroutines.EmptyCoroutineContext),
-        DownloadsEmMemoria(), { TipoDeRede.WIFI }, escopo, agora = { 1L }, artefatos = artefatos,
+        DownloadsEmMemoria(), rede, escopo, agora = { 1L }, artefatos = artefatos, videos = videos,
     )
+
+    private fun armazemDeVideos() = ArmazemDeVideosEmArquivos(pasta.newFolder(), kotlin.coroutines.EmptyCoroutineContext)
+
+    private fun cenaComVideo(rotulo: String, videoId: Int) =
+        Artefato(tipo = "CENA", frame_id = 1, rotulo = rotulo, situacao = "ILUSTRADO", video_id = videoId)
 
     @Test
     fun baixar_guarda_a_lista_de_artefatos_de_cada_capitulo_e_remover_apaga() = runTest {
@@ -190,5 +207,71 @@ class ArtefatosBaixadosTest {
         servidor.enqueue(MockResponse().setResponseCode(500))
 
         assertTrue(repositorio(url, armazem).ler(10) is ResultadoDaChamada.Falha)
+    }
+
+    // --- os vídeos (PL18) ---
+
+    @Test
+    fun o_armazem_de_videos_grava_inteiro_ou_nada_acha_pelo_id_e_apaga_o_livro() = runTest {
+        val armazem = armazemDeVideos()
+
+        assertFalse(armazem.gravar(CHAVE_DOS_ARTEFATOS, 1, 7) { it.writeBytes(byteArrayOf(1)); false })
+        assertNull(armazem.arquivo(CHAVE_DOS_ARTEFATOS, 7))
+        assertTrue(armazem.gravar(CHAVE_DOS_ARTEFATOS, 1, 7) { it.writeBytes(byteArrayOf(1, 2, 3)); true })
+        assertTrue(armazem.gravar(CHAVE_DOS_ARTEFATOS, 2, 8) { it.writeBytes(byteArrayOf(9)); true })
+        assertEquals(3L, armazem.arquivo(CHAVE_DOS_ARTEFATOS, 7)!!.length())
+        assertEquals(3L, armazem.tamanhoDoLivro(CHAVE_DOS_ARTEFATOS, 1))
+
+        armazem.apagarLivro(CHAVE_DOS_ARTEFATOS, 1)
+        assertNull(armazem.arquivo(CHAVE_DOS_ARTEFATOS, 7))
+        assertNotNull(armazem.arquivo(CHAVE_DOS_ARTEFATOS, 8)) // o outro livro fica
+    }
+
+    @Test
+    fun baixar_traz_os_videos_das_cenas_e_remover_apaga() = runTest {
+        val fonte = FonteComArtefatos().also { it.listas = mapOf(10 to listOf(cenaComVideo("Um", 70)), 11 to listOf(cenaComVideo("Dois", 70), cenaComVideo("Tres", 71))) }
+        val videos = armazemDeVideos()
+        val baixador = TestScopeComBaixador(this, fonte, armazem(), videos)
+
+        baixador.baixar(5)
+        advanceUntilIdle()
+
+        assertEquals(listOf(70, 71), fonte.videosPedidos) // o 70 aparece em dois capítulos e baixa uma vez
+        assertNotNull(videos.arquivo(CHAVE_DOS_ARTEFATOS, 70))
+        assertNotNull(videos.arquivo(CHAVE_DOS_ARTEFATOS, 71))
+        assertEquals(40L, (baixador.estadoDe(5) as EstadoDoDownload.Baixado).bytes - "Primeiro.".length - "Segundo.".length)
+
+        baixador.remover(5)
+        assertNull(videos.arquivo(CHAVE_DOS_ARTEFATOS, 70))
+    }
+
+    @Test
+    fun video_apagado_no_servidor_e_pulado_mas_outra_falha_para_o_download() = runTest {
+        val fonte = FonteComArtefatos().also {
+            it.listas = mapOf(10 to listOf(cenaComVideo("Um", 70), cenaComVideo("Dois", 71)), 11 to emptyList())
+            it.videoApagadoNoServidor = 70
+        }
+        val baixador = TestScopeComBaixador(this, fonte, armazem(), armazemDeVideos())
+        baixador.baixar(5)
+        advanceUntilIdle()
+        assertTrue(baixador.estadoDe(5) is EstadoDoDownload.Baixado) // o 404 não bloqueia
+
+        fonte.videoComFalha = 71
+        val baixador2 = TestScopeComBaixador(this, fonte, armazem(), armazemDeVideos())
+        baixador2.baixar(6)
+        advanceUntilIdle()
+        assertTrue(baixador2.estadoDe(6) is EstadoDoDownload.Falhou)
+    }
+
+    @Test
+    fun video_em_dados_moveis_espera_o_wifi() = runTest {
+        val fonte = FonteComArtefatos().also { it.listas = mapOf(10 to listOf(cenaComVideo("Um", 70)), 11 to emptyList()) }
+        val baixador = TestScopeComBaixador(this, fonte, armazem(), armazemDeVideos(), rede = { TipoDeRede.MOVEL })
+
+        baixador.baixar(5)
+        advanceUntilIdle()
+
+        assertTrue(baixador.estadoDe(5) is EstadoDoDownload.Pausado)
+        assertTrue(fonte.videosPedidos.isEmpty())
     }
 }

@@ -371,6 +371,8 @@ internal fun ImagemEmTelaCheia(
     val escopo = rememberCoroutineScope()
     var baixando by remember { mutableStateOf(false) }
     var barraVisivel by remember { mutableStateOf(true) }
+    // PL17: sem servidor a imagem se vê (o arquivo está no aparelho), mas o que grava ou busca no servidor fica apagado.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
 
     /**
      * Baixa o original para o cache (U4) e entrega o arquivo já com a extensão certa à [acao]. **Nada daqui fecha o app**:
@@ -448,44 +450,44 @@ internal fun ImagemEmTelaCheia(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconeDaBarra(Icons.Filled.Share, "Compartilhar", "Compartilhar", enabled = !baixando) {
+                IconeDaBarra(Icons.Filled.Share, "Compartilhar", "Compartilhar", enabled = !baixando && servidor) {
                     baixarE("compartilhar") { arquivo, tipo ->
                         if (!compartilharImagem(contexto, arquivo, tipo)) {
                             Toast.makeText(contexto, "Não consegui compartilhar a imagem.", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
-                IconeDaBarra(Icons.Filled.Download, "Salvar na galeria", "Salvar", enabled = !baixando) {
+                IconeDaBarra(Icons.Filled.Download, "Salvar na galeria", "Salvar", enabled = !baixando && servidor) {
                     baixarE("salvar") { arquivo, tipo ->
                         val salvou = salvarNaGaleria(contexto, arquivo, tipo)
                         Toast.makeText(contexto, if (salvou) AVISO_SALVA_NA_GALERIA else AVISO_NAO_SALVOU_NA_GALERIA, Toast.LENGTH_SHORT).show()
                     }
                 }
-                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
-                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
-                aoConferir?.let { IconeDaBarra(Icons.Filled.FactCheck, ROTULO_CONFERIR_COM_A_LISTA, "Conferir", onClick = it) }
+                acaoExtra?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), enabled = servidor, marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
+                outraAcao?.let { (rotulo, aoTocar) -> IconeDaBarra(iconeDaAcaoDaImagem(rotulo), rotulo, legendaDaAcaoDaImagem(rotulo), enabled = servidor, marcado = rotulo == rotuloDaAcaoCanonica(true), onClick = aoTocar) }
+                aoConferir?.let { IconeDaBarra(Icons.Filled.FactCheck, ROTULO_CONFERIR_COM_A_LISTA, "Conferir", enabled = servidor, onClick = it) }
                 // Ver o perfil do elemento ou da cena a que a imagem pertence (quando se sabe qual é).
-                aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", onClick = it) }
-                aoPosicionar?.let { IconeDaBarra(Icons.Filled.Place, ROTULO_POSICIONAR, "Posicionar", onClick = it) }
+                aoVerPerfil?.let { IconeDaBarra(Icons.Filled.AccountCircle, "Ver perfil", "Perfil", enabled = servidor, onClick = it) }
+                aoPosicionar?.let { IconeDaBarra(Icons.Filled.Place, ROTULO_POSICIONAR, "Posicionar", enabled = servidor, onClick = it) }
                 // RL36: favoritar a imagem (só onde há favoritos do livro). Coração, porque a estrela daqui é a da canônica.
                 com.allan.imagineer.telas.favoritos.LocalFavoritos.current?.let { favoritos ->
                     val alvo = com.allan.imagineer.rede.AlvoDeFavorito.Imagem(imagem.id)
                     val favorita = favoritos.de(alvo) != null
                     IconeDaBarra(
                         if (favorita) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        if (favorita) "Desfavoritar a imagem" else "Favoritar a imagem", "Imagem", marcado = favorita, onClick = { favoritos.alternar(alvo) },
+                        if (favorita) "Desfavoritar a imagem" else "Favoritar a imagem", "Imagem", enabled = servidor, marcado = favorita, onClick = { favoritos.alternar(alvo) },
                     )
                     cenaParaFavoritar?.let { frameId ->
                         val alvoDaCena = com.allan.imagineer.rede.AlvoDeFavorito.Cena(frameId)
                         val cenaFavorita = favoritos.de(alvoDaCena) != null
                         IconeDaBarra(
                             if (cenaFavorita) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            if (cenaFavorita) "Desfavoritar a cena" else "Favoritar a cena", "Cena", marcado = cenaFavorita, onClick = { favoritos.alternar(alvoDaCena) },
+                            if (cenaFavorita) "Desfavoritar a cena" else "Favoritar a cena", "Cena", enabled = servidor, marcado = cenaFavorita, onClick = { favoritos.alternar(alvoDaCena) },
                         )
                     }
                 }
                 // Excluir só onde se sabe de que prompt é a imagem (o painel); no capítulo, não.
-                if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", "Lixeira", cor = Color(0xFFFF8A80), onClick = aoExcluir)
+                if (aoExcluir != null) IconeDaBarra(Icons.Filled.Delete, "Para a lixeira", "Lixeira", enabled = servidor, cor = Color(0xFFFF8A80), onClick = aoExcluir)
             }
             if (baixando) LinearProgressIndicator(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth())
         }
@@ -507,7 +509,7 @@ private fun IconeDaBarra(
     marcado: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val corDoIcone = if (marcado) MaterialTheme.colorScheme.primary else cor
+    val corDoIcone = (if (marcado) MaterialTheme.colorScheme.primary else cor).let { if (enabled) it else it.copy(alpha = 0.38f) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, enabled = enabled) {
             Icon(

@@ -100,6 +100,11 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.local.ArmazemDeImagensEmArquivos(File(noBackupFilesDir, "imagens"))
     }
 
+    /** Os vídeos das cenas dos livros baixados (PL18): tocam e dão o quadro de capa sem rede. */
+    val armazemDeVideos: com.allan.imagineer.local.ArmazemDeVideos by lazy {
+        com.allan.imagineer.local.ArmazemDeVideosEmArquivos(File(noBackupFilesDir, "videos"))
+    }
+
     /** As listas de artefatos dos capítulos baixados (PL16): o que põe as imagens baixadas no texto sem rede. */
     val armazemDeArtefatos: com.allan.imagineer.local.ArmazemDeArtefatos by lazy {
         com.allan.imagineer.local.ArmazemDeArtefatosEmArquivos(File(noBackupFilesDir, "artefatos"))
@@ -168,6 +173,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
             rede = com.allan.imagineer.local.EstadoDaRedeDoAndroid(this),
             escopo = escopoDeFundo,
             artefatos = armazemDeArtefatos,
+            videos = armazemDeVideos,
         )
     }
 
@@ -198,7 +204,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
 
     /** O primeiro quadro dos vídeos importados, que o capítulo mostra no lugar do vídeo (VD17). */
     val postersDeVideo: com.allan.imagineer.rede.PostersDeVideo by lazy {
-        com.allan.imagineer.rede.PostersDeVideo(provedorDeApi, java.io.File(cacheDir, "posters_de_video"))
+        com.allan.imagineer.rede.PostersDeVideo(provedorDeApi, java.io.File(cacheDir, "posters_de_video"), armazemDeVideos)
     }
 
     val repositorioDeNarracao: com.allan.imagineer.rede.RepositorioDeNarracao by lazy {

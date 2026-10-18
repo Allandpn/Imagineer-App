@@ -43,6 +43,11 @@ class FonteDoDownloadPelaApi(private val provedor: ProvedorDeApi) : FonteDoDownl
         return (chamarApi { api.artefatos(capituloId).artefatos } as? ResultadoDaChamada.Sucesso)?.dado
     }
 
+    override suspend fun baixarVideo(videoId: Int, destino: File): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return gravar(chamarApi { api.baixarVideo(videoId) }, destino, "Não consegui baixar o vídeo $videoId.")
+    }
+
     override suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return gravar(chamarApi { api.baixarCapa(livroId) }, destino, "Não consegui baixar a capa.")
