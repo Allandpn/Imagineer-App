@@ -18,6 +18,11 @@ class FonteDoDownloadPelaApi(private val provedor: ProvedorDeApi) : FonteDoDownl
 
     override suspend fun chave(): ChaveDoCache? = provedor.emUso()?.chave
 
+    override suspend fun livro(livroId: Int): com.allan.imagineer.rede.LivroDetalhe? {
+        val api = provedor.obter() ?: return null
+        return (chamarApi { api.livro(livroId) } as? ResultadoDaChamada.Sucesso)?.dado
+    }
+
     override suspend fun revisao(livroId: Int): Int? {
         val api = provedor.obter() ?: return null
         return (chamarApi { api.livro(livroId) } as? ResultadoDaChamada.Sucesso)?.dado?.revisao

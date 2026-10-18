@@ -40,6 +40,9 @@ interface FonteDoDownload {
 
     /** A `revisao` do livro agora, para guardar no fim do download (DL2); `null` se não deu para saber (o download segue, com 0). */
     suspend fun revisao(livroId: Int): Int? = null
+
+    /** `GET /livros/{id}`: a ficha do livro (título, capítulos), que o modo offline precisa guardada (PL13); `null` se não deu. */
+    suspend fun livro(livroId: Int): com.allan.imagineer.rede.LivroDetalhe? = null
 }
 
 /** O andamento de um download: arquivos feitos de arquivos totais, e os bytes já gravados. */
@@ -184,7 +187,10 @@ class BaixadorDeLivros(
         fun falhou(motivo: String) { if (!silencioso) definir(livroId, EstadoDoDownload.Falhou(motivo)) else definir(livroId, anterior) }
         if (!silencioso) definir(livroId, EstadoDoDownload.Baixando(Progresso(0, 0, 0)))
         // A revisão do livro de agora, tirada antes de baixar: se ele mudar durante o download, a próxima conferência acusa a diferença (DL2).
-        val revisaoAgora = fonte.revisao(livroId) ?: 0
+        val ficha = fonte.livro(livroId)
+        // Sem a ficha guardada o livro baixado não aparece na Biblioteca sem conexão, nem os capítulos abrem (PL13).
+        if (ficha != null) runCatching { indice.guardarLivro(chave, ficha) }
+        val revisaoAgora = ficha?.revisao ?: fonte.revisao(livroId) ?: 0
 
         // 1. O texto de todos os capítulos (uma chamada); o que já está gravado não se regrava.
         val lidos = when (val r = fonte.textos(livroId)) {

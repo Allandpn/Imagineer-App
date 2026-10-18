@@ -59,7 +59,11 @@ private class FonteFalsa : FonteDoDownload {
     var revisaoDoLivro: Int? = 0
     var textoDoPrimeiro = "Primeiro."
 
+    /** A ficha do livro que o servidor devolve (PL13). */
+    var ficha: LivroDetalhe? = null
+
     override suspend fun chave() = CHAVE
+    override suspend fun livro(livroId: Int): LivroDetalhe? = ficha
     override suspend fun revisao(livroId: Int): Int? = revisaoDoLivro
     override suspend fun textos(livroId: Int) = ResultadoDaChamada.Sucesso(listOf(TextoDoCapitulo(10, 1, textoDoPrimeiro), TextoDoCapitulo(11, 2, "Segundo.")))
     override suspend fun midias(livroId: Int) =
@@ -125,6 +129,19 @@ class BaixadorDeLivrosTest {
         val estado = baixador.estadoDe(5) as EstadoDoDownload.Baixado
         assertEquals(1234L, estado.em)
         assertEquals(listOf(1, 2), registro.linhas[5]!!.imagensIds)
+    }
+
+    @Test
+    fun baixar_guarda_a_ficha_do_livro_no_indice_para_a_biblioteca_sem_conexao() = runTest {
+        val fonte = FonteFalsa().also { it.ficha = com.allan.imagineer.rede.livroDeTeste(id = 5, revisao = 7) }
+        val indice = IndiceEmMemoria()
+        val baixador = BaixadorDeLivros(fonte, TextosEmMemoria(), indice, armazem(), RegistroEmMemoria(), { tipoDeRede }, this, agora = { 1234L })
+
+        baixador.baixar(5)
+        advanceUntilIdle()
+
+        assertEquals(7, indice.livro(CHAVE, 5)?.revisao)
+        assertEquals(7, (baixador.estadoDe(5) as EstadoDoDownload.Baixado).revisao)
     }
 
     @Test
