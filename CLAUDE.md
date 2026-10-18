@@ -34,9 +34,18 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
   `noBackupFilesDir` e em `local/` (item 7.0a, passo 1, implementado). O servidor continua sendo a fonte da
   verdade; offline é só de leitura; a cópia local é descartável (banco de formato novo = apagar e refazer, sem
   migração). Falha local nunca impede a leitura (`melhorEsforco`). Interface + versão em memória para testar
-  (`IndiceLocal`, `ArmazemDeTextos`). Imagens (passo 3) e "Baixar para ler offline" (passo 4) ainda não existem:
-  não adicionar cache de imagem por conta própria.
+  (`IndiceLocal`, `ArmazemDeTextos`, `ArmazemDeImagens`, `ArmazemDeArtefatos`, `ArmazemDeVideos`).
+  **"Baixar para ler offline" existe** (`BaixadorDeLivros`): texto, ficha do livro, capa, imagens (3 tamanhos), listas de
+  artefatos por capítulo e vídeos das cenas, tudo em `noBackupFilesDir`. Não criar outro cache por conta própria: o que
+  um capítulo baixado precisa para abrir sem rede entra por esse download (itens PL1 a PL19 da especificação).
 - Navegação: Navigation Compose 2.9 com rotas `@Serializable`. Não migrar para Navigation 3.
+- **Modo offline (PL14).** `ModoOffline` (em `local/`) é um estado do app: ligado, toda chamada ao servidor falha na hora
+  (interceptador em `criarApi`), sem esperar os 10 s de conexão. Entra pela oferta ("Servidor indisponível. Usar o modo
+  offline?") ou pelo interruptor da gaveta da Biblioteca; sai sozinho quando a sonda (`HEAD /livros`) vê o servidor
+  responder. `app.conexao.online` é a **conexão efetiva** (rede do Android **e** fora do modo offline).
+  **Regra para tela nova:** o que depende do servidor usa `temServidor()` (`telas/comum/ConexaoNaTela.kt`) e fica apagado
+  ou escondido sem ele; nenhum toque pode levar a erro de conexão. Consulta de fundo (feita sozinha ao abrir tela) não
+  avisa falha. Biblioteca offline lista só os livros Baixados (PL13).
 - Módulo único `:app`. Sem login: a proteção é a rede (Tailscale). O HTTP em texto puro é deliberado;
   reavaliar só se o app for distribuído a outras pessoas.
 - Versões: AGP 9.4.1, Kotlin 2.2.10, Gradle 9.6.0, minSdk 31, targetSdk/compileSdk 37.
@@ -52,7 +61,9 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 - Não há mais telas provisórias. O que o item 7.6 (Frame) e o 7.7 (Prompt) previam vive no painel de IA do capítulo (7.5b a 7.5h).
 
 ## Versão final (APK assinado)
-- Instalada no tablet em 15/10/2026 (versão 1.0, `versionCode` 1), assinada com keystore própria.
+- Instalada em 15/10/2026 (versão 1.0, `versionCode` 1), assinada com keystore própria. **Estado em 18/10/2026: versão 1.10
+  (`versionCode` 11)**, no celular (SM-A566E) e no tablet (SM-X706B), ambos já com a assinatura do release. Quem tiver um
+  build de depuração (`installDebug`) instalado precisa desinstalar uma vez para trocar de chave (perde os downloads).
 - A keystore e a senha ficam **fora do repositório**: arquivo em `C:\Users\allan\ImagineerChaves\imagineer.jks` e as
   propriedades `IMAGINEER_KEYSTORE_ARQUIVO`, `_ALIAS` e `_SENHA` em `~/.gradle/gradle.properties`. O `app/build.gradle.kts`
   só lê essas propriedades; sem elas o release sai sem assinar. Nunca ler nem exibir a senha. Allan guarda a cópia no cofre.
@@ -67,8 +78,8 @@ sem presumir termos técnicos, e diga o "porquê" das escolhas.
 ## Testes
 - Unitários em `app/src/test`, espelhando os pacotes (JUnit4, coroutines-test, MockWebServer).
 - Todo ViewModel novo ou alterado precisa de teste. `androidTest` ainda só tem o exemplo padrão.
-- Comando: `./gradlew testDebugUnitTest`. Verificado em 30/09/2026 numa cópia limpa do repositório, com o
-  Android SDK instalado: 243 testes, cerca de 1,5 minuto. Num ambiente sem o SDK (a nuvem, por exemplo) o
+- Comando: `./gradlew testDebugUnitTest`. Verificado em 18/10/2026 com o Android SDK instalado: cerca de 1.560 testes,
+  de 30 s a 1,5 minuto. Num ambiente sem o SDK (a nuvem, por exemplo) o
   comando pode falhar; nesse caso, dizer o motivo em vez de dar o teste por passado.
 
 ## Segredos e segurança
