@@ -35,12 +35,14 @@ fun barraDeBaixoVisivel(barraDoTopoVisivel: Boolean, painelCheio: Boolean, marca
  */
 @Composable
 fun BarraDeBaixoDoCapitulo(livroConhecido: Boolean, aoIr: (DestinoDaBarraDoCapitulo) -> Unit) {
+    // PL14d: Elementos e Cenas vêm do servidor.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
     NavigationBar {
         DestinoDaBarraDoCapitulo.entries.forEach { destino ->
             NavigationBarItem(
                 selected = false,
                 onClick = { aoIr(destino) },
-                enabled = livroConhecido || !destino.precisaDoLivro,
+                enabled = (livroConhecido && servidor) || !destino.precisaDoLivro,
                 icon = { Icon(destino.icone, contentDescription = destino.descricao) },
                 label = { Text(destino.descricao, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
                 alwaysShowLabel = true,

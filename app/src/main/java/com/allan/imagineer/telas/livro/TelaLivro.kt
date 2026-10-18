@@ -408,6 +408,8 @@ private fun ListaDoLivro(
     aoAlternarLido: (Int) -> Unit,
 ) {
     val livro = estado.livro
+    // PL14d: marcar como lido e arquivar em lote gravam no servidor.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
     // A lista principal mostra só os ativos; os arquivados vivem na área própria.
     val ativos = livro.capitulos.filter { !it.ignorado }
     val arquivados = livro.capitulos.count { it.ignorado }
@@ -443,10 +445,10 @@ private fun ListaDoLivro(
                     },
                     // Tocar e segurar entra no modo já com esta linha marcada.
                     aoSegurar = {
-                        if (selecao == null) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
+                        if (selecao == null && servidor) aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, capitulo.id)
                     },
                     detalhes = false,
-                    aoAlternarLido = { aoAlternarLido(capitulo.id) },
+                    aoAlternarLido = if (servidor) ({ aoAlternarLido(capitulo.id) }) else null,
                 )
             }
         }

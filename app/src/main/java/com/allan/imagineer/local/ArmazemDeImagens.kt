@@ -27,7 +27,13 @@ interface ArmazemDeImagens {
 
     /** Apaga as imagens [imagemIds], em todos os tamanhos. */
     suspend fun apagar(chave: ChaveDoCache, imagemIds: Collection<Int>)
+
+    /** Apaga a capa guardada do livro, de qualquer revisão (PL15). */
+    suspend fun apagarCapa(chave: ChaveDoCache, livroId: Int) {}
 }
+
+/** O "tamanho" sob o qual a capa do livro é guardada: leva a revisão, para uma capa trocada no servidor não ser servida velha (PL15). */
+fun tamanhoDaCapa(revisao: Int) = "capa-$revisao"
 
 /**
  * A versão de verdade, em arquivos sob [raiz] (em produção, `noBackupFilesDir/imagens`: fora do backup, A12, e privada do app, A13).
@@ -68,11 +74,29 @@ class ArmazemDeImagensEmArquivos(
         imagemIds.sumOf { id -> TAMANHOS_DE_IMAGEM.sumOf { tamanho -> arquivo(chave, id, tamanho)?.length() ?: 0L } }
     }
 
+    override suspend fun apagarCapa(chave: ChaveDoCache, livroId: Int) {
+        withContext(contexto) {
+            pasta(chave).listFiles { arquivo -> arquivo.name.startsWith("$livroId-capa-") }?.forEach { it.delete() }
+        }
+    }
+
     override suspend fun apagar(chave: ChaveDoCache, imagemIds: Collection<Int>) {
         withContext(contexto) {
             imagemIds.forEach { id -> TAMANHOS_DE_IMAGEM.forEach { tamanho -> File(pasta(chave), nome(id, tamanho)).delete() } }
         }
     }
+}
+
+private val PADRAO_DA_CAPA = Regex("""^(https?://[^/?#]+)/livros/(\d+)/capa(?:\?v=(\d+))?$""")
+
+/**
+ * Lê um endereço de capa como `http://h:8000/livros/3/capa?v=7` (CP3): o "tamanho" é o da capa daquela revisão ([tamanhoDaCapa]), e o id é
+ * o do livro. `null` se não é endereço de capa.
+ */
+fun analisarEnderecoDeCapa(endereco: String): EnderecoDeImagem? {
+    val achado = PADRAO_DA_CAPA.matchEntire(endereco.trim()) ?: return null
+    val (servidor, id, revisao) = achado.destructured
+    return EnderecoDeImagem(servidor, id.toIntOrNull() ?: return null, tamanhoDaCapa(revisao.toIntOrNull() ?: 0))
 }
 
 /** O que um endereço de imagem do servidor diz: de qual servidor, qual imagem e qual tamanho. */

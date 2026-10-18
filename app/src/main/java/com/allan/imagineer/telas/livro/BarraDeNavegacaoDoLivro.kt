@@ -14,11 +14,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /** As quatro telas irmãs da área do livro, na barra de baixo (LY1). Cada ícone leva a [descricao] como legenda pequena embaixo. */
-enum class DestinoDoLivro(val icone: ImageVector, val descricao: String) {
+enum class DestinoDoLivro(val icone: ImageVector, val descricao: String, val precisaDoServidor: Boolean = true) {
     ELEMENTOS(Icons.Filled.Groups, "Elementos"),
     CENAS(Icons.Filled.Movie, "Cenas"),
     PENDENCIAS(Icons.Filled.PendingActions, "Pendências"),
-    ARQUIVADOS(Icons.Filled.Archive, "Arquivados"),
+    ARQUIVADOS(Icons.Filled.Archive, "Arquivados", precisaDoServidor = false),
 }
 
 /**
@@ -27,11 +27,14 @@ enum class DestinoDoLivro(val icone: ImageVector, val descricao: String) {
  */
 @Composable
 fun BarraDeNavegacaoDoLivro(selecionado: DestinoDoLivro?, aoIr: (DestinoDoLivro) -> Unit) {
+    // PL14d: sem servidor, ficam apagados os destinos que dependem dele.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
     NavigationBar {
         DestinoDoLivro.entries.forEach { destino ->
             NavigationBarItem(
                 selected = destino == selecionado,
                 onClick = { if (destino != selecionado) aoIr(destino) },
+                enabled = servidor || !destino.precisaDoServidor,
                 icon = { Icon(destino.icone, contentDescription = destino.descricao) },
                 label = { Text(destino.descricao, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
                 alwaysShowLabel = true,

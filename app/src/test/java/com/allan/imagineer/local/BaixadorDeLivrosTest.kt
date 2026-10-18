@@ -64,6 +64,14 @@ private class FonteFalsa : FonteDoDownload {
 
     override suspend fun chave() = CHAVE
     override suspend fun livro(livroId: Int): LivroDetalhe? = ficha
+
+    /** Se o livro tem capa no servidor (PL15). */
+    var temCapa = true
+    override suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> {
+        if (!temCapa) return ResultadoDaChamada.Falha("Sem capa.")
+        destino.writeBytes(ByteArray(10) { 3 })
+        return ResultadoDaChamada.Sucesso(Unit)
+    }
     override suspend fun revisao(livroId: Int): Int? = revisaoDoLivro
     override suspend fun textos(livroId: Int) = ResultadoDaChamada.Sucesso(listOf(TextoDoCapitulo(10, 1, textoDoPrimeiro), TextoDoCapitulo(11, 2, "Segundo.")))
     override suspend fun midias(livroId: Int) =
@@ -142,6 +150,40 @@ class BaixadorDeLivrosTest {
 
         assertEquals(7, indice.livro(CHAVE, 5)?.revisao)
         assertEquals(7, (baixador.estadoDe(5) as EstadoDoDownload.Baixado).revisao)
+    }
+
+    @Test
+    fun baixar_guarda_a_capa_sob_a_revisao_e_remover_apaga() = runTest {
+        val fonte = FonteFalsa().also { it.ficha = com.allan.imagineer.rede.livroDeTeste(id = 5, revisao = 7) }
+        val armazem = armazem()
+        val baixador = BaixadorDeLivros(fonte, TextosEmMemoria(), IndiceVazio(), armazem, RegistroEmMemoria(), { tipoDeRede }, this, agora = { 1234L })
+
+        baixador.baixar(5)
+        advanceUntilIdle()
+        assertNotNull(armazem.arquivo(CHAVE, 5, tamanhoDaCapa(7)))
+        assertNull(armazem.arquivo(CHAVE, 5, tamanhoDaCapa(8))) // outra revisão = outra capa
+
+        baixador.remover(5)
+        advanceUntilIdle()
+        assertNull(armazem.arquivo(CHAVE, 5, tamanhoDaCapa(7)))
+    }
+
+    @Test
+    fun livro_sem_capa_baixa_normalmente() = runTest {
+        val fonte = FonteFalsa().also { it.ficha = com.allan.imagineer.rede.livroDeTeste(id = 5); it.temCapa = false }
+        val baixador = BaixadorDeLivros(fonte, TextosEmMemoria(), IndiceVazio(), armazem(), RegistroEmMemoria(), { tipoDeRede }, this, agora = { 1234L })
+
+        baixador.baixar(5)
+        advanceUntilIdle()
+
+        assertTrue(baixador.estadoDe(5) is EstadoDoDownload.Baixado)
+    }
+
+    @Test
+    fun o_endereco_da_capa_diz_servidor_livro_e_a_revisao() {
+        assertEquals(EnderecoDeImagem("http://h:8000", 3, "capa-7"), analisarEnderecoDeCapa("http://h:8000/livros/3/capa?v=7"))
+        assertEquals(EnderecoDeImagem("http://h:8000", 3, "capa-0"), analisarEnderecoDeCapa("http://h:8000/livros/3/capa"))
+        assertNull(analisarEnderecoDeCapa("http://h:8000/imagens/3/arquivo"))
     }
 
     @Test

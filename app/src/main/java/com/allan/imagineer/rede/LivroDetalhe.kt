@@ -146,10 +146,10 @@ data class CapituloAjuste(
 )
 
 /**
- * O cartão do livro na Biblioteca, montado só com o que o aparelho guarda (PL13). Sem capa,
- * favorito nem última abertura: isso só o servidor sabe.
+ * O cartão do livro na Biblioteca, montado só com o que o aparelho guarda (PL13). A capa vale se está baixada
+ * ([temCapa], PL15); favorito e última abertura só o servidor sabe.
  */
-fun LivroDetalhe.comoResumo(): LivroResumo = LivroResumo(
+fun LivroDetalhe.comoResumo(temCapa: Boolean = false): LivroResumo = LivroResumo(
     id = id,
     titulo = titulo,
     autor = autor,
@@ -161,4 +161,5 @@ fun LivroDetalhe.comoResumo(): LivroResumo = LivroResumo(
     capitulos_lidos = capitulos_lidos,
     total_de_caracteres = capitulos.filter { !it.ignorado }.sumOf { it.tamanho_do_texto },
     revisao = revisao,
+    tem_capa = temCapa,
 )

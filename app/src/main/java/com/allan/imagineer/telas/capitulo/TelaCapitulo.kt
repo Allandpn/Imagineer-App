@@ -367,6 +367,9 @@ private fun LeitorPaginado(
     aoAtenderFramePendente: () -> Unit,
 ) {
     val estadoDoPager = rememberPagerState(initialPage = lista.indiceInicial) { lista.ids.size }
+    // PL14d: sem servidor, o painel de IA, a pesquisa, as cenas e o resto que depende dele ficam fora de alcance.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
+    LaunchedEffect(servidor) { if (!servidor && painelAberto) aoFecharPainel() }
     val aside = usarAside(LocalConfiguration.current.screenWidthDp)
     val painelCheio = painelAberto && !aside
 
@@ -500,13 +503,13 @@ private fun LeitorPaginado(
             arquivado = capituloDaTela.ignorado,
             aoFechar = { infoAberta = false },
             lido = capituloDaTela.lido,
-            aoAlternarLido = { vmDaTela.marcarLido(!capituloDaTela.lido) },
+            aoAlternarLido = if (servidor) ({ vmDaTela.marcarLido(!capituloDaTela.lido) }) else null,
             tituloGuardado = capituloDaTela.titulo.orEmpty(),
-            aoRenomear = { novo ->
+            aoRenomear = if (servidor) ({ novo ->
                 vmDaTela.renomear(novo) { motivo -> Toast.makeText(contextoDoTitulo, motivo, Toast.LENGTH_SHORT).show() }
-            },
+            }) else null,
             // Fecha este diálogo e abre o painel de IA do capítulo, onde as sugestões se confirmam.
-            aoVerSugestoes = { infoAberta = false; if (!painelAberto) aoAlternarPainel() },
+            aoVerSugestoes = if (servidor) ({ infoAberta = false; if (!painelAberto) aoAlternarPainel() }) else null,
         )
     }
 
@@ -739,7 +742,7 @@ private fun LeitorPaginado(
                             )
                         }
                         // LV5: pesquisar no texto (neste capítulo, no livro e na biblioteca).
-                        if (livroDoCapitulo != null) {
+                        if (livroDoCapitulo != null && servidor) {
                             BotaoDeIcone(Icons.Filled.Search, "Pesquisar", aoTocar = { aoPesquisar(livroDoCapitulo, idDaTela) }, cor = LocalContentColor.current)
                         }
                     },
@@ -767,7 +770,7 @@ private fun LeitorPaginado(
                     painelAberto -> BotaoFlutuante(Icons.Filled.Description, "Voltar ao texto", aoAlternarPainel)
                     // Fechado: aparece e some conforme a rolagem.
                     // Só o brilho ✦, como os outros botões flutuantes (PB5); "Abrir o painel de IA" fica na dica.
-                    else -> AnimatedVisibility(visible = botaoVisivel, enter = fadeIn(), exit = fadeOut()) {
+                    else -> if (servidor) AnimatedVisibility(visible = botaoVisivel, enter = fadeIn(), exit = fadeOut()) {
                         BotaoFlutuante(Icons.Filled.AutoAwesome, "Abrir o painel de IA", aoAlternarPainel)
                     }
                 }
@@ -795,6 +798,7 @@ private fun LeitorPaginado(
                             ehAtual = pagina == estadoDoPager.currentPage,
                             ehAssentada = pagina == estadoDoPager.settledPage,
                             aoTocarArtefato = { artefato ->
+                              if (servidor) {
                                 // C1: o id de uma cena e o de um elemento são de tabelas diferentes; cada um abre o seu modal.
                                 val sugestaoId = artefato.sugestao_id
                                 if (sugestaoId != null) {
@@ -803,6 +807,7 @@ private fun LeitorPaginado(
                                     // TR4: a cena de um trecho (ou o retrato sem sugestão) não tem sugestão por trás: abre o modal do frame.
                                     painel.abrirModalDeFrame(artefato.frame_id, artefato.rotulo)
                                 }
+                              }
                             },
                             aoOcultarImagem = { frameId -> painel.definirImagemOculta(frameId, true) },
                             posicionando = estadoDoPainel.posicionando,
@@ -953,7 +958,9 @@ private fun PaginaDoCapitulo(
             // RL36: os favoritos do livro, para o coração dos parágrafos (e o da imagem aberta do texto). O aviso é do LeitorPaginado.
             com.allan.imagineer.telas.favoritos.ComFavoritosDoLivro(atual.capitulo.livro_id, avisar = false) {
             // RL14: os elementos do livro, para marcar os nomes no texto; sem eles (ou sem conexão) o texto fica como está.
-            val nomesDoLivro by produceState<LocalizadorDeNomes?>(initialValue = null, atual.capitulo.livro_id) {
+            val servidorDaPagina = com.allan.imagineer.telas.comum.temServidor()
+            val nomesDoLivro by produceState<LocalizadorDeNomes?>(initialValue = null, atual.capitulo.livro_id, servidorDaPagina) {
+                if (!servidorDaPagina) return@produceState
                 value = (aplicacaoDaPagina.repositorioDeElementos.listar(atual.capitulo.livro_id) as? ResultadoDaChamada.Sucesso)
                     ?.dado?.let { LocalizadorDeNomes(it) }?.takeUnless { it.vazio }
             }
@@ -961,7 +968,7 @@ private fun PaginaDoCapitulo(
             val destaques by destaquesVm.destaques.collectAsState()
             val avisoDosDestaques by destaquesVm.aviso.collectAsState()
             val contextoDaPagina = LocalContext.current
-            LaunchedEffect(destaquesVm) { destaquesVm.carregar() }
+            LaunchedEffect(destaquesVm, servidorDaPagina) { if (servidorDaPagina) destaquesVm.carregar() }
             LaunchedEffect(avisoDosDestaques) {
                 avisoDosDestaques?.let { android.widget.Toast.makeText(contextoDaPagina, it, android.widget.Toast.LENGTH_LONG).show(); destaquesVm.avisoLido() }
             }
@@ -1225,7 +1232,9 @@ private fun LeitorDeTexto(
         // O usuário vai querer copiar um trecho. A seleção não atravessa parágrafos
         // (cada um é um item da lista), mas dentro de um funciona.
         val contextoDoDestaque = LocalContext.current
+        val servidor = com.allan.imagineer.telas.comum.temServidor()
         ComAcaoDeGerarImagemDoTrecho(
+            comServidor = servidor,
             aoGerarDoTrecho = { trecho -> aoGerarImagemDoTrecho(trecho, paragrafoDoTrecho(trechos, trecho)) },
             aoConsultarDicionario = aoConsultarDicionario,
             // LV4: o parágrafo onde a seleção está entra no modo de marcar (depois, o toque soma ou tira outros).
@@ -1341,6 +1350,7 @@ private fun LeitorDeTexto(
     if (marcados.isNotEmpty() && posicionando == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             BarraDeParagrafos(
+                comServidor = com.allan.imagineer.telas.comum.temServidor(),
                 aoCopiar = { copiarParaAAreaDeTransferencia(contextoDaTela, trechoDosParagrafos(trechos, marcados)) },
                 aoGerarPrompt = {
                     aoGerarImagemDoTrecho(trechoDosParagrafos(trechos, marcados), posicaoDosParagrafos(trechos, marcados))

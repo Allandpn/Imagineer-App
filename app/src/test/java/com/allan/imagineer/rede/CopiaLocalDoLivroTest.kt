@@ -186,6 +186,23 @@ class CopiaLocalDoLivroTest {
     }
 
     @Test
+    fun `sem conexao, o cartao do baixado tem capa so se a capa foi baixada`() = runTest {
+        val imagens = com.allan.imagineer.local.ArmazemDeImagensEmArquivos(kotlin.io.path.createTempDirectory("capas").toFile(), kotlin.coroutines.EmptyCoroutineContext)
+        val chaveOffline = chave(URL_SEM_SERVIDOR)
+        indice.guardarLivro(chaveOffline, livroDeTeste(id = 1, revisao = 4, titulo = "Com capa"))
+        indice.guardarLivro(chaveOffline, livroDeTeste(id = 2, revisao = 1, titulo = "Sem capa"))
+        downloads.guardar(chaveOffline, com.allan.imagineer.local.DownloadGuardado(1, 0L, 0L, emptyList()))
+        downloads.guardar(chaveOffline, com.allan.imagineer.local.DownloadGuardado(2, 0L, 0L, emptyList()))
+        imagens.gravar(chaveOffline, 1, com.allan.imagineer.local.tamanhoDaCapa(4)) { it.writeBytes(byteArrayOf(1)); true }
+        val repositorio = RepositorioDeLivrosPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(URL_SEM_SERVIDOR)), LeitorNulo(), indice, textos, downloads, imagens)
+
+        val livros = (repositorio.listarLivros() as ResultadoDaChamada.Sucesso).dado.associateBy { it.titulo }
+
+        assertTrue(livros.getValue("Com capa").tem_capa)
+        assertEquals(false, livros.getValue("Sem capa").tem_capa)
+    }
+
+    @Test
     fun `sem conexao e sem nenhum baixado, a falha de sempre`() = runTest {
         indice.guardarLivro(chave(URL_SEM_SERVIDOR), livroDeTeste())
 

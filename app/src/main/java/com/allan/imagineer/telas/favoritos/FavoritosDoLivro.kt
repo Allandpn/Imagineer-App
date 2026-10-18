@@ -132,7 +132,7 @@ fun ComFavoritosDoLivro(livroId: Int, avisar: Boolean = true, conteudo: @Composa
 @Composable
 fun BotaoDeFavoritoDosAlvos(alvos: List<AlvoDeFavorito>, modifier: Modifier = Modifier, cor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary) {
     val controle = LocalFavoritos.current ?: return
-    if (alvos.isEmpty()) return
+    if (alvos.isEmpty() || !com.allan.imagineer.telas.comum.temServidor()) return
     val todos = alvos.all { controle.de(it) != null }
     BotaoDeIcone(
         icone = if (todos) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -156,6 +156,7 @@ fun BotaoDeFavorito(
     corDeFavorito: androidx.compose.ui.graphics.Color? = null,
 ) {
     val controle = LocalFavoritos.current ?: return
+    if (!com.allan.imagineer.telas.comum.temServidor()) return // PL14d: favoritar precisa do servidor
     val favorito = controle.de(alvo) != null
     BotaoDeIcone(
         icone = if (favorito) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,

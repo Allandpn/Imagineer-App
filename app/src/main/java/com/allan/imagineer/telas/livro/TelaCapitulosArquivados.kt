@@ -96,6 +96,8 @@ fun ConteudoDosArquivados(
     aoAbrirCapitulo: (capituloId: Int) -> Unit,
     aoIrParaODoLivro: ((DestinoDoLivro) -> Unit)? = null,
 ) {
+    // PL14d: arquivar e restaurar gravam no servidor.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
     Scaffold(
         bottomBar = { aoIrParaODoLivro?.let { BarraDeNavegacaoDoLivro(DestinoDoLivro.ARQUIVADOS, it) } },
         snackbarHost = { HostDeAvisos(avisos) },
@@ -117,10 +119,10 @@ fun ConteudoDosArquivados(
                     },
                     actions = {
                         // Arquivar mais capítulos: volta à lista do livro já no modo de seleção para arquivar.
-                        BotaoDeIcone(Icons.Filled.Archive, "Arquivar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }, cor = LocalContentColor.current)
+                        BotaoDeIcone(Icons.Filled.Archive, "Arquivar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.ARQUIVAR, null); aoVoltar() }, cor = LocalContentColor.current, habilitado = servidor)
                         // O botão só faz sentido se há capítulos arquivados para restaurar.
                         if (estado is EstadoDoLivro.Pronto && estado.livro.capitulos.any { it.ignorado }) {
-                            BotaoDeIcone(Icons.Filled.Unarchive, "Restaurar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }, cor = LocalContentColor.current)
+                            BotaoDeIcone(Icons.Filled.Unarchive, "Restaurar capítulos", aoTocar = { aoIniciarSelecao(ModoDeSelecao.RESTAURAR, null) }, cor = LocalContentColor.current, habilitado = servidor)
                         }
                     },
                 )
@@ -176,7 +178,7 @@ fun ConteudoDosArquivados(
                                         },
                                         // Tocar e segurar entra no modo já com esta linha marcada.
                                         aoSegurar = {
-                                            if (selecao == null) aoIniciarSelecao(ModoDeSelecao.RESTAURAR, capitulo.id)
+                                            if (selecao == null && servidor) aoIniciarSelecao(ModoDeSelecao.RESTAURAR, capitulo.id)
                                         },
                                     )
                                     HorizontalDivider()

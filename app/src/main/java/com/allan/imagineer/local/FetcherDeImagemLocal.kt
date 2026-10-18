@@ -26,7 +26,8 @@ class FetcherDeImagemLocal(private val arquivo: File) : Fetcher {
 
     class Factory(private val armazem: ArmazemDeImagens) : Fetcher.Factory<Uri> {
         override fun create(data: Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
-            val alvo = analisarEnderecoDeImagem(data.toString()) ?: return null
+            // A capa do livro (PL15) entra pelo mesmo caminho: o "tamanho" dela é o da revisão pedida.
+            val alvo = analisarEnderecoDeImagem(data.toString()) ?: analisarEnderecoDeCapa(data.toString()) ?: return null
             val arquivo = armazem.arquivo(ChaveDoCache(servidor = alvo.servidor), alvo.imagemId, alvo.tamanho) ?: return null
             return FetcherDeImagemLocal(arquivo)
         }

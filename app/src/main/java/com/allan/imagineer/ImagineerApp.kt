@@ -113,6 +113,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         RepositorioDeLivrosPeloRetrofit(
             provedorDeApi, leitorDeArquivos, indiceLocal, armazemDeTextos,
             com.allan.imagineer.local.RegistroDeDownloadsPeloRoom(banco.dao()),
+            armazemDeImagens,
         )
     }
 

@@ -80,6 +80,8 @@ class RepositorioDeLivrosPeloRetrofit(
     private val indice: IndiceLocal,
     private val textos: ArmazemDeTextos,
     private val downloads: RegistroDeDownloads,
+    /** Onde está a capa baixada (PL15): sem ela, o cartão do livro offline não tenta carregar capa. Nulo nos testes que não a usam. */
+    private val imagens: com.allan.imagineer.local.ArmazemDeImagens? = null,
 ) : RepositorioDeLivros {
 
     /**
@@ -93,7 +95,10 @@ class RepositorioDeLivrosPeloRetrofit(
 
         val baixados = melhorEsforco {
             val ids = downloads.todos(servidor.chave).map { it.livroId }.toSet()
-            indice.livros(servidor.chave).filter { it.detalhe.id in ids }.map { it.detalhe.comoResumo() }
+            indice.livros(servidor.chave).filter { it.detalhe.id in ids }.map {
+                val temCapa = imagens?.arquivo(servidor.chave, it.detalhe.id, com.allan.imagineer.local.tamanhoDaCapa(it.detalhe.revisao)) != null
+                it.detalhe.comoResumo(temCapa)
+            }
         }
         return if (baixados.isNullOrEmpty()) resultado else ResultadoDaChamada.Sucesso(baixados)
     }

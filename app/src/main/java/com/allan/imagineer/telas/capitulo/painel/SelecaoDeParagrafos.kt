@@ -112,6 +112,8 @@ internal fun BarraDeParagrafos(
     modifier: Modifier = Modifier,
     /** RL36: os parágrafos marcados, para o coração de favoritar (vazio = sem coração). */
     paraFavoritar: List<com.allan.imagineer.rede.AlvoDeFavorito> = emptyList(),
+    /** PL14d: sem servidor, gerar o prompt some (copiar continua). */
+    comServidor: Boolean = true,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.96f),
@@ -121,7 +123,7 @@ internal fun BarraDeParagrafos(
     ) {
         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
             BotaoDeIcone(IconesDaSelecao.copiar, "Copiar texto", aoCopiar, cor = LocalContentColor.current)
-            BotaoDeIcone(IconesDaSelecao.gerarPrompt, ROTULO_GERAR_IMAGEM_DO_TRECHO, aoGerarPrompt, cor = LocalContentColor.current)
+            if (comServidor) BotaoDeIcone(IconesDaSelecao.gerarPrompt, ROTULO_GERAR_IMAGEM_DO_TRECHO, aoGerarPrompt, cor = LocalContentColor.current)
             com.allan.imagineer.telas.favoritos.BotaoDeFavoritoDosAlvos(paraFavoritar, cor = MaterialTheme.colorScheme.inverseOnSurface)
             BotaoDeIcone(IconesDaSelecao.voltarAoNormal, "Voltar ao normal", aoVoltarAoNormal, cor = LocalContentColor.current)
         }

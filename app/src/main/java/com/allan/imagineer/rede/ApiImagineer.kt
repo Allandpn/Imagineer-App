@@ -454,6 +454,11 @@ interface ApiImagineer {
         @Body corpo: JsonObject,
     ): ResultadoDaGeracao
 
+    /** `GET /livros/{id}/capa` — os bytes da capa (PL15); 404 se o livro não tem capa. */
+    @Streaming
+    @GET("livros/{id}/capa")
+    suspend fun baixarCapa(@Path("id") livroId: Int): ResponseBody
+
     /** `GET /imagens/{id}/arquivo` — os bytes da imagem no tamanho pedido (item 6.9). `@Streaming`: o original pode ter vários MB. */
     @Streaming
     @GET("imagens/{id}/arquivo")

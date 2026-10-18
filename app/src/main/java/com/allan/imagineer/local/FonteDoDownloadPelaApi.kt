@@ -38,9 +38,19 @@ class FonteDoDownloadPelaApi(private val provedor: ProvedorDeApi) : FonteDoDownl
         return chamarApi { api.midiasDoLivro(livroId) }
     }
 
+    override suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> {
+        val api = provedor.obter() ?: return provedor.semServidor()
+        return gravar(chamarApi { api.baixarCapa(livroId) }, destino, "Não consegui baixar a capa.")
+    }
+
     override suspend fun baixarImagem(imagemId: Int, tamanho: String, destino: File): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
-        return when (val resposta = chamarApi { api.baixarImagem(imagemId, tamanho) }) {
+        return gravar(chamarApi { api.baixarImagem(imagemId, tamanho) }, destino, "Não consegui baixar a imagem $imagemId.")
+    }
+
+    /** Grava o corpo da resposta em [destino]; apaga o arquivo se a gravação falha no meio. */
+    private suspend fun gravar(resposta: ResultadoDaChamada<okhttp3.ResponseBody>, destino: File, falha: String): ResultadoDaChamada<Unit> {
+        return when (resposta) {
             is ResultadoDaChamada.Falha -> resposta
             is ResultadoDaChamada.Sucesso -> resposta.dado.use { corpo ->
                 try {
@@ -51,7 +61,7 @@ class FonteDoDownloadPelaApi(private val provedor: ProvedorDeApi) : FonteDoDownl
                     ResultadoDaChamada.Sucesso(Unit)
                 } catch (erro: IOException) {
                     destino.delete()
-                    ResultadoDaChamada.Falha("Não consegui baixar a imagem $imagemId.")
+                    ResultadoDaChamada.Falha(falha)
                 }
             }
         }

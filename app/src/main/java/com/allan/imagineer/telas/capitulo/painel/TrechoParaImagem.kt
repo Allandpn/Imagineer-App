@@ -61,9 +61,10 @@ import androidx.compose.ui.unit.dp
  * Efeito colateral: o trecho fica copiado.
  */
 @Composable
-internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, aoSelecionarTudo: () -> Unit = {}, conteudo: @Composable () -> Unit) {
+internal fun ComAcaoDeGerarImagemDoTrecho(comServidor: Boolean = true, aoGerarDoTrecho: (String) -> Unit, aoDestacarTrecho: (String) -> Unit = {}, aoConsultarDicionario: (String) -> Unit = {}, aoMarcarParagrafo: (String) -> Unit = {}, aoSelecionarTudo: () -> Unit = {}, conteudo: @Composable () -> Unit) {
     val visao = LocalView.current
     val contexto = LocalContext.current
+    val servidor by rememberUpdatedState(comServidor)
     val aoGerar by rememberUpdatedState(aoGerarDoTrecho)
     val aoDestacar by rememberUpdatedState(aoDestacarTrecho)
     val aoConsultar by rememberUpdatedState(aoConsultarDicionario)
@@ -74,7 +75,8 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
         // e entra o nosso, que marca o capítulo inteiro (LV4).
         modifier = Modifier.filterTextContextMenuComponents { it.key != TextContextMenuKeys.SelectAllKey }.appendTextContextMenuComponents {
             separator()
-            item(key = ChaveDeGerarImagemDoTrecho, label = ROTULO_GERAR_IMAGEM_DO_TRECHO) {
+            // PL14d: gerar imagem, destacar e dicionário precisam do servidor; sem ele, saem do menu (Copiar e Marcar parágrafo ficam).
+            if (servidor) item(key = ChaveDeGerarImagemDoTrecho, label = ROTULO_GERAR_IMAGEM_DO_TRECHO) {
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoGerar(trecho) }
             }
@@ -83,12 +85,12 @@ internal fun ComAcaoDeGerarImagemDoTrecho(aoGerarDoTrecho: (String) -> Unit, aoD
                 aoSelecionarTodos()
             }
             // RL9: o mesmo caminho (copiar e ler o trecho), agora para grifar o trecho no texto.
-            item(key = ChaveDeDestacarTrecho, label = ROTULO_DESTACAR_TRECHO) {
+            if (servidor) item(key = ChaveDeDestacarTrecho, label = ROTULO_DESTACAR_TRECHO) {
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoDestacar(trecho) }
             }
             // RL20: a palavra selecionada vai ao dicionário.
-            item(key = ChaveDeConsultarDicionario, label = ROTULO_DICIONARIO) {
+            if (servidor) item(key = ChaveDeConsultarDicionario, label = ROTULO_DICIONARIO) {
                 close()
                 copiarSelecaoE(visao, contexto) { trecho -> aoConsultar(trecho) }
             }

@@ -41,6 +41,9 @@ interface FonteDoDownload {
     /** A `revisao` do livro agora, para guardar no fim do download (DL2); `null` se não deu para saber (o download segue, com 0). */
     suspend fun revisao(livroId: Int): Int? = null
 
+    /** `GET /livros/{id}/capa`: grava a capa em [destino]. `Falha` se não deu (ou se o livro não tem capa: a capa é opcional, PL15). */
+    suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Sem capa.")
+
     /** `GET /livros/{id}`: a ficha do livro (título, capítulos), que o modo offline precisa guardada (PL13); `null` se não deu. */
     suspend fun livro(livroId: Int): com.allan.imagineer.rede.LivroDetalhe? = null
 }
@@ -160,6 +163,7 @@ class BaixadorDeLivros(
         if (chave != null) {
             val ids = runCatching { registro.baixado(chave, livroId)?.imagensIds }.getOrNull() ?: planejadas[livroId].orEmpty()
             runCatching { imagens.apagar(chave, ids) }
+            runCatching { imagens.apagarCapa(chave, livroId) }
             runCatching { textos.apagarLivro(chave, livroId) }
             runCatching { registro.apagar(chave, livroId) }
         }
@@ -191,6 +195,11 @@ class BaixadorDeLivros(
         // Sem a ficha guardada o livro baixado não aparece na Biblioteca sem conexão, nem os capítulos abrem (PL13).
         if (ficha != null) runCatching { indice.guardarLivro(chave, ficha) }
         val revisaoAgora = ficha?.revisao ?: fonte.revisao(livroId) ?: 0
+        // A capa (PL15): opcional e de uma imagem só; guardada sob a revisão, para o carregador de imagens achá-la sem rede.
+        val tamanhoDaCapa = tamanhoDaCapa(ficha?.revisao ?: revisaoAgora)
+        if (imagens.arquivo(chave, livroId, tamanhoDaCapa) == null) {
+            runCatching { imagens.gravar(chave, livroId, tamanhoDaCapa) { temporario -> fonte.baixarCapa(livroId, temporario) is ResultadoDaChamada.Sucesso } }
+        }
 
         // 1. O texto de todos os capítulos (uma chamada); o que já está gravado não se regrava.
         val lidos = when (val r = fonte.textos(livroId)) {
