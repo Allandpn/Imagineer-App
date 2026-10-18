@@ -55,10 +55,27 @@ interface RepositorioDeArtefatos {
 /** A implementação de verdade, sobre o Retrofit. */
 class RepositorioDeArtefatosPeloRetrofit(
     private val provedor: ProvedorDeApi,
+    /** As listas guardadas dos capítulos baixados (PL16). Nulo nos testes que não a usam. */
+    private val guardados: com.allan.imagineer.local.ArmazemDeArtefatos? = null,
 ) : RepositorioDeArtefatos {
 
+    /**
+     * Regra PL16: a lista vem do servidor e, se há uma guardada, a nova a atualiza. Se o servidor **nem responde** (sem código HTTP: modo
+     * offline, sem rede), vale a guardada, quando existe; uma resposta com erro (500...) é falha de verdade.
+     */
     override suspend fun ler(capituloId: Int): ResultadoDaChamada<List<Artefato>> {
-        val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.artefatos(capituloId).artefatos }
+        val servidor = provedor.emUso() ?: return provedor.semServidor()
+        val resultado = chamarApi { servidor.api.artefatos(capituloId).artefatos }
+        if (guardados == null) return resultado
+        return when {
+            resultado is ResultadoDaChamada.Sucesso -> {
+                com.allan.imagineer.local.melhorEsforco { guardados.atualizar(servidor.chave, capituloId, resultado.dado) }
+                resultado
+            }
+            resultado is ResultadoDaChamada.Falha && resultado.codigoHttp == null ->
+                com.allan.imagineer.local.melhorEsforco { guardados.ler(servidor.chave, capituloId) }
+                    ?.let { ResultadoDaChamada.Sucesso(it) } ?: resultado
+            else -> resultado
+        }
     }
 }

@@ -38,6 +38,11 @@ class FonteDoDownloadPelaApi(private val provedor: ProvedorDeApi) : FonteDoDownl
         return chamarApi { api.midiasDoLivro(livroId) }
     }
 
+    override suspend fun artefatos(capituloId: Int): List<com.allan.imagineer.rede.Artefato>? {
+        val api = provedor.obter() ?: return null
+        return (chamarApi { api.artefatos(capituloId).artefatos } as? ResultadoDaChamada.Sucesso)?.dado
+    }
+
     override suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> {
         val api = provedor.obter() ?: return provedor.semServidor()
         return gravar(chamarApi { api.baixarCapa(livroId) }, destino, "Não consegui baixar a capa.")

@@ -44,6 +44,9 @@ interface FonteDoDownload {
     /** `GET /livros/{id}/capa`: grava a capa em [destino]. `Falha` se não deu (ou se o livro não tem capa: a capa é opcional, PL15). */
     suspend fun baixarCapa(livroId: Int, destino: File): ResultadoDaChamada<Unit> = ResultadoDaChamada.Falha("Sem capa.")
 
+    /** `GET /capitulos/{id}/artefatos`: a lista que diz onde pôr as imagens no texto (PL16); `null` se não deu. */
+    suspend fun artefatos(capituloId: Int): List<com.allan.imagineer.rede.Artefato>? = null
+
     /** `GET /livros/{id}`: a ficha do livro (título, capítulos), que o modo offline precisa guardada (PL13); `null` se não deu. */
     suspend fun livro(livroId: Int): com.allan.imagineer.rede.LivroDetalhe? = null
 }
@@ -86,6 +89,8 @@ class BaixadorDeLivros(
     private val rede: EstadoDaRede,
     private val escopo: CoroutineScope,
     private val agora: () -> Long = System::currentTimeMillis,
+    /** Onde ficam as listas de artefatos dos capítulos (PL16). Nulo nos testes que não a usam. */
+    private val artefatos: ArmazemDeArtefatos? = null,
 ) {
     private val _estados = MutableStateFlow<Map<Int, EstadoDoDownload>>(emptyMap())
     val estados: StateFlow<Map<Int, EstadoDoDownload>> = _estados.asStateFlow()
@@ -165,6 +170,7 @@ class BaixadorDeLivros(
             runCatching { imagens.apagar(chave, ids) }
             runCatching { imagens.apagarCapa(chave, livroId) }
             runCatching { textos.apagarLivro(chave, livroId) }
+            runCatching { artefatos?.apagarLivro(chave, livroId) }
             runCatching { registro.apagar(chave, livroId) }
         }
         planejadas.remove(livroId)
@@ -211,6 +217,16 @@ class BaixadorDeLivros(
                 val bytes = runCatching { textos.gravar(chave, livroId, capitulo.capitulo_id, capitulo.texto) }.getOrNull()
                     ?: return falhou("Não consegui guardar o texto no aparelho.")
                 runCatching { indice.registrarTexto(chave, TextoGuardado(capitulo.capitulo_id, livroId, bytes)) }
+            }
+        }
+
+        // 1b. A lista de artefatos de cada capítulo (PL16): sem ela o texto não sabe onde pôr as imagens baixadas. Opcional: para na primeira que
+        // falha (servidor fora; as próximas só esperariam o tempo de conexão), e a conferência silenciosa do PL5 completa depois.
+        artefatos?.let { armazem ->
+            for (capitulo in lidos) {
+                if (!atualizar && runCatching { armazem.tem(chave, capitulo.capitulo_id) }.getOrDefault(false)) continue
+                val lista = fonte.artefatos(capitulo.capitulo_id) ?: break
+                runCatching { armazem.gravar(chave, livroId, capitulo.capitulo_id, lista) }
             }
         }
 

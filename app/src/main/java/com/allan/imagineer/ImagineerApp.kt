@@ -100,6 +100,11 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.local.ArmazemDeImagensEmArquivos(File(noBackupFilesDir, "imagens"))
     }
 
+    /** As listas de artefatos dos capítulos baixados (PL16): o que põe as imagens baixadas no texto sem rede. */
+    val armazemDeArtefatos: com.allan.imagineer.local.ArmazemDeArtefatos by lazy {
+        com.allan.imagineer.local.ArmazemDeArtefatosEmArquivos(File(noBackupFilesDir, "artefatos"))
+    }
+
     /** O carregador de imagens com o passo local antes da rede (PL2, regra A3). */
     override fun newImageLoader(context: coil3.PlatformContext): coil3.ImageLoader =
         coil3.ImageLoader.Builder(context)
@@ -162,6 +167,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
             registro = com.allan.imagineer.local.RegistroDeDownloadsPeloRoom(banco.dao()),
             rede = com.allan.imagineer.local.EstadoDaRedeDoAndroid(this),
             escopo = escopoDeFundo,
+            artefatos = armazemDeArtefatos,
         )
     }
 
@@ -212,7 +218,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
     }
 
     val repositorioDeArtefatos: RepositorioDeArtefatos by lazy {
-        RepositorioDeArtefatosPeloRetrofit(provedorDeApi)
+        RepositorioDeArtefatosPeloRetrofit(provedorDeApi, armazemDeArtefatos)
     }
 
     val repositorioDeElementos: RepositorioDeElementos by lazy {
