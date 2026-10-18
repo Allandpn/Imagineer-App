@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -1272,6 +1273,7 @@ internal fun BlocoDePrompts(
                         aoEscolherElementos = aoEscolherElementos,
                         aoCopiar = { area.setText(AnnotatedString(prompt.texto)) },
                         aoCompartilhar = { compartilharTexto(contexto, prompt.texto) },
+                        aoCopiarPortugues = { area.setText(AnnotatedString(it)) },
                     )
                 }
             }
@@ -1330,8 +1332,26 @@ private fun CartaoDePrompt(
     aoEscolherElementos: (() -> Unit)?,
     aoCopiar: () -> Unit,
     aoCompartilhar: () -> Unit,
+    /** Copia o texto em português (P5): o que se lê; o que vai à imagem segue sendo o inglês de [aoCopiar]. */
+    aoCopiarPortugues: (String) -> Unit = {},
 ) {
     var copiado by remember(prompt.id) { mutableStateOf(false) }
+    // PL20 (P5): o português é o que se vê primeiro. Sem tradução guardada, o cartão a pede **uma vez** ao servidor (modelo barato, guardada na
+    // hora: da segunda vez não gasta); sem servidor, ou se falhar, fica o inglês, sem erro.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
+    var traduzida by remember(prompt.id) { mutableStateOf<String?>(null) }
+    var traduzindo by remember(prompt.id) { mutableStateOf(false) }
+    var emIngles by remember(prompt.id) { mutableStateOf(false) }
+    val textoPt = prompt.texto_pt?.takeIf { it.isNotBlank() } ?: traduzida
+    LaunchedEffect(prompt.id, servidor) {
+        if (textoPt == null && !prompt.so_imagem && prompt.tipo == "IMAGEM" && prompt.texto.isNotBlank() && servidor) {
+            traduzindo = true
+            acoes.aoVerEmPortugues(prompt.id) { resultado ->
+                traduzindo = false
+                (resultado as? ResultadoDaChamada.Sucesso)?.let { traduzida = it.dado.texto }
+            }
+        }
+    }
     if (prompt.so_imagem) {
         // PI4: só guarda a imagem importada; não é um prompt (nada para copiar, editar nem gerar).
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -1347,7 +1367,17 @@ private fun CartaoDePrompt(
             // PN1: o número do prompt dentro do frame (1 = o mais antigo), para o botão de gerar poder citá-lo.
             Text("Prompt $numero", style = MaterialTheme.typography.titleSmall)
             EtiquetasDoPrompt(prompt)
-            SelectionContainer { Text(prompt.texto, style = MaterialTheme.typography.bodyMedium) }
+            if (textoPt != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !emIngles, onClick = { emIngles = false }, label = { Text("Português") })
+                    FilterChip(selected = emIngles, onClick = { emIngles = true }, label = { Text("Inglês (o que vai à imagem)") })
+                }
+            }
+            SelectionContainer { Text(if (textoPt != null && !emIngles) textoPt else prompt.texto, style = MaterialTheme.typography.bodyMedium) }
+            if (traduzindo) {
+                Text("Traduzindo para o português…", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             // AP5 (item 4.9): de onde veio; só o que valeu para este prompt, mesmo que a lista tenha mudado depois.
             linhaDaFicha(prompt.ficha)?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // EV14: as imagens que foram de referência na geração deste prompt.
@@ -1374,8 +1404,13 @@ private fun CartaoDePrompt(
                 )
                 BotaoDeIconeComDica(Icons.Filled.ContentCopy, "Copiar o prompt", { aoCopiar(); copiado = true })
                 BotaoDeIconeComDica(Icons.Filled.Share, "Compartilhar o prompt", aoCompartilhar)
-                // R1: editar o texto antes de gerar.
-                BotaoDeIconeComDica(Icons.Filled.Edit, "Editar o prompt", { acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) })
+                if (textoPt != null) BotaoDeIconeComDica(Icons.Filled.CopyAll, "Copiar o português", { aoCopiarPortugues(textoPt); copiado = true })
+                // R1: editar o texto antes de gerar. PL20: com o português à mão, a edição já abre nele (a pessoa edita em português e o app traduz).
+                BotaoDeIconeComDica(
+                    Icons.Filled.Edit,
+                    if (textoPt != null) "Editar o prompt em português" else "Editar o prompt",
+                    { if (textoPt != null) acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto) else acoes.aoEditarPrompt(frameId, prompt.id, prompt.texto) },
+                )
                 // VD14: ver o prompt em português (o mesmo diálogo da edição, já na aba Português).
                 BotaoDeIconeComDica(Icons.Filled.Translate, "Ver em português", { acoes.aoTraduzirPrompt(frameId, prompt.id, prompt.texto) })
             }
