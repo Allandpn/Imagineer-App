@@ -16,6 +16,9 @@ interface Conexao {
 /** O texto da etiqueta que aparece sem conexão (PL8). */
 const val ETIQUETA_SEM_CONEXAO = "Sem conexão · só leitura"
 
+/** A etiqueta do Modo offline (PL14c). */
+const val ETIQUETA_MODO_OFFLINE = "Modo offline · só leitura"
+
 /** Acompanha a rede do Android e avisa quando ela vai e volta. */
 class MonitorDeConexao(contexto: Context) : Conexao {
     private val gerente = contexto.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

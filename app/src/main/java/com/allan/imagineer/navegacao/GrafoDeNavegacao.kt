@@ -10,9 +10,12 @@ import com.allan.imagineer.telas.favoritos.TelaFavoritosDoLivro
 import com.allan.imagineer.telas.livro.TelaDestaquesDoLivro
 import com.allan.imagineer.telas.livro.TelaModelosDoLivro
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Surface
+import com.allan.imagineer.local.ETIQUETA_MODO_OFFLINE
 import com.allan.imagineer.local.ETIQUETA_SEM_CONEXAO
 import com.allan.imagineer.telas.menu.TelaArmazenamento
 import com.allan.imagineer.telas.livro.AlvoNoCapitulo
@@ -369,15 +372,38 @@ fun GrafoDeNavegacao() {
     }
     // PL8: sem conexão, uma etiqueta pequena no alto de qualquer tela; some quando a rede volta.
     val online by aplicacao.conexao.online.collectAsState()
+    val modoOffline by aplicacao.modoOffline.ativo.collectAsState()
+    val ofertaDoModoOffline by aplicacao.modoOffline.oferta.collectAsState()
     if (!online) {
         Surface(
             color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f),
             contentColor = MaterialTheme.colorScheme.inverseOnSurface,
             shape = androidx.compose.foundation.shape.CircleShape,
-            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 4.dp),
+            // PL14c: em modo offline, tocar na etiqueta sonda o servidor na hora.
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 4.dp)
+                .clickable(enabled = modoOffline) { aplicacao.modoOffline.verificarAgora() },
         ) {
-            Text(ETIQUETA_SEM_CONEXAO, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+            Text(
+                if (modoOffline) ETIQUETA_MODO_OFFLINE else ETIQUETA_SEM_CONEXAO,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+            )
         }
+    }
+    // PL14a: o servidor não respondeu; oferece o modo offline.
+    if (ofertaDoModoOffline) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { aplicacao.modoOffline.recusarOferta() },
+            title = { Text("Servidor indisponível") },
+            text = { Text("Quer usar o modo offline? Você lê os livros baixados, e o que depende do servidor fica desativado até ele voltar.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { aplicacao.modoOffline.entrar() }) { Text("Modo offline") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { aplicacao.modoOffline.recusarOferta() }) { Text("Agora não") } },
+        )
+    }
+    // PL14b: ao voltar para o app, confere se o servidor voltou; quando volta, avisa.
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { aplicacao.modoOffline.verificarAgora() }
+    LaunchedEffect(Unit) {
+        aplicacao.modoOffline.voltou.collect { avisos.showSnackbar("Servidor de volta.") }
     }
     // O aviso: centralizado, bem embaixo e translúcido, para não esconder o texto que se lê (feedback do Allan).
     SnackbarHost(

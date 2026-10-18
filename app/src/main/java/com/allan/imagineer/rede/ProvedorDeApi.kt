@@ -21,6 +21,8 @@ class ProvedorDeApi(
     private val armazenamento: ArmazenamentoDeConfiguracao,
     /** As chaves de IA da pessoa (AP2): vão em header a cada chamada. */
     private val cofre: com.allan.imagineer.dados.CofreDeChaves = com.allan.imagineer.dados.CofreEmMemoria(),
+    /** O Modo offline (PL14): ligado, as chamadas falham na hora; uma falha de conexão oferece o modo. Nulo nos testes. */
+    private val modoOffline: com.allan.imagineer.local.ModoOffline? = null,
 ) {
 
     private var urlEmUso: String? = null
@@ -36,7 +38,12 @@ class ProvedorDeApi(
     suspend fun emUso(): ServidorEmUso? {
         val url = armazenamento.urlDoServidor.first() ?: return null
         if (url != urlEmUso) {
-            apiEmUso = criarApi(url, chaves = cofre::chaves)
+            apiEmUso = criarApi(
+                url,
+                chaves = cofre::chaves,
+                modoOffline = { modoOffline?.ativo?.value == true },
+                aoFalharSemResposta = { modoOffline?.servidorSemResposta() },
+            )
             urlEmUso = url
         }
         return ServidorEmUso(apiEmUso!!, ChaveDoCache(servidor = url))

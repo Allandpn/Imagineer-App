@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Settings
@@ -17,13 +18,14 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
 /** Os itens da gaveta da biblioteca (MN2), na ordem em que aparecem. */
-enum class ItemDoMenu(val rotulo: String, val icone: ImageVector) {
+enum class ItemDoMenu(val rotulo: String, val icone: ImageVector, val valeSemServidor: Boolean = false) {
     PERFIL("Perfil", Icons.Filled.AccountCircle),
-    CONFIGURACOES("Configurações", Icons.Filled.Settings),
+    CONFIGURACOES("Configurações", Icons.Filled.Settings, valeSemServidor = true),
     LIXEIRA("Lixeira", Icons.Filled.Delete),
     CUSTOS("Custos", Icons.Filled.Payments),
     ESTATISTICAS("Estatísticas", Icons.Filled.Insights),
@@ -34,7 +36,11 @@ enum class ItemDoMenu(val rotulo: String, val icone: ImageVector) {
  * junto do Perfil e dos Custos. Escolher um item **fecha** a gaveta e abre a tela dele.
  */
 @Composable
-fun GavetaDaBiblioteca(aoEscolher: (ItemDoMenu) -> Unit) {
+fun GavetaDaBiblioteca(
+    modoOffline: Boolean = false,
+    aoAlternarModoOffline: () -> Unit = {},
+    aoEscolher: (ItemDoMenu) -> Unit,
+) {
     ModalDrawerSheet {
         Column(modifier = Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
@@ -50,13 +56,34 @@ fun GavetaDaBiblioteca(aoEscolher: (ItemDoMenu) -> Unit) {
             )
             HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
             ItemDoMenu.entries.forEach { item ->
+                // PL14c: em modo offline, o que só o servidor entrega fica apagado e não faz nada.
+                val vale = !modoOffline || item.valeSemServidor
                 NavigationDrawerItem(
                     label = { Text(item.rotulo) },
                     icon = { Icon(item.icone, contentDescription = null) },
                     selected = false,
-                    onClick = { aoEscolher(item) },
+                    onClick = { if (vale) aoEscolher(item) },
+                    modifier = Modifier.alpha(if (vale) 1f else 0.38f),
                 )
             }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            // PL14a: o interruptor manual. Ligado, desliga sozinho quando o servidor volta; tocar com ele ligado sonda o servidor agora.
+            NavigationDrawerItem(
+                label = {
+                    Column {
+                        Text("Modo offline")
+                        Text(
+                            if (modoOffline) "Só os livros baixados. Toque para conferir o servidor." else "Ler os livros baixados, sem esperar o servidor.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                icon = { Icon(Icons.Filled.CloudOff, contentDescription = null) },
+                badge = { androidx.compose.material3.Switch(checked = modoOffline, onCheckedChange = { aoAlternarModoOffline() }) },
+                selected = modoOffline,
+                onClick = aoAlternarModoOffline,
+            )
         }
     }
 }

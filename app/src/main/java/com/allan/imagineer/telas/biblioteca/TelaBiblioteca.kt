@@ -151,6 +151,10 @@ fun TelaBiblioteca(
     // usuário. Também cobre a primeira abertura.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.carregar() }
 
+    // PL14: entrar no modo offline ou voltar dele troca a lista (os Baixados ou a completa).
+    val modoOfflineDaLista by aplicacao.modoOffline.ativo.collectAsState()
+    LaunchedEffect(modoOfflineDaLista) { viewModel.carregar() }
+
     ConteudoDaBiblioteca(
         estado = estado,
         remocao = remocao,
@@ -247,7 +251,12 @@ fun ConteudoDaBiblioteca(
     ModalNavigationDrawer(
         drawerState = gaveta,
         drawerContent = {
-            GavetaDaBiblioteca { item ->
+            val aplicacaoDaGaveta = LocalContext.current.applicationContext as com.allan.imagineer.ImagineerApp
+            val modoOffline by aplicacaoDaGaveta.modoOffline.ativo.collectAsState()
+            GavetaDaBiblioteca(
+                modoOffline = modoOffline,
+                aoAlternarModoOffline = { if (modoOffline) aplicacaoDaGaveta.modoOffline.verificarAgora() else aplicacaoDaGaveta.modoOffline.entrar() },
+            ) { item ->
                 escopo.launch { gaveta.close() }
                 aoAbrirMenu(item)
             }

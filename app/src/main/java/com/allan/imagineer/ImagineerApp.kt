@@ -56,7 +56,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         com.allan.imagineer.dados.CofreDeChavesDoAndroid(File(noBackupFilesDir, "chaves_de_ia.properties"))
     }
 
-    private val provedorDeApi: ProvedorDeApi by lazy { ProvedorDeApi(armazenamento, cofreDeChaves) }
+    private val provedorDeApi: ProvedorDeApi by lazy { ProvedorDeApi(armazenamento, cofreDeChaves, modoOffline) }
 
     val repositorioDeContas: com.allan.imagineer.rede.RepositorioDeContas by lazy {
         com.allan.imagineer.rede.RepositorioDeContasPeloRetrofit(provedorDeApi)
@@ -72,8 +72,17 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
         ArmazemDeTextosEmArquivos(File(noBackupFilesDir, "textos"))
     }
 
-    /** Se o aparelho tem conexão (PL8). */
-    val conexao: com.allan.imagineer.local.MonitorDeConexao by lazy { com.allan.imagineer.local.MonitorDeConexao(this) }
+    private val redeDoAndroid: com.allan.imagineer.local.MonitorDeConexao by lazy { com.allan.imagineer.local.MonitorDeConexao(this) }
+
+    /** O Modo offline (PL14): oferecido quando o servidor não responde, desliga sozinho quando ele volta. */
+    val modoOffline: com.allan.imagineer.local.ModoOffline by lazy {
+        com.allan.imagineer.local.ModoOffline(com.allan.imagineer.local.SondaDoServidorPelaRede(armazenamento), escopoDeFundo)
+    }
+
+    /** Se há conexão (PL8): a rede do Android de pé **e** fora do Modo offline. */
+    val conexao: com.allan.imagineer.local.Conexao by lazy {
+        com.allan.imagineer.local.ConexaoEfetiva(redeDoAndroid, modoOffline, escopoDeFundo)
+    }
 
     /** A tela Armazenamento (PL10). */
     val gerenteDeArmazenamento: com.allan.imagineer.local.GerenteDeArmazenamento by lazy {

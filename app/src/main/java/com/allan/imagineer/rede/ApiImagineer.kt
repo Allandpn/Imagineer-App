@@ -750,6 +750,21 @@ internal fun interceptadorDasChavesDeIa(chaves: () -> Map<String, String>) = Int
     }
 }
 
+/**
+ * O **Modo offline** na rede (PL14): ligado, a chamada falha na hora, sem tocar a rede. Desligado, uma falha de conexão
+ * avisa [aoFalharSemResposta] (que oferece o modo). Chamada cancelada (a pessoa saiu da tela) e chamada longa de IA
+ * (que pede tempo de espera maior) não contam como "servidor fora".
+ */
+internal fun interceptadorDoModoOffline(offline: () -> Boolean, aoFalharSemResposta: () -> Unit) = Interceptor { cadeia ->
+    if (offline()) throw java.io.IOException("Modo offline.")
+    try {
+        cadeia.proceed(cadeia.request())
+    } catch (erro: java.io.IOException) {
+        if (!cadeia.call().isCanceled() && cadeia.request().header(CABECALHO_TEMPO_DE_ESPERA) == null) aoFalharSemResposta()
+        throw erro
+    }
+}
+
 /** O cabeçalho que uma chamada usa para pedir um tempo de espera de leitura maior. */
 const val CABECALHO_TEMPO_DE_ESPERA = "X-Timeout-Leitura"
 
@@ -778,7 +793,13 @@ internal val interceptadorDeTempoDeEspera = Interceptor { cadeia ->
  * @param urlBase sem barra final, como o app guarda; o Retrofit exige a barra e
  * ela é acrescentada aqui.
  */
-fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30, chaves: () -> Map<String, String> = { emptyMap() }): ApiImagineer {
+fun criarApi(
+    urlBase: String,
+    leituraPadraoEmSegundos: Long = 30,
+    chaves: () -> Map<String, String> = { emptyMap() },
+    modoOffline: () -> Boolean = { false },
+    aoFalharSemResposta: () -> Unit = {},
+): ApiImagineer {
     val cliente = OkHttpClient.Builder()
         // O servidor (uvicorn) fecha a conexão ociosa depois de 5 s. Se o app a guardasse mais que isso, o primeiro pedido depois de uma
         // pausa sairia por uma conexão já morta, e um corpo de uso único (importar imagem ou EPUB) não pode ser reenviado pelo OkHttp:
@@ -788,6 +809,7 @@ fun criarApi(urlBase: String, leituraPadraoEmSegundos: Long = 30, chaves: () -> 
         .readTimeout(leituraPadraoEmSegundos, TimeUnit.SECONDS)
         // O padrão (10 s por escrita) é curto para subir um EPUB numa conexão lenta.
         .writeTimeout(60, TimeUnit.SECONDS)
+        .addInterceptor(interceptadorDoModoOffline(modoOffline, aoFalharSemResposta))
         .addInterceptor(interceptadorDeTempoDeEspera)
         .addInterceptor(interceptadorDasChavesDeIa(chaves))
         .build()
