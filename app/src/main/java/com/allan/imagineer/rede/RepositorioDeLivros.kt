@@ -4,6 +4,7 @@ import com.allan.imagineer.dados.ArquivoEscolhido
 import com.allan.imagineer.dados.LeitorDeArquivos
 import com.allan.imagineer.local.ArmazemDeTextos
 import com.allan.imagineer.local.IndiceLocal
+import com.allan.imagineer.local.RegistroDeDownloads
 import com.allan.imagineer.local.melhorEsforco
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -78,11 +79,23 @@ class RepositorioDeLivrosPeloRetrofit(
     private val leitor: LeitorDeArquivos,
     private val indice: IndiceLocal,
     private val textos: ArmazemDeTextos,
+    private val downloads: RegistroDeDownloads,
 ) : RepositorioDeLivros {
 
+    /**
+     * Regra PL13: se o servidor nem respondeu (sem código HTTP), a Biblioteca mostra os livros
+     * Baixados do aparelho. Sem nenhum Baixado, vale a falha de sempre.
+     */
     override suspend fun listarLivros(): ResultadoDaChamada<List<LivroResumo>> {
-        val api = provedor.obter() ?: return provedor.semServidor()
-        return chamarApi { api.livros() }
+        val servidor = provedor.emUso() ?: return provedor.semServidor()
+        val resultado = chamarApi { servidor.api.livros() }
+        if (resultado !is ResultadoDaChamada.Falha || resultado.codigoHttp != null) return resultado
+
+        val baixados = melhorEsforco {
+            val ids = downloads.todos(servidor.chave).map { it.livroId }.toSet()
+            indice.livros(servidor.chave).filter { it.detalhe.id in ids }.map { it.detalhe.comoResumo() }
+        }
+        return if (baixados.isNullOrEmpty()) resultado else ResultadoDaChamada.Sucesso(baixados)
     }
 
     /**

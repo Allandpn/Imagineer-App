@@ -51,6 +51,7 @@ private class ImagensFalsas : ArmazemDeImagens {
 
 private class IndiceNulo : IndiceLocal {
     override suspend fun livro(chave: ChaveDoCache, livroId: Int): LivroGuardado? = null
+    override suspend fun livros(chave: ChaveDoCache): List<LivroGuardado> = emptyList()
     override suspend fun guardarLivro(chave: ChaveDoCache, detalhe: LivroDetalhe) {}
     override suspend fun texto(chave: ChaveDoCache, capituloId: Int): TextoGuardado? = null
     override suspend fun registrarTexto(chave: ChaveDoCache, texto: TextoGuardado) {}

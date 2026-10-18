@@ -2,6 +2,7 @@ package com.allan.imagineer.rede
 
 import com.allan.imagineer.local.ArmazemEmMemoria
 import com.allan.imagineer.local.ChaveDoCache
+import com.allan.imagineer.local.DownloadsEmMemoria
 import com.allan.imagineer.local.IndiceEmMemoria
 import com.allan.imagineer.local.TextoGuardado
 import com.allan.imagineer.dados.LeitorDeArquivos
@@ -26,6 +27,7 @@ class CopiaLocalDoLivroTest {
     private lateinit var servidor: MockWebServer
     private val indice = IndiceEmMemoria()
     private val textos = ArmazemEmMemoria()
+    private val downloads = DownloadsEmMemoria()
 
     private class LeitorNulo : LeitorDeArquivos {
         override fun descrever(uri: String): ArquivoEscolhido? = null
@@ -45,7 +47,7 @@ class CopiaLocalDoLivroTest {
     private fun urlDoServidor() = servidor.url("/").toString().trimEnd('/')
 
     private fun repositorio(url: String = urlDoServidor()) =
-        RepositorioDeLivrosPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(url)), LeitorNulo(), indice, textos)
+        RepositorioDeLivrosPeloRetrofit(ProvedorDeApi(ArmazenamentoComUrl(url)), LeitorNulo(), indice, textos, downloads)
 
     private fun chave(url: String = urlDoServidor()) = ChaveDoCache(url)
 
@@ -165,5 +167,45 @@ class CopiaLocalDoLivroTest {
 
         assertTrue(resultado is ResultadoDaChamada.Falha)
         assertTrue(indice.livro(chave(), 1) != null)
+    }
+
+    // --- PL13: a Biblioteca sem conexão ---
+
+    @Test
+    fun `sem conexao, a biblioteca lista so os livros baixados`() = runTest {
+        indice.guardarLivro(chave(URL_SEM_SERVIDOR), livroDeTeste(id = 1, titulo = "Baixado"))
+        indice.guardarLivro(chave(URL_SEM_SERVIDOR), livroDeTeste(id = 2, titulo = "So de passagem"))
+        downloads.guardar(chave(URL_SEM_SERVIDOR), com.allan.imagineer.local.DownloadGuardado(1, 0L, 0L, emptyList()))
+
+        val resultado = repositorio(URL_SEM_SERVIDOR).listarLivros()
+
+        val livros = (resultado as ResultadoDaChamada.Sucesso).dado
+        assertEquals(listOf("Baixado"), livros.map { it.titulo })
+        assertEquals(10, livros.single().total_de_caracteres) // só os capítulos ativos
+        assertEquals(false, livros.single().tem_capa)
+    }
+
+    @Test
+    fun `sem conexao e sem nenhum baixado, a falha de sempre`() = runTest {
+        indice.guardarLivro(chave(URL_SEM_SERVIDOR), livroDeTeste())
+
+        assertTrue(repositorio(URL_SEM_SERVIDOR).listarLivros() is ResultadoDaChamada.Falha)
+    }
+
+    @Test
+    fun `servidor que responde com erro nao cai na copia do aparelho`() = runTest {
+        indice.guardarLivro(chave(), livroDeTeste())
+        downloads.guardar(chave(), com.allan.imagineer.local.DownloadGuardado(1, 0L, 0L, emptyList()))
+        servidor.enqueue(MockResponse().setResponseCode(500))
+
+        assertTrue(repositorio().listarLivros() is ResultadoDaChamada.Falha)
+    }
+
+    @Test
+    fun `sem conexao e banco quebrado, a falha de sempre`() = runTest {
+        downloads.guardar(chave(URL_SEM_SERVIDOR), com.allan.imagineer.local.DownloadGuardado(1, 0L, 0L, emptyList()))
+        indice.quebrado = true
+
+        assertTrue(repositorio(URL_SEM_SERVIDOR).listarLivros() is ResultadoDaChamada.Falha)
     }
 }

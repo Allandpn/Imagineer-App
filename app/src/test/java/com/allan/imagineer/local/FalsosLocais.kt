@@ -20,6 +20,11 @@ class IndiceEmMemoria : IndiceLocal {
         return livros[chave.identificador to livroId]
     }
 
+    override suspend fun livros(chave: ChaveDoCache): List<LivroGuardado> {
+        conferir()
+        return livros.filterKeys { it.first == chave.identificador }.values.toList()
+    }
+
     override suspend fun guardarLivro(chave: ChaveDoCache, detalhe: LivroDetalhe) {
         conferir()
         livros[chave.identificador to detalhe.id] = LivroGuardado(detalhe.revisao, detalhe)
@@ -57,5 +62,19 @@ class ArmazemEmMemoria : ArmazemDeTextos {
 
     override suspend fun apagarLivro(chave: ChaveDoCache, livroId: Int) {
         arquivos.keys.removeAll { it.first == chave.identificador && it.second == livroId }
+    }
+}
+
+/** O registro de livros Baixados em memória (PL13). */
+class DownloadsEmMemoria(vararg baixados: Int) : RegistroDeDownloads {
+    val linhas = baixados.associateWith { DownloadGuardado(it, 0L, 0L, emptyList()) }.toMutableMap()
+    var quebrado = false
+
+    override suspend fun baixado(chave: ChaveDoCache, livroId: Int) = linhas[livroId]
+    override suspend fun guardar(chave: ChaveDoCache, download: DownloadGuardado) { linhas[download.livroId] = download }
+    override suspend fun apagar(chave: ChaveDoCache, livroId: Int) { linhas.remove(livroId) }
+    override suspend fun todos(chave: ChaveDoCache): List<DownloadGuardado> {
+        if (quebrado) throw IllegalStateException("banco corrompido")
+        return linhas.values.toList()
     }
 }

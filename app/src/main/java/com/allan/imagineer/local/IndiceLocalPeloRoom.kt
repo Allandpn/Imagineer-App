@@ -21,6 +21,15 @@ class IndiceLocalPeloRoom(
         return LivroGuardado(linha.revisao, detalhe)
     }
 
+    override suspend fun livros(chave: ChaveDoCache): List<LivroGuardado> =
+        dao.livros(chave.identificador).mapNotNull { linha ->
+            try {
+                LivroGuardado(linha.revisao, jsonDoImagineer.decodeFromString<LivroDetalhe>(linha.detalheJson))
+            } catch (erro: SerializationException) {
+                null // formato antigo (L8): este livro vale como "não tenho"
+            }
+        }
+
     override suspend fun guardarLivro(chave: ChaveDoCache, detalhe: LivroDetalhe) {
         dao.guardarLivro(
             LivroLocal(

@@ -23,6 +23,9 @@ interface IndiceLocal {
     /** O livro guardado, ou `null` se nunca foi visto neste servidor. */
     suspend fun livro(chave: ChaveDoCache, livroId: Int): LivroGuardado?
 
+    /** Todos os livros guardados deste servidor (PL13: a Biblioteca sem conexão). */
+    suspend fun livros(chave: ChaveDoCache): List<LivroGuardado>
+
     /** Guarda (ou substitui) o livro visto. */
     suspend fun guardarLivro(chave: ChaveDoCache, detalhe: LivroDetalhe)
 

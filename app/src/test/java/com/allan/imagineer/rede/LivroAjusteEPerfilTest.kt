@@ -2,6 +2,7 @@ package com.allan.imagineer.rede
 
 import com.allan.imagineer.dados.ArmazenamentoDeConfiguracao
 import com.allan.imagineer.local.ArmazemEmMemoria
+import com.allan.imagineer.local.DownloadsEmMemoria
 import com.allan.imagineer.local.IndiceEmMemoria
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -137,7 +138,7 @@ class RepositoriosDoIncremento7PelaRedeTest {
     fun `limpar o idioma chega ao servidor como null, e nao como campo ausente`() = runTest {
         servidor.enqueue(MockResponse().setResponseCode(200).setBody(livroJson))
 
-        RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria())
+        RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria(), DownloadsEmMemoria())
             .ajustarLivro(1, LivroAjuste(limparIdioma = true))
 
         val pedido = servidor.takeRequest()
@@ -150,7 +151,7 @@ class RepositoriosDoIncremento7PelaRedeTest {
     fun `limpar o perfil padrao chega ao servidor como null`() = runTest {
         servidor.enqueue(MockResponse().setResponseCode(200).setBody(livroJson))
 
-        RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria())
+        RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria(), DownloadsEmMemoria())
             .ajustarLivro(1, LivroAjuste(limparPerfilPadrao = true))
 
         assertEquals("""{"perfil_renderizacao_padrao_id":null}""", servidor.takeRequest().body.readUtf8())
@@ -193,7 +194,7 @@ class RepositoriosDoIncremento7PelaRedeTest {
                 .setBody("""{"detail":"Não existe perfil de renderização com id 99."}"""),
         )
 
-        val resultado = RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria())
+        val resultado = RepositorioDeLivrosPeloRetrofit(provedor(), LeitorNulo(), IndiceEmMemoria(), ArmazemEmMemoria(), DownloadsEmMemoria())
             .ajustarLivro(1, LivroAjuste(perfil_renderizacao_padrao_id = 99))
 
         assertEquals(

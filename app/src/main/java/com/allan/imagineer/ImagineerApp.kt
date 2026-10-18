@@ -101,7 +101,10 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
     private val escopoDeFundo = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val repositorioDeLivros: RepositorioDeLivros by lazy {
-        RepositorioDeLivrosPeloRetrofit(provedorDeApi, leitorDeArquivos, indiceLocal, armazemDeTextos)
+        RepositorioDeLivrosPeloRetrofit(
+            provedorDeApi, leitorDeArquivos, indiceLocal, armazemDeTextos,
+            com.allan.imagineer.local.RegistroDeDownloadsPeloRoom(banco.dao()),
+        )
     }
 
     val repositorioDeCapitulos: RepositorioDeCapitulos by lazy {

@@ -144,3 +144,21 @@ data class CapituloAjuste(
     /** `true` marca como lido, `false` desmarca (LE1). */
     val lido: Boolean? = null,
 )
+
+/**
+ * O cartão do livro na Biblioteca, montado só com o que o aparelho guarda (PL13). Sem capa,
+ * favorito nem última abertura: isso só o servidor sabe.
+ */
+fun LivroDetalhe.comoResumo(): LivroResumo = LivroResumo(
+    id = id,
+    titulo = titulo,
+    autor = autor,
+    idioma = idioma,
+    nome_arquivo = nome_arquivo,
+    data_importacao = data_importacao,
+    total_de_capitulos = total_de_capitulos,
+    capitulos_ignorados = capitulos_ignorados,
+    capitulos_lidos = capitulos_lidos,
+    total_de_caracteres = capitulos.filter { !it.ignorado }.sumOf { it.tamanho_do_texto },
+    revisao = revisao,
+)
