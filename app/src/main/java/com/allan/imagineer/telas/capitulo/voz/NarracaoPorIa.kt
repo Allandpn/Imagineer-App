@@ -124,7 +124,8 @@ class NarracaoPorIaViewModel(
         viewModelScope.launch {
             when (val r = repositorio.estado(capituloId)) {
                 is ResultadoDaChamada.Sucesso -> { _estado.update { it.copy(audio = r.dado) }; acompanharSeGerando(r.dado) }
-                is ResultadoDaChamada.Falha -> _estado.update { it.copy(aviso = r.motivo) }
+                // Consulta de fundo, feita sozinha a cada capítulo: sem servidor não há o que dizer (só as ações pedidas avisam).
+                is ResultadoDaChamada.Falha -> Unit
             }
         }
     }
@@ -246,7 +247,9 @@ fun ControleDeNarracaoPorIa(
     )
     val estado by viewModel.estado.collectAsState()
     // Só o capítulo na frente consulta: a página vizinha, montada por baixo, não precisa.
-    LaunchedEffect(capituloId, ativa) { if (ativa) viewModel.consultar() }
+    // PL14d: sem servidor, nem consulta.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
+    LaunchedEffect(capituloId, ativa, servidor) { if (ativa && servidor) viewModel.consultar() }
     LaunchedEffect(estado.aviso) {
         estado.aviso?.let { Toast.makeText(contexto, it, Toast.LENGTH_LONG).show(); viewModel.avisoLido() }
     }

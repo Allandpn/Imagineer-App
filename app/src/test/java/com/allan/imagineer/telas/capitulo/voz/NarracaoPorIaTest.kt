@@ -202,6 +202,16 @@ class NarracaoPorIaViewModelTest {
     }
 
     @Test
+    fun consultar_sem_servidor_nao_avisa_nada() = runTest {
+        val falso = NarracaoFalsa().also { it.estados = mutableListOf(ResultadoDaChamada.Falha("Não consegui falar com o servidor.")) }
+        val vm = vm(falso)
+
+        vm.consultar(); advanceUntilIdle()
+
+        assertEquals(null, vm.estado.value.aviso) // é consulta de fundo: o aviso a cada capítulo incomodava (PL14d)
+    }
+
+    @Test
     fun abrir_gerar_traz_a_estimativa_e_o_dialogo() = runTest {
         val vm = vm(NarracaoFalsa())
 
