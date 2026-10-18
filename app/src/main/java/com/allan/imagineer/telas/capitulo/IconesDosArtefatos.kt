@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -120,7 +121,13 @@ fun SeloDoArtefato(artefato: Artefato, modifier: Modifier = Modifier) {
 /** O selo tocável de um artefato; tocar leva ao item no painel de IA. */
 @Composable
 fun IconeDoArtefato(artefato: Artefato, aoTocar: (Artefato) -> Unit, modifier: Modifier = Modifier) {
-    IconButton(onClick = { aoTocar(artefato) }, modifier = modifier.size(32.dp).semantics { contentDescription = descreverArtefato(artefato) }) {
+    // PL19: tocar leva ao painel de IA, que é do servidor; sem ele o selo fica apagado.
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
+    IconButton(
+        onClick = { aoTocar(artefato) },
+        enabled = servidor,
+        modifier = modifier.size(32.dp).alpha(if (servidor) 1f else 0.38f).semantics { contentDescription = descreverArtefato(artefato) },
+    ) {
         SeloDoArtefato(artefato, Modifier.size(28.dp))
     }
 }

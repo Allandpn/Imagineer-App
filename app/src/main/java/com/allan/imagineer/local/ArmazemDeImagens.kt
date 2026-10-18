@@ -30,6 +30,12 @@ interface ArmazemDeImagens {
 
     /** Apaga a capa guardada do livro, de qualquer revisão (PL15). */
     suspend fun apagarCapa(chave: ChaveDoCache, livroId: Int) {}
+
+    /**
+     * A capa mais recente guardada do livro, **de qualquer revisão**, ou `null` (PL19). Serve sem conexão: o livro pode ter ganhado revisão depois do
+     * download (qualquer mudança sobe a revisão) sem que a capa mudasse, e uma capa um pouco velha vale mais que nenhuma. Síncrono, como [arquivo].
+     */
+    fun qualquerCapa(chave: ChaveDoCache, livroId: Int): File? = null
 }
 
 /** O "tamanho" sob o qual a capa do livro é guardada: leva a revisão, para uma capa trocada no servidor não ser servida velha (PL15). */
@@ -73,6 +79,10 @@ class ArmazemDeImagensEmArquivos(
     override suspend fun tamanhoEmBytes(chave: ChaveDoCache, imagemIds: Collection<Int>): Long = withContext(contexto) {
         imagemIds.sumOf { id -> TAMANHOS_DE_IMAGEM.sumOf { tamanho -> arquivo(chave, id, tamanho)?.length() ?: 0L } }
     }
+
+    override fun qualquerCapa(chave: ChaveDoCache, livroId: Int): File? =
+        pasta(chave).listFiles { arquivo -> arquivo.name.startsWith("$livroId-capa-") && arquivo.isFile && arquivo.length() > 0 }
+            ?.maxByOrNull { it.lastModified() }
 
     override suspend fun apagarCapa(chave: ChaveDoCache, livroId: Int) {
         withContext(contexto) {

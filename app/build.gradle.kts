@@ -15,8 +15,8 @@ android {
         applicationId = "com.allan.imagineer"
         minSdk = 31
         targetSdk = 37
-        versionCode = 9
-        versionName = "1.8"
+        versionCode = 10
+        versionName = "1.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

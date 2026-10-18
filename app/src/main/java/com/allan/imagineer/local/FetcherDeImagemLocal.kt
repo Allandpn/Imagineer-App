@@ -24,11 +24,27 @@ class FetcherDeImagemLocal(private val arquivo: File) : Fetcher {
         dataSource = DataSource.DISK,
     )
 
-    class Factory(private val armazem: ArmazemDeImagens) : Fetcher.Factory<Uri> {
+    class Factory(
+        private val armazem: ArmazemDeImagens,
+        /** Sem conexão (PL19), a capa de qualquer revisão vale; com conexão só a da revisão pedida, para uma capa trocada não aparecer velha. */
+        private val semConexao: () -> Boolean = { false },
+    ) : Fetcher.Factory<Uri> {
         override fun create(data: Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
-            // A capa do livro (PL15) entra pelo mesmo caminho: o "tamanho" dela é o da revisão pedida.
-            val alvo = analisarEnderecoDeImagem(data.toString()) ?: analisarEnderecoDeCapa(data.toString()) ?: return null
-            val arquivo = armazem.arquivo(ChaveDoCache(servidor = alvo.servidor), alvo.imagemId, alvo.tamanho) ?: return null
+            val endereco = data.toString()
+            val chave: ChaveDoCache
+            val arquivo: File?
+            val daImagem = analisarEnderecoDeImagem(endereco)
+            if (daImagem != null) {
+                chave = ChaveDoCache(servidor = daImagem.servidor)
+                arquivo = armazem.arquivo(chave, daImagem.imagemId, daImagem.tamanho)
+            } else {
+                // A capa do livro (PL15) entra pelo mesmo caminho: o "tamanho" dela é o da revisão pedida.
+                val daCapa = analisarEnderecoDeCapa(endereco) ?: return null
+                chave = ChaveDoCache(servidor = daCapa.servidor)
+                arquivo = armazem.arquivo(chave, daCapa.imagemId, daCapa.tamanho)
+                    ?: if (semConexao()) armazem.qualquerCapa(chave, daCapa.imagemId) else null
+            }
+            if (arquivo == null) return null
             return FetcherDeImagemLocal(arquivo)
         }
     }

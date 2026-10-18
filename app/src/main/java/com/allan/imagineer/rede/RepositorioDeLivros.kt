@@ -96,7 +96,8 @@ class RepositorioDeLivrosPeloRetrofit(
         val baixados = melhorEsforco {
             val ids = downloads.todos(servidor.chave).map { it.livroId }.toSet()
             indice.livros(servidor.chave).filter { it.detalhe.id in ids }.map {
-                val temCapa = imagens?.arquivo(servidor.chave, it.detalhe.id, com.allan.imagineer.local.tamanhoDaCapa(it.detalhe.revisao)) != null
+                // Offline vale a capa de qualquer revisão (PL19): o livro pode ter ganhado revisão sem a capa mudar.
+                val temCapa = imagens?.qualquerCapa(servidor.chave, it.detalhe.id) != null
                 it.detalhe.comoResumo(temCapa)
             }
         }

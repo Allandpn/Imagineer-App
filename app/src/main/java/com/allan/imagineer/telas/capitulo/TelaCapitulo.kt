@@ -1285,7 +1285,7 @@ private fun LeitorDeTexto(
                                     Text(artefato.rotulo, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f, fill = false))
                                     // PM1: a sugestão guarda a posição; o frame sem sugestão (cena de um trecho) guarda a dele. Um pin, sem texto.
                                     if (artefato.sugestao_id != null || artefato.frame_id != null) {
-                                        BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { aoIniciarPosicionamento(artefato) }, cor = MaterialTheme.colorScheme.primary)
+                                        BotaoDeIcone(Icons.Filled.Place, ROTULO_POSICIONAR, aoTocar = { aoIniciarPosicionamento(artefato) }, cor = MaterialTheme.colorScheme.primary, habilitado = servidor)
                                     }
                                 }
                             }

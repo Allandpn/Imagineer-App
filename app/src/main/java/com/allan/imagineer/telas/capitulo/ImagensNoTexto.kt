@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
@@ -145,11 +146,14 @@ internal const val ETIQUETA_DO_NOME = "nome:"
 /** Um selo de artefato dentro da linha de texto (SE1): o glifo do tipo em branco, o fundo da situação, tocável (leva ao painel). */
 @Composable
 private fun IconeNaLinha(artefato: Artefato, aoTocar: (Artefato) -> Unit) {
+    // PL19: sem servidor o selo fica apagado e não responde (o painel de IA é do servidor).
+    val servidor = com.allan.imagineer.telas.comum.temServidor()
     SeloDoArtefato(
         artefato = artefato,
         modifier = Modifier
             .fillMaxSize()
-            .clickable(onClickLabel = "Abrir no painel de IA") { aoTocar(artefato) }
+            .alpha(if (servidor) 1f else 0.38f)
+            .clickable(enabled = servidor, onClickLabel = "Abrir no painel de IA") { aoTocar(artefato) }
             .semantics { contentDescription = descreverArtefato(artefato) },
     )
 }

@@ -113,7 +113,7 @@ class ImagineerApp : Application(), coil3.SingletonImageLoader.Factory {
     /** O carregador de imagens com o passo local antes da rede (PL2, regra A3). */
     override fun newImageLoader(context: coil3.PlatformContext): coil3.ImageLoader =
         coil3.ImageLoader.Builder(context)
-            .components { add(com.allan.imagineer.local.FetcherDeImagemLocal.Factory(armazemDeImagens)) }
+            .components { add(com.allan.imagineer.local.FetcherDeImagemLocal.Factory(armazemDeImagens, semConexao = { !conexao.online.value })) }
             .build()
 
     /** Vive tanto quanto o app: o adiantamento do próximo capítulo não pode morrer com a tela. */

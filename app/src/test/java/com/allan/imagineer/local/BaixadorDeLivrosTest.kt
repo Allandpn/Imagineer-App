@@ -169,6 +169,18 @@ class BaixadorDeLivrosTest {
     }
 
     @Test
+    fun sem_conexao_vale_a_capa_de_qualquer_revisao_do_livro() = runTest {
+        val armazem = armazem()
+        assertNull(armazem.qualquerCapa(CHAVE, 5))
+
+        armazem.gravar(CHAVE, 5, tamanhoDaCapa(3)) { it.writeBytes(byteArrayOf(1, 2)); true }
+        armazem.gravar(CHAVE, 6, tamanhoDaCapa(1)) { it.writeBytes(byteArrayOf(9)); true }
+
+        assertNull(armazem.arquivo(CHAVE, 5, tamanhoDaCapa(4))) // a revisão pedida não existe...
+        assertEquals(2L, armazem.qualquerCapa(CHAVE, 5)!!.length()) // ...mas há uma capa do livro 5, e só dele
+    }
+
+    @Test
     fun livro_sem_capa_baixa_normalmente() = runTest {
         val fonte = FonteFalsa().also { it.ficha = com.allan.imagineer.rede.livroDeTeste(id = 5); it.temCapa = false }
         val baixador = BaixadorDeLivros(fonte, TextosEmMemoria(), IndiceVazio(), armazem(), RegistroEmMemoria(), { tipoDeRede }, this, agora = { 1234L })
